@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X } from 'lucide-react';
+import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X, Lock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -32,7 +32,15 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { validarLancamentoCesta, formatCurrency, formatDate } from '@/lib/expense-validation';
+import { 
+  validarLancamentoCesta, 
+  formatCurrency, 
+  formatDate, 
+  validarPeriodoLancamento,
+  validarOrigemDespesa,
+  verificarBloqueioAposLimite,
+  gerarHashComprovante 
+} from '@/lib/expense-validation';
 
 interface Expense {
   id: string;
@@ -54,7 +62,7 @@ interface Expense {
 interface ExpenseType {
   id: string;
   nome: string;
-  origemPermitida: string[];
+  origemPermitida: ('proprio' | 'conjuge' | 'filhos')[];
 }
 
 interface CalendarPeriod {
@@ -71,6 +79,12 @@ interface Colaborador {
   cestaBeneficiosTeto: number;
 }
 
+const originLabels: Record<string, string> = {
+  proprio: 'Próprio (Colaborador)',
+  conjuge: 'Cônjuge',
+  filhos: 'Filhos',
+};
+
 const Lancamentos = () => {
   const { toast } = useToast();
   const { user, hasRole } = useAuth();
@@ -83,11 +97,12 @@ const Lancamentos = () => {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [existingAttachmentHashes, setExistingAttachmentHashes] = useState<Set<string>>(new Set());
 
   // Form state
   const [formPeriodoId, setFormPeriodoId] = useState('');
   const [formTipoDespesaId, setFormTipoDespesaId] = useState('');
-  const [formOrigem, setFormOrigem] = useState('proprio');
+  const [formOrigem, setFormOrigem] = useState<'proprio' | 'conjuge' | 'filhos'>('proprio');
   const [formValor, setFormValor] = useState('');
   const [formDescricao, setFormDescricao] = useState('');
   const [formFile, setFormFile] = useState<File | null>(null);
@@ -97,12 +112,47 @@ const Lancamentos = () => {
   const [cestaTeto, setCestaTeto] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [percentualUsado, setPercentualUsado] = useState(0);
+  const [bloqueadoPorUltimoLancamento, setBloqueadoPorUltimoLancamento] = useState(false);
+  const [periodoValidation, setPeriodoValidation] = useState<{
+    permitido: boolean;
+    periodoDestino: 'atual' | 'proximo' | 'bloqueado';
+    periodoDestinoId?: string;
+    mensagem: string;
+  } | null>(null);
 
   const currentPeriod = periods.find((p) => p.status === 'aberto');
+  const nextPeriod = periods.find((p, idx) => {
+    const currentIdx = periods.findIndex(pp => pp.status === 'aberto');
+    return currentIdx >= 0 && idx === currentIdx - 1;
+  });
 
   useEffect(() => {
     fetchData();
   }, [user]);
+
+  // Validate period on load
+  useEffect(() => {
+    if (currentPeriod) {
+      const validation = validarPeriodoLancamento(
+        new Date(),
+        {
+          id: currentPeriod.id,
+          periodo: currentPeriod.periodo,
+          abreLancamento: currentPeriod.abreLancamento,
+          fechaLancamento: currentPeriod.fechaLancamento,
+          status: currentPeriod.status,
+        },
+        nextPeriod ? {
+          id: nextPeriod.id,
+          periodo: nextPeriod.periodo,
+          abreLancamento: nextPeriod.abreLancamento,
+          fechaLancamento: nextPeriod.fechaLancamento,
+          status: nextPeriod.status,
+        } : null
+      );
+      setPeriodoValidation(validation);
+    }
+  }, [currentPeriod, nextPeriod]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -135,7 +185,7 @@ const Lancamentos = () => {
       setExpenseTypes(typesData.map(t => ({
         id: t.id,
         nome: t.nome,
-        origemPermitida: t.origem_permitida as string[],
+        origemPermitida: t.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],
       })));
     }
 
@@ -155,7 +205,7 @@ const Lancamentos = () => {
       })));
     }
 
-    // Fetch expenses - RH/Financeiro see all, colaborador sees their own
+    // Fetch expenses
     let query = supabase
       .from('lancamentos')
       .select(`
@@ -195,14 +245,32 @@ const Lancamentos = () => {
 
       setExpenses(mapped);
 
-      // Calculate total used for current period
-      if (colabData && currentPeriod) {
-        const usado = mapped
-          .filter(e => e.colaboradorId === colabData.id && e.periodoId === currentPeriod.id)
-          .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      // Calculate total used for current period and check blocking
+      const openPeriod = periodsData?.find(p => p.status === 'aberto');
+      if (colabData && openPeriod) {
+        const periodExpenses = mapped.filter(e => e.colaboradorId === colabData.id && e.periodoId === openPeriod.id);
+        const usado = periodExpenses.reduce((sum, e) => sum + e.valorConsiderado, 0);
         setTotalUsado(usado);
         setSaldoDisponivel(Number(colabData.cesta_beneficios_teto) - usado);
         setPercentualUsado((usado / Number(colabData.cesta_beneficios_teto)) * 100);
+
+        // Check if blocked after last entry
+        const bloqueio = verificarBloqueioAposLimite(
+          periodExpenses.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
+        );
+        setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
+      }
+    }
+
+    // Fetch existing attachment hashes to detect duplicates
+    if (colabData) {
+      const { data: anexos } = await supabase
+        .from('anexos')
+        .select('nome_arquivo, tamanho');
+      
+      if (anexos) {
+        const hashes = new Set(anexos.map(a => gerarHashComprovante(a.nome_arquivo, a.tamanho)));
+        setExistingAttachmentHashes(hashes);
       }
     }
 
@@ -307,7 +375,7 @@ const Lancamentos = () => {
     setSelectedExpense(expense);
     setFormPeriodoId(expense.periodoId);
     setFormTipoDespesaId(expense.tipoDespesaId);
-    setFormOrigem(expense.origem);
+    setFormOrigem(expense.origem as 'proprio' | 'conjuge' | 'filhos');
     setFormValor(expense.valorLancado.toString());
     setFormDescricao(expense.descricaoFatoGerador);
     setIsViewMode(false);
@@ -331,8 +399,40 @@ const Lancamentos = () => {
   };
 
   const handleNew = () => {
+    // Check period validation
+    if (periodoValidation && !periodoValidation.permitido) {
+      toast({ 
+        title: 'Período não disponível', 
+        description: periodoValidation.mensagem, 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    // Check if blocked after limit exceeded
+    if (bloqueadoPorUltimoLancamento) {
+      toast({ 
+        title: 'Limite atingido', 
+        description: 'Você já fez um lançamento que ultrapassou o limite. Não é possível fazer novos lançamentos neste período.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    // Check if already at limit
+    if (saldoDisponivel <= 0) {
+      toast({ 
+        title: 'Limite atingido', 
+        description: 'Você já atingiu o limite da Cesta de Benefícios para este período.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setSelectedExpense(null);
-    setFormPeriodoId(currentPeriod?.id || '');
+    // Use the correct period based on validation
+    const targetPeriodId = periodoValidation?.periodoDestinoId || currentPeriod?.id || '';
+    setFormPeriodoId(targetPeriodId);
     setFormTipoDespesaId('');
     setFormOrigem('proprio');
     setFormValor('');
@@ -352,6 +452,29 @@ const Lancamentos = () => {
     if (isNaN(valorLancado) || valorLancado <= 0) {
       toast({ title: 'Erro', description: 'Informe um valor válido.', variant: 'destructive' });
       return;
+    }
+
+    // Validate origin
+    const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
+    if (selectedType) {
+      const origemValidation = validarOrigemDespesa(formOrigem, selectedType.origemPermitida);
+      if (!origemValidation.valido) {
+        toast({ title: 'Origem inválida', description: origemValidation.mensagem, variant: 'destructive' });
+        return;
+      }
+    }
+
+    // Check for duplicate attachment
+    if (formFile) {
+      const hash = gerarHashComprovante(formFile.name, formFile.size);
+      if (existingAttachmentHashes.has(hash)) {
+        toast({ 
+          title: 'Comprovante duplicado', 
+          description: 'Este comprovante já foi utilizado em outro lançamento. Cada nota fiscal/recibo só pode ser lançado uma vez.', 
+          variant: 'destructive' 
+        });
+        return;
+      }
     }
 
     // Validate against limits
@@ -377,13 +500,15 @@ const Lancamentos = () => {
         colaborador_id: colaborador.id,
         periodo_id: formPeriodoId,
         tipo_despesa_id: formTipoDespesaId,
-        origem: formOrigem as 'proprio' | 'conjuge' | 'filhos',
+        origem: formOrigem,
         valor_lancado: valorLancado,
         valor_considerado: validation.valorConsiderado,
         valor_nao_considerado: validation.valorNaoConsiderado,
         descricao_fato_gerador: formDescricao,
-        status: status as 'rascunho' | 'enviado',
+        status: status,
       };
+
+      let lancamentoId: string;
 
       if (selectedExpense) {
         const { error } = await supabase
@@ -392,12 +517,39 @@ const Lancamentos = () => {
           .eq('id', selectedExpense.id);
 
         if (error) throw error;
+        lancamentoId = selectedExpense.id;
       } else {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('lancamentos')
-          .insert([lancamentoData]);
+          .insert([lancamentoData])
+          .select('id')
+          .single();
 
         if (error) throw error;
+        lancamentoId = data.id;
+      }
+
+      // Upload attachment if provided
+      if (formFile && lancamentoId) {
+        const fileExt = formFile.name.split('.').pop();
+        const filePath = `${colaborador.id}/${lancamentoId}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('comprovantes')
+          .upload(filePath, formFile);
+
+        if (uploadError) {
+          console.error('Error uploading file:', uploadError);
+        } else {
+          // Create attachment record
+          await supabase.from('anexos').insert({
+            lancamento_id: lancamentoId,
+            nome_arquivo: formFile.name,
+            storage_path: filePath,
+            tamanho: formFile.size,
+            tipo_arquivo: formFile.type || 'application/octet-stream',
+          });
+        }
       }
 
       toast({
@@ -412,6 +564,9 @@ const Lancamentos = () => {
     }
   };
 
+  const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
+  const canCreateNew = colaborador && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -420,16 +575,18 @@ const Lancamentos = () => {
     );
   }
 
-  const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
-
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Lançamentos de Despesas"
         description={`Período atual: ${currentPeriod?.periodo || 'N/A'}`}
       >
-        <Button onClick={handleNew} disabled={!colaborador}>
-          <Plus className="mr-2 h-4 w-4" />
+        <Button onClick={handleNew} disabled={!canCreateNew}>
+          {!canCreateNew && bloqueadoPorUltimoLancamento ? (
+            <Lock className="mr-2 h-4 w-4" />
+          ) : (
+            <Plus className="mr-2 h-4 w-4" />
+          )}
           Novo Lançamento
         </Button>
       </PageHeader>
@@ -444,10 +601,39 @@ const Lancamentos = () => {
         </Alert>
       )}
 
+      {/* Period validation alert */}
+      {periodoValidation && !periodoValidation.permitido && (
+        <Alert variant="destructive">
+          <Lock className="h-4 w-4" />
+          <AlertTitle>Período Bloqueado</AlertTitle>
+          <AlertDescription>{periodoValidation.mensagem}</AlertDescription>
+        </Alert>
+      )}
+
+      {periodoValidation && periodoValidation.periodoDestino === 'proximo' && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Redirecionamento de Período</AlertTitle>
+          <AlertDescription>{periodoValidation.mensagem}</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Blocked after limit exceeded */}
+      {bloqueadoPorUltimoLancamento && (
+        <Alert variant="destructive">
+          <Lock className="h-4 w-4" />
+          <AlertTitle>Lançamentos Bloqueados</AlertTitle>
+          <AlertDescription>
+            Você já fez um lançamento que ultrapassou o limite da Cesta de Benefícios. 
+            Não é possível fazer novos lançamentos neste período.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Summary Cards */}
       {colaborador && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
+          <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 Cesta de Benefícios
@@ -464,6 +650,11 @@ const Lancamentos = () => {
                   <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
                   <span>Teto: {formatCurrency(cestaTeto)}</span>
                 </div>
+                {bloqueadoPorUltimoLancamento && (
+                  <p className="text-xs text-destructive font-medium mt-2">
+                    Bloqueado - Limite ultrapassado
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -493,7 +684,9 @@ const Lancamentos = () => {
                 {currentPeriod && formatDate(currentPeriod.abreLancamento)} -{' '}
                 {currentPeriod && formatDate(currentPeriod.fechaLancamento)}
               </p>
-              <p className="text-xs text-success">Período aberto para lançamentos</p>
+              <p className={`text-xs ${periodoValidation?.permitido ? 'text-success' : 'text-destructive'}`}>
+                {periodoValidation?.permitido ? 'Período aberto para lançamentos' : 'Período fechado'}
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -549,18 +742,21 @@ const Lancamentos = () => {
                 {isViewMode ? (
                   <p className="font-medium">{selectedExpense?.periodo}</p>
                 ) : (
-                  <Select value={formPeriodoId} onValueChange={setFormPeriodoId}>
+                  <Select value={formPeriodoId} onValueChange={setFormPeriodoId} disabled>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {periods.filter(p => p.status === 'aberto').map((period) => (
+                      {periods.map((period) => (
                         <SelectItem key={period.id} value={period.id}>
                           {period.periodo}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                )}
+                {!isViewMode && periodoValidation?.periodoDestino === 'proximo' && (
+                  <p className="text-xs text-warning">Lançamento será registrado no próximo período</p>
                 )}
               </div>
 
@@ -569,7 +765,14 @@ const Lancamentos = () => {
                 {isViewMode ? (
                   <p className="font-medium">{selectedExpense?.tipoDespesaNome}</p>
                 ) : (
-                  <Select value={formTipoDespesaId} onValueChange={setFormTipoDespesaId}>
+                  <Select value={formTipoDespesaId} onValueChange={(value) => {
+                    setFormTipoDespesaId(value);
+                    // Reset origin to first allowed when type changes
+                    const type = expenseTypes.find(t => t.id === value);
+                    if (type && !type.origemPermitida.includes(formOrigem)) {
+                      setFormOrigem(type.origemPermitida[0]);
+                    }
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
                     </SelectTrigger>
@@ -593,22 +796,36 @@ const Lancamentos = () => {
                     {{ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[selectedExpense?.origem || ''] || selectedExpense?.origem}
                   </p>
                 ) : (
-                  <Select value={formOrigem} onValueChange={setFormOrigem}>
+                  <Select 
+                    value={formOrigem} 
+                    onValueChange={(value) => setFormOrigem(value as 'proprio' | 'conjuge' | 'filhos')}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="proprio" disabled={selectedType && !selectedType.origemPermitida.includes('proprio')}>
-                        Próprio (Colaborador)
-                      </SelectItem>
-                      <SelectItem value="conjuge" disabled={selectedType && !selectedType.origemPermitida.includes('conjuge')}>
-                        Cônjuge
-                      </SelectItem>
-                      <SelectItem value="filhos" disabled={selectedType && !selectedType.origemPermitida.includes('filhos')}>
-                        Filhos
-                      </SelectItem>
+                      {(['proprio', 'conjuge', 'filhos'] as const).map((origem) => {
+                        const isAllowed = !selectedType || selectedType.origemPermitida.includes(origem);
+                        return (
+                          <SelectItem 
+                            key={origem} 
+                            value={origem} 
+                            disabled={!isAllowed}
+                          >
+                            {originLabels[origem]}
+                            {!isAllowed && ' (não permitida)'}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
+                )}
+                {!isViewMode && selectedType && (
+                  <p className="text-xs text-muted-foreground">
+                    Origens permitidas: {selectedType.origemPermitida.map(o => 
+                      ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[o])
+                    ).join(', ')}
+                  </p>
                 )}
               </div>
 
@@ -654,6 +871,9 @@ const Lancamentos = () => {
                   <p className="text-xs text-muted-foreground">
                     Formatos aceitos: PDF, XLSX, DOC, DOCX, PNG, JPG (máx. 5MB)
                   </p>
+                  <p className="text-xs text-warning mt-1">
+                    ⚠️ Cada comprovante só pode ser utilizado uma vez
+                  </p>
                   <Input
                     type="file"
                     className="hidden"
@@ -674,7 +894,6 @@ const Lancamentos = () => {
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground">O comprovante será enviado após salvar o lançamento.</p>
               </div>
             )}
 

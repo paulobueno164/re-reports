@@ -16,6 +16,21 @@ interface ValidationResult {
   tipo: 'success' | 'warning' | 'error';
 }
 
+interface PeriodoValidationResult {
+  permitido: boolean;
+  periodoDestino: 'atual' | 'proximo' | 'bloqueado';
+  periodoDestinoId?: string;
+  mensagem: string;
+}
+
+interface CalendarPeriodInfo {
+  id: string;
+  periodo: string;
+  abreLancamento: Date;
+  fechaLancamento: Date;
+  status: string;
+}
+
 /**
  * Valida um lançamento de despesa contra os limites da Cesta de Benefícios
  * 
@@ -77,6 +92,25 @@ export function validarLancamentoCesta(params: LancamentoValidation): Validation
 }
 
 /**
+ * Verifica se já houve um lançamento que ultrapassou o limite (bloqueio após último lançamento)
+ */
+export function verificarBloqueioAposLimite(
+  lancamentosNoPeriodo: { valorNaoConsiderado: number }[]
+): { bloqueado: boolean; mensagem: string } {
+  // Verifica se existe algum lançamento com valor_nao_considerado > 0
+  const temLancamentoQueUltrapassou = lancamentosNoPeriodo.some(l => l.valorNaoConsiderado > 0);
+  
+  if (temLancamentoQueUltrapassou) {
+    return {
+      bloqueado: true,
+      mensagem: 'Você já fez um lançamento que ultrapassou o limite da Cesta de Benefícios. Não é possível fazer novos lançamentos neste período.',
+    };
+  }
+  
+  return { bloqueado: false, mensagem: '' };
+}
+
+/**
  * Calcula a diferença não utilizada da Cesta de Benefícios que será convertida em PI/DA
  * 
  * Regra: Se usado < limite, a diferença vai automaticamente para PI/DA (tributável)
@@ -95,42 +129,64 @@ export function calcularDiferencaPida(
  * Valida se o período está aberto para lançamentos
  * 
  * Regras:
- * - Lançamentos permitidos entre dias 11-20 do mês
- * - Antes do dia 11: bloqueado
- * - Após dia 20: vai para próximo mês automaticamente
+ * - Lançamentos permitidos entre dias 11-20 do mês (conforme calendário)
+ * - Antes do dia de abertura: bloqueado
+ * - Após dia de fechamento: vai para próximo mês automaticamente
  */
 export function validarPeriodoLancamento(
   dataAtual: Date,
-  abreLancamento: Date,
-  fechaLancamento: Date
-): { permitido: boolean; periodoDestino: 'atual' | 'proximo'; mensagem: string } {
+  periodoAtual: CalendarPeriodInfo | null,
+  proximoPeriodo: CalendarPeriodInfo | null
+): PeriodoValidationResult {
+  // Se não há período atual, bloqueia
+  if (!periodoAtual) {
+    return {
+      permitido: false,
+      periodoDestino: 'bloqueado',
+      mensagem: 'Não há período configurado para lançamentos.',
+    };
+  }
+
   const agora = dataAtual.getTime();
-  const abertura = abreLancamento.getTime();
-  const fechamento = fechaLancamento.getTime();
+  const abertura = periodoAtual.abreLancamento.getTime();
+  const fechamento = periodoAtual.fechaLancamento.getTime();
+  // Adiciona 23:59:59 ao fechamento para incluir o dia inteiro
+  const fechamentoFimDoDia = fechamento + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
   
-  // Antes da abertura
+  // Antes da abertura - BLOQUEADO
   if (agora < abertura) {
     return {
       permitido: false,
-      periodoDestino: 'atual',
-      mensagem: `O período de lançamento ainda não está aberto. Abertura: ${formatDate(abreLancamento)}`,
+      periodoDestino: 'bloqueado',
+      mensagem: `O período de lançamento ainda não está aberto. Abertura: ${formatDate(periodoAtual.abreLancamento)}`,
     };
   }
   
-  // Dentro do período
-  if (agora >= abertura && agora <= fechamento) {
+  // Dentro do período - PERMITE PARA PERÍODO ATUAL
+  if (agora >= abertura && agora <= fechamentoFimDoDia) {
     return {
       permitido: true,
       periodoDestino: 'atual',
-      mensagem: `Período aberto para lançamentos até ${formatDate(fechaLancamento)}`,
+      periodoDestinoId: periodoAtual.id,
+      mensagem: `Período aberto para lançamentos até ${formatDate(periodoAtual.fechaLancamento)}`,
     };
   }
   
-  // Após o fechamento - direciona para próximo mês
+  // Após o fechamento - REDIRECIONA PARA PRÓXIMO MÊS
+  if (proximoPeriodo) {
+    return {
+      permitido: true,
+      periodoDestino: 'proximo',
+      periodoDestinoId: proximoPeriodo.id,
+      mensagem: `Período atual fechado. Seu lançamento será registrado no período ${proximoPeriodo.periodo}.`,
+    };
+  }
+  
+  // Não há próximo período configurado
   return {
-    permitido: true,
-    periodoDestino: 'proximo',
-    mensagem: `Período atual fechado. Seu lançamento será registrado no próximo período.`,
+    permitido: false,
+    periodoDestino: 'bloqueado',
+    mensagem: 'Período atual fechado e não há próximo período configurado.',
   };
 }
 
@@ -140,8 +196,28 @@ export function validarPeriodoLancamento(
 export function validarOrigemDespesa(
   origem: 'proprio' | 'conjuge' | 'filhos',
   origensPermitidas: ('proprio' | 'conjuge' | 'filhos')[]
-): boolean {
-  return origensPermitidas.includes(origem);
+): { valido: boolean; mensagem: string } {
+  if (!origensPermitidas.includes(origem)) {
+    const labelOrigem: Record<string, string> = {
+      proprio: 'Próprio',
+      conjuge: 'Cônjuge',
+      filhos: 'Filhos',
+    };
+    const permitidasLabels = origensPermitidas.map(o => labelOrigem[o]).join(', ');
+    return {
+      valido: false,
+      mensagem: `Origem "${labelOrigem[origem]}" não é permitida para este tipo de despesa. Origens permitidas: ${permitidasLabels}`,
+    };
+  }
+  return { valido: true, mensagem: '' };
+}
+
+/**
+ * Gera hash simplificado para detecção de duplicidade de comprovantes
+ * Usa: nome do arquivo + tamanho
+ */
+export function gerarHashComprovante(nomeArquivo: string, tamanho: number): string {
+  return `${nomeArquivo.toLowerCase().trim()}_${tamanho}`;
 }
 
 // Helpers
