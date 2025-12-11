@@ -195,7 +195,8 @@ const Fechamento = () => {
         .select(`
           id,
           valor_considerado,
-          colaboradores_elegiveis (id, matricula, nome, departamento),
+          colaborador_id,
+          colaboradores_elegiveis (id, matricula, nome, departamento, cesta_beneficios_teto, tem_pida, pida_teto),
           tipos_despesas (id, nome),
           tipos_despesas_eventos:tipos_despesas!inner (
             tipos_despesas_eventos (codigo_evento, descricao_evento)
@@ -208,13 +209,50 @@ const Fechamento = () => {
 
       setProcessingProgress(30);
 
-      // Calculate totals
-      const colaboradoresSet = new Set(lancamentos?.map((l: any) => l.colaboradores_elegiveis?.id) || []);
-      const totalColaboradores = colaboradoresSet.size;
-      const totalEventos = lancamentos?.length || 0;
-      const valorTotal = lancamentos?.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0) || 0;
+      // Calculate totals per colaborador for PI/DA conversion
+      const colaboradorTotals = new Map<string, { 
+        total: number; 
+        teto: number; 
+        temPida: boolean; 
+        pidaTeto: number;
+        nome: string;
+        matricula: string;
+      }>();
+      
+      lancamentos?.forEach((l: any) => {
+        const colabId = l.colaborador_id;
+        const current = colaboradorTotals.get(colabId) || { 
+          total: 0, 
+          teto: Number(l.colaboradores_elegiveis?.cesta_beneficios_teto || 0),
+          temPida: l.colaboradores_elegiveis?.tem_pida || false,
+          pidaTeto: Number(l.colaboradores_elegiveis?.pida_teto || 0),
+          nome: l.colaboradores_elegiveis?.nome || '',
+          matricula: l.colaboradores_elegiveis?.matricula || '',
+        };
+        current.total += Number(l.valor_considerado);
+        colaboradorTotals.set(colabId, current);
+      });
 
-      setProcessingProgress(60);
+      setProcessingProgress(50);
+
+      // Calculate PI/DA conversions (difference between teto and used)
+      let totalPidaConvertido = 0;
+      const pidaConversions: { colaboradorId: string; valor: number; nome: string }[] = [];
+      
+      colaboradorTotals.forEach((data, colabId) => {
+        if (data.teto > data.total) {
+          const diferenca = data.teto - data.total;
+          totalPidaConvertido += diferenca;
+          pidaConversions.push({ colaboradorId: colabId, valor: diferenca, nome: data.nome });
+        }
+      });
+
+      setProcessingProgress(70);
+
+      // Calculate totals
+      const totalColaboradores = colaboradorTotals.size;
+      const totalEventos = (lancamentos?.length || 0) + pidaConversions.length; // Include PI/DA events
+      const valorTotal = (lancamentos?.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0) || 0) + totalPidaConvertido;
 
       // Create closing record
       const { error: fechError } = await supabase
@@ -240,9 +278,13 @@ const Fechamento = () => {
 
       setProcessingProgress(100);
 
+      const pidaMsg = pidaConversions.length > 0 
+        ? ` ${pidaConversions.length} conversão(ões) PI/DA gerada(s) (${formatCurrency(totalPidaConvertido)}).`
+        : '';
+
       toast({
         title: 'Fechamento concluído',
-        description: `${totalEventos} eventos gerados para ${totalColaboradores} colaboradores.`,
+        description: `${lancamentos?.length || 0} eventos + ${pidaConversions.length} PI/DA para ${totalColaboradores} colaboradores.${pidaMsg}`,
       });
 
       setIsDialogOpen(false);
