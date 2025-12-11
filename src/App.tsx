@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DashboardRH from "./pages/DashboardRH";
+import KPIsDashboard from "./pages/KPIsDashboard";
 import Colaboradores from "./pages/Colaboradores";
 import TiposDespesas from "./pages/TiposDespesas";
 import Calendario from "./pages/Calendario";
@@ -77,6 +78,11 @@ const App = () => (
               <Route path="/auditoria" element={
                 <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
                   <HistoricoAuditoria />
+                </ProtectedRoute>
+              } />
+              <Route path="/kpis" element={
+                <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
+                  <KPIsDashboard />
                 </ProtectedRoute>
               } />
             </Route>

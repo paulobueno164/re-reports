@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Download, Loader2, FileText } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
+import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 
 interface Colaborador {
   id: string;
@@ -551,6 +552,58 @@ const Colaboradores = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center justify-between">
                   Simulação da Remuneração Estratégica
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const simulationData = {
+                          colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
+                          componentes: [
+                            { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
+                            { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
+                            { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
+                            { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
+                            { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                          ],
+                          rendimentoTotal: calculateRendimentoTotal(),
+                        };
+                        generateSimulationPDF(simulationData);
+                        toast({ title: 'PDF gerado', description: 'Simulação exportada com sucesso.' });
+                      }}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const simulationData = {
+                          colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
+                          componentes: [
+                            { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
+                            { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
+                            { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
+                            { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
+                            { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                          ],
+                          rendimentoTotal: calculateRendimentoTotal(),
+                        };
+                        exportSimulationToExcel(simulationData);
+                        toast({ title: 'Excel gerado', description: 'Simulação exportada com sucesso.' });
+                      }}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Excel
+                    </Button>
+                  </div>
                 </CardTitle>
               </CardHeader>
               <CardContent>
