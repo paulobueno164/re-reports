@@ -1,16 +1,18 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-interface EmailRequest {
-  to: string;
-  subject: string;
-  html: string;
-}
+// Input validation schema
+const emailSchema = z.object({
+  to: z.string().email({ message: "Invalid email address" }).max(255, { message: "Email too long" }),
+  subject: z.string().min(1, { message: "Subject required" }).max(200, { message: "Subject too long" }),
+  html: z.string().min(1, { message: "HTML content required" }).max(100000, { message: "HTML content too large" }),
+});
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -18,7 +20,22 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, html }: EmailRequest = await req.json();
+    const body = await req.json();
+    
+    // Validate input
+    const validated = emailSchema.safeParse(body);
+    if (!validated.success) {
+      console.error("Validation error:", validated.error.errors);
+      return new Response(
+        JSON.stringify({ error: "Invalid input", details: validated.error.errors }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    const { to, subject, html } = validated.data;
 
     console.log(`Sending email to ${to} with subject: ${subject}`);
 
