@@ -13,6 +13,8 @@ import {
   BarChart3,
   Settings,
   LogOut,
+  Activity,
+  History,
 } from 'lucide-react';
 
 interface NavItem {
@@ -27,6 +29,12 @@ const navigation: NavItem[] = [
     label: 'Dashboard',
     href: '/',
     icon: <LayoutDashboard className="w-5 h-5" />,
+  },
+  {
+    label: 'Dashboard RH',
+    href: '/dashboard-rh',
+    icon: <Activity className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Colaboradores',
@@ -73,6 +81,12 @@ const navigation: NavItem[] = [
     label: 'Relatórios',
     href: '/relatorios',
     icon: <BarChart3 className="w-5 h-5" />,
+  },
+  {
+    label: 'Auditoria',
+    href: '/auditoria',
+    icon: <History className="w-5 h-5" />,
+    roles: ['RH', 'FINANCEIRO'],
   },
 ];
 

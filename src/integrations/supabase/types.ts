@@ -52,6 +52,48 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          entity_description: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          metadata: Json | null
+          new_values: Json | null
+          old_values: Json | null
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          entity_description?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          entity_description?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          metadata?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       calendario_periodos: {
         Row: {
           abre_lancamento: string
