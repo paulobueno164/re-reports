@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock, Send } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -51,6 +52,8 @@ interface Expense {
   status: string;
   createdAt: Date;
   motivoInvalidacao?: string;
+  tempoEmAnalise?: string;
+  horasEmAnalise?: number;
 }
 
 const originLabels: Record<string, string> = {
@@ -81,7 +84,7 @@ const Validacao = () => {
   const [filterValueMax, setFilterValueMax] = useState('');
   const [departments, setDepartments] = useState<string[]>([]);
 
-  const [stats, setStats] = useState({ enviado: 0, emAnalise: 0, approvedToday: 0, rejectedToday: 0 });
+  const [stats, setStats] = useState({ enviado: 0, emAnalise: 0, approvedToday: 0, rejectedToday: 0, slaViolations: 0 });
 
   useEffect(() => {
     fetchExpenses();
@@ -113,28 +116,55 @@ const Validacao = () => {
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } else if (data) {
-      const mapped = data.map((e: any) => ({
-        id: e.id,
-        colaboradorNome: e.colaboradores_elegiveis?.nome || '',
-        tipoDespesaNome: e.tipos_despesas?.nome || '',
-        departamento: e.colaboradores_elegiveis?.departamento || '',
-        origem: e.origem,
-        valorLancado: Number(e.valor_lancado),
-        valorConsiderado: Number(e.valor_considerado),
-        valorNaoConsiderado: Number(e.valor_nao_considerado),
-        descricaoFatoGerador: e.descricao_fato_gerador,
-        status: e.status,
-        createdAt: new Date(e.created_at),
-        motivoInvalidacao: e.motivo_invalidacao,
-      }));
+      const now = new Date();
+      const mapped = data.map((e: any) => {
+        const createdAt = new Date(e.created_at);
+        const diffMs = now.getTime() - createdAt.getTime();
+        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffDays = Math.floor(diffHours / 24);
+        const remainingHours = diffHours % 24;
+        
+        let tempoEmAnalise = '';
+        if (diffDays > 0) {
+          tempoEmAnalise = `${diffDays}d ${remainingHours}h`;
+        } else {
+          tempoEmAnalise = `${diffHours}h`;
+        }
+
+        return {
+          id: e.id,
+          colaboradorNome: e.colaboradores_elegiveis?.nome || '',
+          tipoDespesaNome: e.tipos_despesas?.nome || '',
+          departamento: e.colaboradores_elegiveis?.departamento || '',
+          origem: e.origem,
+          valorLancado: Number(e.valor_lancado),
+          valorConsiderado: Number(e.valor_considerado),
+          valorNaoConsiderado: Number(e.valor_nao_considerado),
+          descricaoFatoGerador: e.descricao_fato_gerador,
+          status: e.status,
+          createdAt,
+          motivoInvalidacao: e.motivo_invalidacao,
+          tempoEmAnalise,
+          horasEmAnalise: diffHours,
+        };
+      });
+      
+      // Sort by oldest first (longer waiting time)
+      mapped.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      
       setExpenses(mapped);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      
+      const pendingItems = mapped.filter((e) => e.status === 'enviado' || e.status === 'em_analise');
+      const slaViolations = pendingItems.filter((e) => (e.horasEmAnalise || 0) > 48).length;
+      
       setStats({
         enviado: mapped.filter((e) => e.status === 'enviado').length,
         emAnalise: mapped.filter((e) => e.status === 'em_analise').length,
         approvedToday: mapped.filter((e) => e.status === 'valido' && new Date(e.createdAt) >= today).length,
         rejectedToday: mapped.filter((e) => e.status === 'invalido' && new Date(e.createdAt) >= today).length,
+        slaViolations,
       });
     }
     setLoading(false);
@@ -160,6 +190,13 @@ const Validacao = () => {
     }
   };
 
+  const getTempoColor = (hours: number) => {
+    if (hours > 72) return 'text-destructive font-semibold animate-pulse';
+    if (hours > 48) return 'text-destructive';
+    if (hours > 24) return 'text-warning';
+    return 'text-success';
+  };
+
   const columns = [
     {
       key: 'select',
@@ -178,6 +215,17 @@ const Validacao = () => {
       key: 'createdAt',
       header: 'Data',
       render: (item: Expense) => formatDate(item.createdAt),
+    },
+    {
+      key: 'tempoEmAnalise',
+      header: 'Tempo',
+      render: (item: Expense) => (
+        (item.status === 'enviado' || item.status === 'em_analise') ? (
+          <span className={getTempoColor(item.horasEmAnalise || 0)}>
+            {item.tempoEmAnalise}
+          </span>
+        ) : null
+      ),
     },
     { key: 'colaboradorNome', header: 'Colaborador' },
     { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
@@ -409,6 +457,17 @@ const Validacao = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* SLA Alert */}
+      {stats.slaViolations > 0 && (
+        <Alert variant="destructive" className="animate-pulse">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Alerta de SLA</AlertTitle>
+          <AlertDescription>
+            {stats.slaViolations} despesa(s) estão há mais de 48h sem validação. Priorize a análise desses itens.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Search and Filters */}
       <div className="space-y-4">
