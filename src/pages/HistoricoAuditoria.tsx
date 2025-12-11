@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { History, Search, Filter, CheckCircle, XCircle, Plus, Trash2, Edit, Loader2 } from 'lucide-react';
+import { History, Search, Filter, CheckCircle, XCircle, Plus, Trash2, Edit, Loader2, Download } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/expense-validation';
+import { exportAuditLogsToExcel } from '@/lib/audit-export';
+import { toast } from 'sonner';
 
 interface AuditLog {
   id: string;
@@ -102,12 +104,32 @@ const HistoricoAuditoria = () => {
     );
   }
 
+  const handleExportExcel = () => {
+    if (filteredLogs.length === 0) {
+      toast.error('Não há registros para exportar');
+      return;
+    }
+    
+    exportAuditLogsToExcel(filteredLogs, {
+      action: filterAction,
+      entity: filterEntity,
+    });
+    
+    toast.success(`Exportados ${filteredLogs.length} registros de auditoria`);
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Histórico de Auditoria"
-        description="Rastreie todas as ações de aprovação e rejeição de despesas"
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Histórico de Auditoria"
+          description="Rastreie todas as ações de aprovação e rejeição de despesas"
+        />
+        <Button onClick={handleExportExcel} className="gap-2">
+          <Download className="h-4 w-4" />
+          Exportar Excel
+        </Button>
+      </div>
 
       {/* Filters */}
       <Card>
