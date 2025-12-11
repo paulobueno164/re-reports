@@ -1,5 +1,6 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -12,15 +13,13 @@ import {
   BarChart3,
   Settings,
   LogOut,
-  ChevronDown,
 } from 'lucide-react';
-import { useState } from 'react';
 
 interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  children?: { label: string; href: string }[];
+  roles?: ('FINANCEIRO' | 'COLABORADOR' | 'RH')[];
 }
 
 const navigation: NavItem[] = [
@@ -33,21 +32,25 @@ const navigation: NavItem[] = [
     label: 'Colaboradores',
     href: '/colaboradores',
     icon: <Users className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Tipos de Despesas',
     href: '/tipos-despesas',
     icon: <FileText className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Calendário',
     href: '/calendario',
     icon: <Calendar className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Eventos Folha',
     href: '/eventos-folha',
     icon: <Link2 className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Lançamentos',
@@ -58,11 +61,13 @@ const navigation: NavItem[] = [
     label: 'Validação',
     href: '/validacao',
     icon: <CheckSquare className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Fechamento',
     href: '/fechamento',
     icon: <FileSpreadsheet className="w-5 h-5" />,
+    roles: ['RH', 'FINANCEIRO'],
   },
   {
     label: 'Relatórios',
@@ -73,15 +78,18 @@ const navigation: NavItem[] = [
 
 export function Sidebar() {
   const location = useLocation();
-  const [expandedItems, setExpandedItems] = useState<string[]>([]);
+  const navigate = useNavigate();
+  const { signOut, hasRole, roles } = useAuth();
 
-  const toggleExpanded = (label: string) => {
-    setExpandedItems((prev) =>
-      prev.includes(label)
-        ? prev.filter((item) => item !== label)
-        : [...prev, label]
-    );
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
+
+  const filteredNavigation = navigation.filter((item) => {
+    if (!item.roles) return true;
+    return item.roles.some((role) => hasRole(role));
+  });
 
   return (
     <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
@@ -97,59 +105,34 @@ export function Sidebar() {
           </div>
         </div>
 
+        {/* Role Badge */}
+        <div className="px-6 py-3 border-b border-sidebar-border">
+          <div className="flex flex-wrap gap-1">
+            {roles.map((role) => (
+              <span
+                key={role}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary"
+              >
+                {role}
+              </span>
+            ))}
+          </div>
+        </div>
+
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
-            {navigation.map((item) => (
+            {filteredNavigation.map((item) => (
               <li key={item.href}>
-                {item.children ? (
-                  <div>
-                    <button
-                      onClick={() => toggleExpanded(item.label)}
-                      className={cn(
-                        'nav-link w-full justify-between',
-                        location.pathname.startsWith(item.href) && 'bg-sidebar-accent'
-                      )}
-                    >
-                      <span className="flex items-center gap-3">
-                        {item.icon}
-                        {item.label}
-                      </span>
-                      <ChevronDown
-                        className={cn(
-                          'w-4 h-4 transition-transform',
-                          expandedItems.includes(item.label) && 'rotate-180'
-                        )}
-                      />
-                    </button>
-                    {expandedItems.includes(item.label) && (
-                      <ul className="mt-1 ml-8 space-y-1">
-                        {item.children.map((child) => (
-                          <li key={child.href}>
-                            <NavLink
-                              to={child.href}
-                              className={({ isActive }) =>
-                                cn('nav-link text-sm', isActive && 'nav-link-active')
-                              }
-                            >
-                              {child.label}
-                            </NavLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ) : (
-                  <NavLink
-                    to={item.href}
-                    className={({ isActive }) =>
-                      cn('nav-link', isActive && 'nav-link-active')
-                    }
-                  >
-                    {item.icon}
-                    {item.label}
-                  </NavLink>
-                )}
+                <NavLink
+                  to={item.href}
+                  className={({ isActive }) =>
+                    cn('nav-link', isActive && 'nav-link-active')
+                  }
+                >
+                  {item.icon}
+                  {item.label}
+                </NavLink>
               </li>
             ))}
           </ul>
@@ -161,7 +144,10 @@ export function Sidebar() {
             <Settings className="w-5 h-5" />
             Configurações
           </button>
-          <button className="nav-link w-full text-sidebar-foreground/60 hover:text-destructive">
+          <button
+            onClick={handleLogout}
+            className="nav-link w-full text-sidebar-foreground/60 hover:text-destructive"
+          >
             <LogOut className="w-5 h-5" />
             Sair
           </button>

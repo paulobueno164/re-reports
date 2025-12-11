@@ -11,12 +11,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface HeaderProps {
   title?: string;
 }
 
 export function Header({ title }: HeaderProps) {
+  const { user, signOut, roles } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
+  const getInitials = (email: string) => {
+    return email.substring(0, 2).toUpperCase();
+  };
+
+  const getPrimaryRole = () => {
+    if (roles.includes('RH')) return 'RH';
+    if (roles.includes('FINANCEIRO')) return 'Financeiro';
+    return 'Colaborador';
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-card px-6">
       <div className="flex items-center gap-4">
@@ -53,12 +73,6 @@ export function Header({ title }: HeaderProps) {
                 Há despesas aguardando sua validação
               </span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="flex flex-col items-start gap-1 py-3">
-              <span className="font-medium">Período 12/2025 aberto</span>
-              <span className="text-xs text-muted-foreground">
-                Faltam 9 dias para o fechamento
-              </span>
-            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -68,12 +82,12 @@ export function Header({ title }: HeaderProps) {
             <Button variant="ghost" className="gap-2 px-2">
               <Avatar className="h-8 w-8">
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-                  RC
+                  {user ? getInitials(user.email || '') : 'U'}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden md:flex flex-col items-start">
-                <span className="text-sm font-medium">Rita Couto</span>
-                <span className="text-xs text-muted-foreground">RH</span>
+                <span className="text-sm font-medium">{user?.email}</span>
+                <span className="text-xs text-muted-foreground">{getPrimaryRole()}</span>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -84,7 +98,7 @@ export function Header({ title }: HeaderProps) {
               <User className="mr-2 h-4 w-4" />
               Perfil
             </DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               Sair
             </DropdownMenuItem>
           </DropdownMenuContent>
