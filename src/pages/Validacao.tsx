@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer';
+import { BatchApprovalPanel } from '@/components/validation/BatchApprovalPanel';
 
 interface Expense {
   id: string;
@@ -61,6 +63,7 @@ const Validacao = () => {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Stats
   const [stats, setStats] = useState({
@@ -135,7 +138,28 @@ const Validacao = () => {
       exp.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleSelectionChange = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds([...selectedIds, id]);
+    } else {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    }
+  };
+
   const columns = [
+    {
+      key: 'select',
+      header: '',
+      className: 'w-10',
+      render: (item: Expense) =>
+        (item.status === 'enviado' || item.status === 'em_analise') ? (
+          <Checkbox
+            checked={selectedIds.includes(item.id)}
+            onCheckedChange={(checked) => handleSelectionChange(item.id, !!checked)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        ) : null,
+    },
     {
       key: 'createdAt',
       header: 'Data',
@@ -339,6 +363,17 @@ const Validacao = () => {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Batch Approval Panel */}
+      <BatchApprovalPanel
+        expenses={filteredExpenses}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        onComplete={() => {
+          setSelectedIds([]);
+          fetchExpenses();
+        }}
+      />
 
       {/* Table */}
       <DataTable
