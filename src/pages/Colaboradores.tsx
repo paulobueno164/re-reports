@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, Eye, Download, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
@@ -25,23 +24,111 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { mockEmployees, formatCurrency, departments } from '@/lib/mock-data';
-import { EligibleEmployee } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { formatCurrency } from '@/lib/expense-validation';
+
+interface Colaborador {
+  id: string;
+  matricula: string;
+  nome: string;
+  email: string;
+  departamento: string;
+  salarioBase: number;
+  valeAlimentacao: number;
+  valeRefeicao: number;
+  ajudaCusto: number;
+  mobilidade: number;
+  transporte: number;
+  cestaBeneficiosTeto: number;
+  temPida: boolean;
+  pidaTeto: number;
+  ativo: boolean;
+}
+
+const departments = [
+  'Tecnologia da Informação',
+  'Financeiro',
+  'Recursos Humanos',
+  'Marketing',
+  'Comercial',
+  'Operações',
+  'Jurídico',
+];
 
 const Colaboradores = () => {
   const { toast } = useToast();
-  const [employees, setEmployees] = useState<EligibleEmployee[]>(mockEmployees);
+  const [employees, setEmployees] = useState<Colaborador[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartamento, setFilterDepartamento] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState<EligibleEmployee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Colaborador | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const filteredEmployees = employees.filter(
-    (emp) =>
+  // Form state
+  const [formData, setFormData] = useState({
+    matricula: '',
+    nome: '',
+    email: '',
+    departamento: '',
+    salarioBase: 0,
+    valeAlimentacao: 0,
+    valeRefeicao: 0,
+    ajudaCusto: 0,
+    mobilidade: 0,
+    transporte: 0,
+    cestaBeneficiosTeto: 0,
+    temPida: false,
+    pidaTeto: 0,
+    ativo: true,
+  });
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('colaboradores_elegiveis')
+      .select('*')
+      .order('nome');
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else if (data) {
+      setEmployees(
+        data.map((e) => ({
+          id: e.id,
+          matricula: e.matricula,
+          nome: e.nome,
+          email: e.email,
+          departamento: e.departamento,
+          salarioBase: Number(e.salario_base),
+          valeAlimentacao: Number(e.vale_alimentacao),
+          valeRefeicao: Number(e.vale_refeicao),
+          ajudaCusto: Number(e.ajuda_custo),
+          mobilidade: Number(e.mobilidade),
+          transporte: Number(e.transporte),
+          cestaBeneficiosTeto: Number(e.cesta_beneficios_teto),
+          temPida: e.tem_pida,
+          pidaTeto: Number(e.pida_teto),
+          ativo: e.ativo,
+        }))
+      );
+    }
+    setLoading(false);
+  };
+
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch =
       emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       emp.matricula.includes(searchTerm) ||
-      emp.departamento.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      emp.departamento.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = filterDepartamento === 'all' || emp.departamento === filterDepartamento;
+    return matchesSearch && matchesDept;
+  });
 
   const columns = [
     { key: 'matricula', header: 'Matrícula', className: 'font-mono' },
@@ -51,12 +138,12 @@ const Colaboradores = () => {
       key: 'cestaBeneficiosTeto',
       header: 'Teto Cesta',
       className: 'text-right font-mono',
-      render: (item: EligibleEmployee) => formatCurrency(item.cestaBeneficiosTeto),
+      render: (item: Colaborador) => formatCurrency(item.cestaBeneficiosTeto),
     },
     {
       key: 'temPida',
       header: 'PI/DA',
-      render: (item: EligibleEmployee) =>
+      render: (item: Colaborador) =>
         item.temPida ? (
           <span className="text-success font-medium">Sim</span>
         ) : (
@@ -66,7 +153,7 @@ const Colaboradores = () => {
     {
       key: 'ativo',
       header: 'Status',
-      render: (item: EligibleEmployee) =>
+      render: (item: Colaborador) =>
         item.ativo ? (
           <span className="status-badge status-valid">Ativo</span>
         ) : (
@@ -77,36 +164,15 @@ const Colaboradores = () => {
       key: 'actions',
       header: 'Ações',
       className: 'text-right',
-      render: (item: EligibleEmployee) => (
+      render: (item: Colaborador) => (
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleView(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleView(item)}>
             <Eye className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -114,47 +180,151 @@ const Colaboradores = () => {
     },
   ];
 
-  const handleView = (employee: EligibleEmployee) => {
+  const handleView = (employee: Colaborador) => {
     setSelectedEmployee(employee);
+    setFormData({
+      matricula: employee.matricula,
+      nome: employee.nome,
+      email: employee.email,
+      departamento: employee.departamento,
+      salarioBase: employee.salarioBase,
+      valeAlimentacao: employee.valeAlimentacao,
+      valeRefeicao: employee.valeRefeicao,
+      ajudaCusto: employee.ajudaCusto,
+      mobilidade: employee.mobilidade,
+      transporte: employee.transporte,
+      cestaBeneficiosTeto: employee.cestaBeneficiosTeto,
+      temPida: employee.temPida,
+      pidaTeto: employee.pidaTeto,
+      ativo: employee.ativo,
+    });
     setIsViewMode(true);
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (employee: EligibleEmployee) => {
+  const handleEdit = (employee: Colaborador) => {
     setSelectedEmployee(employee);
+    setFormData({
+      matricula: employee.matricula,
+      nome: employee.nome,
+      email: employee.email,
+      departamento: employee.departamento,
+      salarioBase: employee.salarioBase,
+      valeAlimentacao: employee.valeAlimentacao,
+      valeRefeicao: employee.valeRefeicao,
+      ajudaCusto: employee.ajudaCusto,
+      mobilidade: employee.mobilidade,
+      transporte: employee.transporte,
+      cestaBeneficiosTeto: employee.cestaBeneficiosTeto,
+      temPida: employee.temPida,
+      pidaTeto: employee.pidaTeto,
+      ativo: employee.ativo,
+    });
     setIsViewMode(false);
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (employee: EligibleEmployee) => {
-    if (confirm(`Deseja realmente excluir o colaborador ${employee.nome}?`)) {
-      setEmployees(employees.filter((e) => e.id !== employee.id));
-      toast({
-        title: 'Colaborador excluído',
-        description: `${employee.nome} foi removido da lista de elegíveis.`,
-      });
+  const handleDelete = async (employee: Colaborador) => {
+    if (!confirm(`Deseja realmente excluir o colaborador ${employee.nome}?`)) return;
+
+    const { error } = await supabase.from('colaboradores_elegiveis').delete().eq('id', employee.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Colaborador excluído', description: `${employee.nome} foi removido.` });
+      fetchEmployees();
     }
   };
 
   const handleNewEmployee = () => {
     setSelectedEmployee(null);
+    setFormData({
+      matricula: '',
+      nome: '',
+      email: '',
+      departamento: '',
+      salarioBase: 0,
+      valeAlimentacao: 0,
+      valeRefeicao: 0,
+      ajudaCusto: 0,
+      mobilidade: 0,
+      transporte: 0,
+      cestaBeneficiosTeto: 0,
+      temPida: false,
+      pidaTeto: 0,
+      ativo: true,
+    });
     setIsViewMode(false);
     setIsDialogOpen(true);
   };
 
-  const calculateRendimentoTotal = (emp: EligibleEmployee | null) => {
-    if (!emp) return 0;
+  const handleSave = async () => {
+    if (!formData.matricula || !formData.nome || !formData.email || !formData.departamento) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
+    }
+
+    setSaving(true);
+    const dbData = {
+      matricula: formData.matricula,
+      nome: formData.nome,
+      email: formData.email,
+      departamento: formData.departamento,
+      salario_base: formData.salarioBase,
+      vale_alimentacao: formData.valeAlimentacao,
+      vale_refeicao: formData.valeRefeicao,
+      ajuda_custo: formData.ajudaCusto,
+      mobilidade: formData.mobilidade,
+      transporte: formData.transporte,
+      cesta_beneficios_teto: formData.cestaBeneficiosTeto,
+      tem_pida: formData.temPida,
+      pida_teto: formData.pidaTeto,
+      ativo: formData.ativo,
+    };
+
+    try {
+      if (selectedEmployee) {
+        const { error } = await supabase
+          .from('colaboradores_elegiveis')
+          .update(dbData)
+          .eq('id', selectedEmployee.id);
+        if (error) throw error;
+        toast({ title: 'Colaborador atualizado', description: 'Os dados foram salvos com sucesso.' });
+      } else {
+        const { error } = await supabase.from('colaboradores_elegiveis').insert([dbData]);
+        if (error) throw error;
+        toast({ title: 'Colaborador criado', description: 'O colaborador foi cadastrado com sucesso.' });
+      }
+      setIsDialogOpen(false);
+      fetchEmployees();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const calculateRendimentoTotal = () => {
     return (
-      emp.salarioBase +
-      emp.valeAlimentacao +
-      emp.valeRefeicao +
-      emp.ajudaCusto +
-      emp.mobilidade +
-      emp.transporte +
-      emp.cestaBeneficiosTeto +
-      emp.pidaTeto
+      formData.salarioBase +
+      formData.valeAlimentacao +
+      formData.valeRefeicao +
+      formData.ajudaCusto +
+      formData.mobilidade +
+      formData.transporte +
+      formData.cestaBeneficiosTeto +
+      formData.pidaTeto
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -179,7 +349,7 @@ const Colaboradores = () => {
             className="pl-9"
           />
         </div>
-        <Select defaultValue="all">
+        <Select value={filterDepartamento} onValueChange={setFilterDepartamento}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Departamento" />
           </SelectTrigger>
@@ -195,22 +365,14 @@ const Colaboradores = () => {
       </div>
 
       {/* Table */}
-      <DataTable
-        data={filteredEmployees}
-        columns={columns}
-        emptyMessage="Nenhum colaborador encontrado"
-      />
+      <DataTable data={filteredEmployees} columns={columns} emptyMessage="Nenhum colaborador encontrado" />
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {isViewMode
-                ? 'Visualizar Colaborador'
-                : selectedEmployee
-                ? 'Editar Colaborador'
-                : 'Novo Colaborador'}
+              {isViewMode ? 'Visualizar Colaborador' : selectedEmployee ? 'Editar Colaborador' : 'Novo Colaborador'}
             </DialogTitle>
             <DialogDescription>
               {isViewMode
@@ -227,7 +389,8 @@ const Colaboradores = () => {
                 <div className="space-y-2">
                   <Label>Matrícula</Label>
                   <Input
-                    defaultValue={selectedEmployee?.matricula || ''}
+                    value={formData.matricula}
+                    onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
                     disabled={isViewMode}
                     placeholder="Ex: 12345"
                   />
@@ -235,7 +398,8 @@ const Colaboradores = () => {
                 <div className="space-y-2">
                   <Label>Nome Completo</Label>
                   <Input
-                    defaultValue={selectedEmployee?.nome || ''}
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                     disabled={isViewMode}
                     placeholder="Nome do colaborador"
                   />
@@ -244,7 +408,8 @@ const Colaboradores = () => {
                   <Label>E-mail</Label>
                   <Input
                     type="email"
-                    defaultValue={selectedEmployee?.email || ''}
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     disabled={isViewMode}
                     placeholder="email@empresa.com.br"
                   />
@@ -252,7 +417,8 @@ const Colaboradores = () => {
                 <div className="space-y-2">
                   <Label>Departamento</Label>
                   <Select
-                    defaultValue={selectedEmployee?.departamento || ''}
+                    value={formData.departamento}
+                    onValueChange={(value) => setFormData({ ...formData, departamento: value })}
                     disabled={isViewMode}
                   >
                     <SelectTrigger>
@@ -280,7 +446,8 @@ const Colaboradores = () => {
                   <Label>Salário Base (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.salarioBase || 0}
+                    value={formData.salarioBase}
+                    onChange={(e) => setFormData({ ...formData, salarioBase: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -288,7 +455,8 @@ const Colaboradores = () => {
                   <Label>Vale Alimentação (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.valeAlimentacao || 0}
+                    value={formData.valeAlimentacao}
+                    onChange={(e) => setFormData({ ...formData, valeAlimentacao: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -296,7 +464,8 @@ const Colaboradores = () => {
                   <Label>Vale Refeição (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.valeRefeicao || 0}
+                    value={formData.valeRefeicao}
+                    onChange={(e) => setFormData({ ...formData, valeRefeicao: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -304,7 +473,8 @@ const Colaboradores = () => {
                   <Label>Ajuda de Custo (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.ajudaCusto || 0}
+                    value={formData.ajudaCusto}
+                    onChange={(e) => setFormData({ ...formData, ajudaCusto: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -312,7 +482,8 @@ const Colaboradores = () => {
                   <Label>Mobilidade (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.mobilidade || 0}
+                    value={formData.mobilidade}
+                    onChange={(e) => setFormData({ ...formData, mobilidade: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -320,7 +491,8 @@ const Colaboradores = () => {
                   <Label>Transporte (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.transporte || 0}
+                    value={formData.transporte}
+                    onChange={(e) => setFormData({ ...formData, transporte: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -337,7 +509,8 @@ const Colaboradores = () => {
                   <Label>Cesta de Benefícios - Teto (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.cestaBeneficiosTeto || 0}
+                    value={formData.cestaBeneficiosTeto}
+                    onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
                     disabled={isViewMode}
                   />
                 </div>
@@ -345,18 +518,29 @@ const Colaboradores = () => {
                   <Label>PI/DA - Teto (R$)</Label>
                   <Input
                     type="number"
-                    defaultValue={selectedEmployee?.pidaTeto || 0}
-                    disabled={isViewMode || !selectedEmployee?.temPida}
+                    value={formData.pidaTeto}
+                    onChange={(e) => setFormData({ ...formData, pidaTeto: parseFloat(e.target.value) || 0 })}
+                    disabled={isViewMode || !formData.temPida}
                   />
                 </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Switch
                   id="temPida"
-                  checked={selectedEmployee?.temPida || false}
+                  checked={formData.temPida}
+                  onCheckedChange={(checked) => setFormData({ ...formData, temPida: checked })}
                   disabled={isViewMode}
                 />
                 <Label htmlFor="temPida">Possui PI/DA (Propriedade Intelectual / Direitos Autorais)</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="ativo"
+                  checked={formData.ativo}
+                  onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
+                  disabled={isViewMode}
+                />
+                <Label htmlFor="ativo">Colaborador Ativo</Label>
               </div>
             </div>
 
@@ -367,10 +551,6 @@ const Colaboradores = () => {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center justify-between">
                   Simulação da Remuneração Estratégica
-                  <Button variant="outline" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar PDF
-                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -382,50 +562,48 @@ const Colaboradores = () => {
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Salário Base</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.salarioBase || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.salarioBase)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Vale Alimentação</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.valeAlimentacao || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.valeAlimentacao)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Vale Refeição</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.valeRefeicao || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.valeRefeicao)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Ajuda de Custo</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.ajudaCusto || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.ajudaCusto)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Mobilidade</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.mobilidade || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.mobilidade)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Transporte</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.transporte || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.transporte)}</span>
                     <span className="text-right text-muted-foreground">Fixo</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>Cesta de Benefícios</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.cestaBeneficiosTeto || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.cestaBeneficiosTeto)}</span>
                     <span className="text-right text-muted-foreground">Teto Variável</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-sm">
                     <span>PI/DA</span>
-                    <span className="text-right font-mono">{formatCurrency(selectedEmployee?.pidaTeto || 0)}</span>
+                    <span className="text-right font-mono">{formatCurrency(formData.pidaTeto)}</span>
                     <span className="text-right text-muted-foreground">Teto Variável</span>
                   </div>
                   <Separator />
                   <div className="grid grid-cols-3 gap-2 text-sm font-bold">
                     <span>Rendimento Total</span>
-                    <span className="text-right font-mono text-primary">
-                      {formatCurrency(calculateRendimentoTotal(selectedEmployee))}
-                    </span>
+                    <span className="text-right font-mono text-primary">{formatCurrency(calculateRendimentoTotal())}</span>
                     <span></span>
                   </div>
                 </div>
@@ -438,15 +616,8 @@ const Colaboradores = () => {
               {isViewMode ? 'Fechar' : 'Cancelar'}
             </Button>
             {!isViewMode && (
-              <Button
-                onClick={() => {
-                  toast({
-                    title: selectedEmployee ? 'Colaborador atualizado' : 'Colaborador criado',
-                    description: 'Os dados foram salvos com sucesso.',
-                  });
-                  setIsDialogOpen(false);
-                }}
-              >
+              <Button onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salvar
               </Button>
             )}

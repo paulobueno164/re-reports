@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, CheckCircle, XCircle, Eye, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -21,29 +21,113 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { mockExpenses, formatCurrency, formatDate, getOriginLabel } from '@/lib/mock-data';
-import { Expense } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { AttachmentList } from '@/components/attachments/AttachmentList';
+
+interface Expense {
+  id: string;
+  colaboradorNome: string;
+  tipoDespesaNome: string;
+  origem: string;
+  valorLancado: number;
+  valorConsiderado: number;
+  valorNaoConsiderado: number;
+  descricaoFatoGerador: string;
+  status: string;
+  createdAt: Date;
+  motivoInvalidacao?: string;
+}
+
+const originLabels: Record<string, string> = {
+  proprio: 'Próprio',
+  conjuge: 'Cônjuge',
+  filhos: 'Filhos',
+};
 
 const Validacao = () => {
   const { toast } = useToast();
-  const [expenses, setExpenses] = useState<Expense[]>(
-    mockExpenses.filter((e) => e.status === 'enviado' || e.status === 'em_analise')
-  );
+  const { user } = useAuth();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('pending');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [processing, setProcessing] = useState(false);
 
-  const pendingCount = expenses.filter((e) => e.status === 'enviado' || e.status === 'em_analise').length;
+  // Stats
+  const [stats, setStats] = useState({
+    pending: 0,
+    approvedToday: 0,
+    rejectedToday: 0,
+  });
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [filterStatus]);
+
+  const fetchExpenses = async () => {
+    setLoading(true);
+    let query = supabase
+      .from('lancamentos')
+      .select(`
+        id,
+        origem,
+        valor_lancado,
+        valor_considerado,
+        valor_nao_considerado,
+        descricao_fato_gerador,
+        status,
+        created_at,
+        motivo_invalidacao,
+        colaboradores_elegiveis (nome),
+        tipos_despesas (nome)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (filterStatus === 'pending') {
+      query = query.in('status', ['enviado', 'em_analise']);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else if (data) {
+      const mapped = data.map((e: any) => ({
+        id: e.id,
+        colaboradorNome: e.colaboradores_elegiveis?.nome || '',
+        tipoDespesaNome: e.tipos_despesas?.nome || '',
+        origem: e.origem,
+        valorLancado: Number(e.valor_lancado),
+        valorConsiderado: Number(e.valor_considerado),
+        valorNaoConsiderado: Number(e.valor_nao_considerado),
+        descricaoFatoGerador: e.descricao_fato_gerador,
+        status: e.status,
+        createdAt: new Date(e.created_at),
+        motivoInvalidacao: e.motivo_invalidacao,
+      }));
+      setExpenses(mapped);
+
+      // Calculate stats
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      setStats({
+        pending: mapped.filter((e) => e.status === 'enviado' || e.status === 'em_analise').length,
+        approvedToday: mapped.filter((e) => e.status === 'valido' && new Date(e.createdAt) >= today).length,
+        rejectedToday: mapped.filter((e) => e.status === 'invalido' && new Date(e.createdAt) >= today).length,
+      });
+    }
+    setLoading(false);
+  };
 
   const filteredExpenses = expenses.filter(
     (exp) =>
@@ -62,7 +146,7 @@ const Validacao = () => {
     {
       key: 'origem',
       header: 'Origem',
-      render: (item: Expense) => getOriginLabel(item.origem),
+      render: (item: Expense) => originLabels[item.origem] || item.origem,
     },
     {
       key: 'valorLancado',
@@ -81,40 +165,33 @@ const Validacao = () => {
       className: 'text-right',
       render: (item: Expense) => (
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleView(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleView(item)}>
             <Eye className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-success hover:text-success"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleApprove(item);
-            }}
-          >
-            <CheckCircle className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedExpense(item);
-              setRejectionReason('');
-              setIsDialogOpen(true);
-            }}
-          >
-            <XCircle className="h-4 w-4" />
-          </Button>
+          {(item.status === 'enviado' || item.status === 'em_analise') && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-success hover:text-success"
+                onClick={() => handleApprove(item)}
+              >
+                <CheckCircle className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  setSelectedExpense(item);
+                  setRejectionReason('');
+                  setIsDialogOpen(true);
+                }}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       ),
     },
@@ -126,19 +203,30 @@ const Validacao = () => {
     setIsDialogOpen(true);
   };
 
-  const handleApprove = (expense: Expense) => {
-    setExpenses(
-      expenses.map((e) =>
-        e.id === expense.id ? { ...e, status: 'valido' as const } : e
-      )
-    );
-    toast({
-      title: 'Despesa aprovada',
-      description: `Lançamento de ${expense.colaboradorNome} foi marcado como válido.`,
-    });
+  const handleApprove = async (expense: Expense) => {
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({
+        status: 'valido',
+        validado_por: user?.id,
+        validado_em: new Date().toISOString(),
+      })
+      .eq('id', expense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Despesa aprovada',
+        description: `Lançamento de ${expense.colaboradorNome} foi marcado como válido.`,
+      });
+      fetchExpenses();
+    }
+    setProcessing(false);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedExpense) return;
     if (!rejectionReason.trim()) {
       toast({
@@ -149,19 +237,37 @@ const Validacao = () => {
       return;
     }
 
-    setExpenses(
-      expenses.map((e) =>
-        e.id === selectedExpense.id
-          ? { ...e, status: 'invalido' as const, motivoInvalidacao: rejectionReason }
-          : e
-      )
-    );
-    toast({
-      title: 'Despesa invalidada',
-      description: `Lançamento de ${selectedExpense.colaboradorNome} foi marcado como inválido.`,
-    });
-    setIsDialogOpen(false);
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({
+        status: 'invalido',
+        motivo_invalidacao: rejectionReason,
+        validado_por: user?.id,
+        validado_em: new Date().toISOString(),
+      })
+      .eq('id', selectedExpense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Despesa invalidada',
+        description: `Lançamento de ${selectedExpense.colaboradorNome} foi marcado como inválido.`,
+      });
+      setIsDialogOpen(false);
+      fetchExpenses();
+    }
+    setProcessing(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -180,10 +286,8 @@ const Validacao = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-warning">{pendingCount}</p>
-            <p className="text-xs text-muted-foreground">
-              lançamentos aguardando validação
-            </p>
+            <p className="text-3xl font-bold text-warning">{stats.pending}</p>
+            <p className="text-xs text-muted-foreground">lançamentos aguardando validação</p>
           </CardContent>
         </Card>
 
@@ -195,7 +299,7 @@ const Validacao = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-success">5</p>
+            <p className="text-3xl font-bold text-success">{stats.approvedToday}</p>
             <p className="text-xs text-muted-foreground">despesas validadas</p>
           </CardContent>
         </Card>
@@ -208,7 +312,7 @@ const Validacao = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-destructive">1</p>
+            <p className="text-3xl font-bold text-destructive">{stats.rejectedToday}</p>
             <p className="text-xs text-muted-foreground">despesas invalidadas</p>
           </CardContent>
         </Card>
@@ -225,7 +329,7 @@ const Validacao = () => {
             className="pl-9"
           />
         </div>
-        <Select defaultValue="pending">
+        <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
@@ -245,12 +349,10 @@ const Validacao = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Analisar Lançamento</DialogTitle>
-            <DialogDescription>
-              Revise os dados e decida sobre a validação
-            </DialogDescription>
+            <DialogDescription>Revise os dados e decida sobre a validação</DialogDescription>
           </DialogHeader>
 
           {selectedExpense && (
@@ -271,13 +373,11 @@ const Validacao = () => {
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Origem</Label>
-                  <p className="font-medium">{getOriginLabel(selectedExpense.origem)}</p>
+                  <p className="font-medium">{originLabels[selectedExpense.origem] || selectedExpense.origem}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Valor Lançado</Label>
-                  <p className="font-mono text-lg font-bold">
-                    {formatCurrency(selectedExpense.valorLancado)}
-                  </p>
+                  <p className="font-mono text-lg font-bold">{formatCurrency(selectedExpense.valorLancado)}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Status Atual</Label>
@@ -291,47 +391,38 @@ const Validacao = () => {
 
               <div>
                 <Label className="text-muted-foreground">Descrição do Fato Gerador</Label>
-                <p className="mt-1 p-3 bg-muted rounded-lg text-sm">
-                  {selectedExpense.descricaoFatoGerador}
-                </p>
+                <p className="mt-1 p-3 bg-muted rounded-lg text-sm">{selectedExpense.descricaoFatoGerador}</p>
               </div>
 
               {/* Attachments */}
               <div>
                 <Label className="text-muted-foreground">Comprovantes Anexados</Label>
-                {selectedExpense.anexos && selectedExpense.anexos.length > 0 ? (
-                  <div className="mt-2 space-y-2">
-                    {selectedExpense.anexos.map((anexo) => (
-                      <div
-                        key={anexo.id}
-                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                      >
-                        <span className="text-sm">{anexo.nomeArquivo}</span>
-                        <Button variant="outline" size="sm">
-                          Visualizar
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground italic">
-                    Nenhum comprovante anexado
-                  </p>
-                )}
+                <div className="mt-2">
+                  <AttachmentList lancamentoId={selectedExpense.id} />
+                </div>
               </div>
 
               <Separator />
 
               {/* Rejection Reason */}
-              <div className="space-y-2">
-                <Label>Motivo da Invalidação (se aplicável)</Label>
-                <Textarea
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Descreva o motivo caso precise invalidar esta despesa..."
-                  rows={3}
-                />
-              </div>
+              {(selectedExpense.status === 'enviado' || selectedExpense.status === 'em_analise') && (
+                <div className="space-y-2">
+                  <Label>Motivo da Invalidação (se aplicável)</Label>
+                  <Textarea
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    placeholder="Descreva o motivo caso precise invalidar esta despesa..."
+                    rows={3}
+                  />
+                </div>
+              )}
+
+              {selectedExpense.status === 'invalido' && selectedExpense.motivoInvalidacao && (
+                <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <Label className="text-destructive">Motivo da Invalidação</Label>
+                  <p className="mt-1 text-sm">{selectedExpense.motivoInvalidacao}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -339,26 +430,29 @@ const Validacao = () => {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleReject}
-              disabled={!rejectionReason.trim()}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Invalidar
-            </Button>
-            <Button
-              className="bg-success hover:bg-success/90"
-              onClick={() => {
-                if (selectedExpense) {
-                  handleApprove(selectedExpense);
-                  setIsDialogOpen(false);
-                }
-              }}
-            >
-              <CheckCircle className="mr-2 h-4 w-4" />
-              Aprovar
-            </Button>
+            {selectedExpense && (selectedExpense.status === 'enviado' || selectedExpense.status === 'em_analise') && (
+              <>
+                <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason.trim() || processing}>
+                  {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Invalidar
+                </Button>
+                <Button
+                  className="bg-success hover:bg-success/90"
+                  onClick={() => {
+                    if (selectedExpense) {
+                      handleApprove(selectedExpense);
+                      setIsDialogOpen(false);
+                    }
+                  }}
+                  disabled={processing}
+                >
+                  {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Aprovar
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

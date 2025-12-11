@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -657,13 +657,24 @@ const Lancamentos = () => {
                   <Input
                     type="file"
                     className="hidden"
+                    id="file-upload"
                     accept=".pdf,.xlsx,.doc,.docx,.png,.jpg,.jpeg"
                     onChange={(e) => setFormFile(e.target.files?.[0] || null)}
                   />
-                  <Button variant="outline" size="sm" className="mt-3">
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => document.getElementById('file-upload')?.click()}>
                     Selecionar Arquivo
                   </Button>
+                  {formFile && (
+                    <div className="mt-3 flex items-center justify-center gap-2 text-sm">
+                      <FileText className="h-4 w-4" />
+                      <span>{formFile.name}</span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFormFile(null)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
+                <p className="text-xs text-muted-foreground">O comprovante será enviado após salvar o lançamento.</p>
               </div>
             )}
 
