@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -205,6 +205,17 @@ const Validacao = () => {
           </Button>
           {(item.status === 'enviado' || item.status === 'em_analise') && (
             <>
+              {item.status === 'enviado' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-warning hover:text-warning"
+                  onClick={() => handleStartAnalysis(item)}
+                  title="Iniciar Análise"
+                >
+                  <Clock className="h-4 w-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -238,6 +249,33 @@ const Validacao = () => {
     setIsDialogOpen(true);
   };
 
+  const handleStartAnalysis = async (expense: Expense) => {
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({ status: 'em_analise' })
+      .eq('id', expense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      await createAuditLog({
+        userId: user?.id || '',
+        userName: profile?.nome || user?.email || '',
+        action: 'iniciar_analise',
+        entityType: 'lancamento',
+        entityId: expense.id,
+        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
+        oldValues: { status: expense.status },
+        newValues: { status: 'em_analise' },
+      });
+      toast({ title: 'Análise iniciada', description: `Lançamento de ${expense.colaboradorNome} está em análise.` });
+      fetchExpenses();
+    }
+    setProcessing(false);
+  };
+
   const handleApprove = async (expense: Expense) => {
     setProcessing(true);
     const { error } = await supabase
@@ -248,7 +286,6 @@ const Validacao = () => {
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } else {
-      // Create audit log
       const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
       await createAuditLog({
         userId: user?.id || '',

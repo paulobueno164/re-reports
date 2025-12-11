@@ -1,65 +1,24 @@
 // Utilitário para gerar arquivo ZIP com múltiplos PDFs
-import { generatePDFReport } from './pdf-export';
-
-interface ReportData {
-  colaborador: {
-    nome: string;
-    matricula: string;
-    departamento: string;
-    email: string;
-  };
-  periodo: string;
-  resumo: {
-    componente: string;
-    valorParametrizado: number;
-    valorUtilizado: number;
-    percentual: number;
-  }[];
-  rendimentoTotal: number;
-  utilizacao: {
-    limiteCesta: number;
-    totalUtilizado: number;
-    percentual: number;
-    diferencaPida: number;
-  };
-  despesas: {
-    tipo: string;
-    origem: string;
-    valor: number;
-    status: string;
-    data: Date;
-  }[];
-  totaisPorCategoria: { categoria: string; valor: number }[];
-}
-
 // Simple ZIP file creator without external dependencies
 // Uses basic ZIP format structure
 export async function generateZipWithPDFs(
-  reports: ReportData[],
-  periodo: string,
-  onProgress?: (current: number, total: number) => void
+  files: { name: string; blob: Blob }[]
 ): Promise<Blob> {
-  const files: { name: string; data: Uint8Array }[] = [];
+  const zipFiles: { name: string; data: Uint8Array }[] = [];
   
-  for (let i = 0; i < reports.length; i++) {
-    const report = reports[i];
-    onProgress?.(i + 1, reports.length);
-    
+  for (const file of files) {
     try {
-      const pdfBlob = await generatePDFReport(report);
-      const pdfBuffer = await pdfBlob.arrayBuffer();
-      const fileName = `Extrato_${report.colaborador.matricula}_${report.colaborador.nome.replace(/\s/g, '_')}_${periodo.replace('/', '')}.pdf`;
-      
-      files.push({
-        name: fileName,
-        data: new Uint8Array(pdfBuffer),
+      const buffer = await file.blob.arrayBuffer();
+      zipFiles.push({
+        name: file.name,
+        data: new Uint8Array(buffer),
       });
     } catch (error) {
-      console.error(`Erro ao gerar PDF para ${report.colaborador.nome}:`, error);
+      console.error(`Erro ao processar ${file.name}:`, error);
     }
   }
   
-  return createZipBlob(files);
+  return createZipBlob(zipFiles);
 }
 
 function createZipBlob(files: { name: string; data: Uint8Array }[]): Blob {

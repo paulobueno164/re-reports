@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface AuditLogEntry {
   userId: string;
   userName: string;
-  action: 'aprovar' | 'rejeitar' | 'criar' | 'atualizar' | 'excluir';
+  action: 'aprovar' | 'rejeitar' | 'criar' | 'atualizar' | 'excluir' | 'iniciar_analise';
   entityType: 'lancamento' | 'colaborador' | 'tipo_despesa' | 'periodo' | 'evento_folha';
   entityId: string;
   entityDescription?: string;

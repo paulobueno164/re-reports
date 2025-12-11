@@ -15,6 +15,7 @@ import {
   LogOut,
   Activity,
   History,
+  Target,
 } from 'lucide-react';
 
 interface NavItem {
@@ -86,6 +87,12 @@ const navigation: NavItem[] = [
     label: 'Auditoria',
     href: '/auditoria',
     icon: <History className="w-5 h-5" />,
+    roles: ['RH', 'FINANCEIRO'],
+  },
+  {
+    label: 'KPIs',
+    href: '/kpis',
+    icon: <Target className="w-5 h-5" />,
     roles: ['RH', 'FINANCEIRO'],
   },
 ];

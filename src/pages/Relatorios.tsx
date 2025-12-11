@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
+import { generateZipWithPDFs } from '@/lib/zip-export';
 
 interface Colaborador {
   id: string;
@@ -182,6 +183,9 @@ const Relatorios = () => {
     setGenerating(true);
     toast({ title: 'Gerando relatórios em lote', description: `Processando ${selectedEmployees.length} relatório(s)...` });
     const periodo = periodos.find((p) => p.id === selectedPeriod);
+    
+    const pdfFiles: { name: string; blob: Blob }[] = [];
+    
     for (const empId of selectedEmployees) {
       const colaborador = colaboradores.find((c) => c.id === empId);
       if (!colaborador || !periodo) continue;
@@ -213,15 +217,22 @@ const Relatorios = () => {
         totaisPorCategoria: [],
       };
       const blob = await generatePDFReport(reportData);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Extrato_${colaborador.nome.replace(/\s/g, '_')}_${periodo.periodo}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-      await new Promise((r) => setTimeout(r, 200));
+      pdfFiles.push({
+        name: `Extrato_${colaborador.matricula}_${colaborador.nome.replace(/\s/g, '_')}_${periodo.periodo}.pdf`,
+        blob,
+      });
     }
-    toast({ title: 'Relatórios gerados', description: `${selectedEmployees.length} PDF(s) foram baixados com sucesso.` });
+    
+    // Generate ZIP with all PDFs
+    const zipBlob = await generateZipWithPDFs(pdfFiles);
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Relatorios_${periodo?.periodo}_${new Date().toISOString().split('T')[0]}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast({ title: 'ZIP gerado', description: `${selectedEmployees.length} PDF(s) baixados em um único arquivo ZIP.` });
     setGenerating(false);
   };
 
@@ -333,7 +344,7 @@ const Relatorios = () => {
                 <p className="text-sm text-muted-foreground">{selectedEmployees.length} colaborador(es) selecionado(s)</p>
               </div>
               <div className="flex gap-3">
-                <Button onClick={handleGenerateBatch} disabled={selectedEmployees.length === 0 || !selectedPeriod || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Gerar PDFs ({selectedEmployees.length})</Button>
+                <Button onClick={handleGenerateBatch} disabled={selectedEmployees.length === 0 || !selectedPeriod || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Baixar ZIP ({selectedEmployees.length} PDFs)</Button>
               </div>
             </CardContent>
           </Card>

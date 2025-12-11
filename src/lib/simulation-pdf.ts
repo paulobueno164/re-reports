@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency, formatDate } from './expense-validation';
 
-interface SimulationData {
+export interface SimulationData {
   colaborador: {
     nome: string;
     matricula: string;
@@ -12,7 +12,7 @@ interface SimulationData {
   componentes: {
     nome: string;
     valor: number;
-    tipo: 'fixo' | 'variavel';
+    tipo: 'Fixo' | 'Teto Variável' | string;
   }[];
   rendimentoTotal: number;
 }
@@ -55,8 +55,8 @@ export async function generateSimulationPDF(data: SimulationData): Promise<Blob>
   doc.setFont('helvetica', 'bold');
   doc.text('Composição da Remuneração Estratégica', 14, 90);
 
-  const fixos = data.componentes.filter(c => c.tipo === 'fixo');
-  const variaveis = data.componentes.filter(c => c.tipo === 'variavel');
+  const fixos = data.componentes.filter(c => c.tipo === 'Fixo');
+  const variaveis = data.componentes.filter(c => c.tipo === 'Teto Variável');
 
   // Fixed components
   autoTable(doc, {
@@ -140,7 +140,7 @@ export function exportSimulationToExcel(data: SimulationData): void {
   rows.push('Componente,Tipo,Valor');
   
   data.componentes.forEach(c => {
-    rows.push(`"${c.nome}","${c.tipo === 'fixo' ? 'Fixo' : 'Variável'}","${c.valor}"`);
+    rows.push(`"${c.nome}","${c.tipo}","${c.valor}"`);
   });
   
   rows.push(`"RENDIMENTO TOTAL","",${data.rendimentoTotal}`);
