@@ -23,7 +23,6 @@ import {
   History,
   X,
   UserCog,
-  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -109,11 +108,6 @@ const navigation: NavItem[] = [
     href: '/gerenciar-usuarios',
     icon: <UserCog className="w-5 h-5" />,
     roles: ['RH'],
-  },
-  {
-    label: 'Meu Perfil',
-    href: '/perfil',
-    icon: <User className="w-5 h-5" />,
   },
 ];
 
