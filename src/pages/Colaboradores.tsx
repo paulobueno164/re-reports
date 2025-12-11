@@ -23,10 +23,12 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
+import { ExpenseTypesManager } from '@/components/colaboradores/ExpenseTypesManager';
 
 interface Colaborador {
   id: string;
@@ -382,287 +384,300 @@ const Colaboradores = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
-            {/* Dados Básicos */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Dados Básicos</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Matrícula</Label>
-                  <Input
-                    value={formData.matricula}
-                    onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
-                    disabled={isViewMode}
-                    placeholder="Ex: 12345"
-                  />
+          <Tabs defaultValue="dados" className="space-y-4 py-4">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="dados">Dados Básicos</TabsTrigger>
+              <TabsTrigger value="remuneracao">Remuneração</TabsTrigger>
+              <TabsTrigger value="despesas" disabled={!selectedEmployee}>Tipos de Despesa</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="dados" className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Dados Básicos</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Matrícula</Label>
+                    <Input
+                      value={formData.matricula}
+                      onChange={(e) => setFormData({ ...formData, matricula: e.target.value })}
+                      disabled={isViewMode}
+                      placeholder="Ex: 12345"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Nome Completo</Label>
+                    <Input
+                      value={formData.nome}
+                      onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                      disabled={isViewMode}
+                      placeholder="Nome do colaborador"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>E-mail</Label>
+                    <Input
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      disabled={isViewMode}
+                      placeholder="email@empresa.com.br"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Departamento</Label>
+                    <Select
+                      value={formData.departamento}
+                      onValueChange={(value) => setFormData({ ...formData, departamento: value })}
+                      disabled={isViewMode}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Nome Completo</Label>
-                  <Input
-                    value={formData.nome}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="ativo"
+                    checked={formData.ativo}
+                    onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
                     disabled={isViewMode}
-                    placeholder="Nome do colaborador"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>E-mail</Label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    disabled={isViewMode}
-                    placeholder="email@empresa.com.br"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Departamento</Label>
-                  <Select
-                    value={formData.departamento}
-                    onValueChange={(value) => setFormData({ ...formData, departamento: value })}
-                    disabled={isViewMode}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="ativo">Colaborador Ativo</Label>
                 </div>
               </div>
-            </div>
+            </TabsContent>
 
-            <Separator />
-
-            {/* Componentes Fixos */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Componentes Fixos</h3>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label>Salário Base (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.salarioBase}
-                    onChange={(e) => setFormData({ ...formData, salarioBase: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vale Alimentação (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.valeAlimentacao}
-                    onChange={(e) => setFormData({ ...formData, valeAlimentacao: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Vale Refeição (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.valeRefeicao}
-                    onChange={(e) => setFormData({ ...formData, valeRefeicao: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Ajuda de Custo (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.ajudaCusto}
-                    onChange={(e) => setFormData({ ...formData, ajudaCusto: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Mobilidade (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.mobilidade}
-                    onChange={(e) => setFormData({ ...formData, mobilidade: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Transporte (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.transporte}
-                    onChange={(e) => setFormData({ ...formData, transporte: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode}
-                  />
+            <TabsContent value="remuneracao" className="space-y-6">
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Componentes Fixos</h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Salário Base (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.salarioBase}
+                      onChange={(e) => setFormData({ ...formData, salarioBase: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vale Alimentação (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.valeAlimentacao}
+                      onChange={(e) => setFormData({ ...formData, valeAlimentacao: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Vale Refeição (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.valeRefeicao}
+                      onChange={(e) => setFormData({ ...formData, valeRefeicao: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ajuda de Custo (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.ajudaCusto}
+                      onChange={(e) => setFormData({ ...formData, ajudaCusto: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Mobilidade (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.mobilidade}
+                      onChange={(e) => setFormData({ ...formData, mobilidade: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Transporte (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.transporte}
+                      onChange={(e) => setFormData({ ...formData, transporte: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            {/* Componentes Variáveis */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Componentes Variáveis</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cesta de Benefícios - Teto (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.cestaBeneficiosTeto}
-                    onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">Componentes Variáveis</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Cesta de Benefícios - Teto (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.cestaBeneficiosTeto}
+                      onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>PI/DA - Teto (R$)</Label>
+                    <Input
+                      type="number"
+                      value={formData.pidaTeto}
+                      onChange={(e) => setFormData({ ...formData, pidaTeto: parseFloat(e.target.value) || 0 })}
+                      disabled={isViewMode || !formData.temPida}
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="temPida"
+                    checked={formData.temPida}
+                    onCheckedChange={(checked) => setFormData({ ...formData, temPida: checked })}
                     disabled={isViewMode}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label>PI/DA - Teto (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.pidaTeto}
-                    onChange={(e) => setFormData({ ...formData, pidaTeto: parseFloat(e.target.value) || 0 })}
-                    disabled={isViewMode || !formData.temPida}
-                  />
+                  <Label htmlFor="temPida">Possui PI/DA (Propriedade Intelectual / Direitos Autorais)</Label>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="temPida"
-                  checked={formData.temPida}
-                  onCheckedChange={(checked) => setFormData({ ...formData, temPida: checked })}
+
+              <Separator />
+
+              <Card className="bg-muted/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                    Simulação da Remuneração Estratégica
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const simulationData = {
+                            colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
+                            componentes: [
+                              { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
+                              { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
+                              { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
+                              { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
+                              { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                              { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                              { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                              { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                            ],
+                            rendimentoTotal: calculateRendimentoTotal(),
+                          };
+                          generateSimulationPDF(simulationData);
+                          toast({ title: 'PDF gerado', description: 'Simulação exportada com sucesso.' });
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const simulationData = {
+                            colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
+                            componentes: [
+                              { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
+                              { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
+                              { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
+                              { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
+                              { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                              { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                              { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                              { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                            ],
+                            rendimentoTotal: calculateRendimentoTotal(),
+                          };
+                          exportSimulationToExcel(simulationData);
+                          toast({ title: 'Excel gerado', description: 'Simulação exportada com sucesso.' });
+                        }}
+                      >
+                        <FileText className="h-4 w-4 mr-1" />
+                        Excel
+                      </Button>
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-3 gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
+                      <span>Componente</span>
+                      <span className="text-right">Valor</span>
+                      <span className="text-right">Tipo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Salário Base</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.salarioBase)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Vale Alimentação</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.valeAlimentacao)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Vale Refeição</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.valeRefeicao)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Ajuda de Custo</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.ajudaCusto)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Mobilidade</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.mobilidade)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Transporte</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.transporte)}</span>
+                      <span className="text-right text-muted-foreground">Fixo</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>Cesta de Benefícios</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.cestaBeneficiosTeto)}</span>
+                      <span className="text-right text-muted-foreground">Teto Variável</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-sm">
+                      <span>PI/DA</span>
+                      <span className="text-right font-mono">{formatCurrency(formData.pidaTeto)}</span>
+                      <span className="text-right text-muted-foreground">Teto Variável</span>
+                    </div>
+                    <Separator />
+                    <div className="grid grid-cols-3 gap-2 text-sm font-bold">
+                      <span>Rendimento Total</span>
+                      <span className="text-right font-mono text-primary">{formatCurrency(calculateRendimentoTotal())}</span>
+                      <span></span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="despesas">
+              {selectedEmployee && (
+                <ExpenseTypesManager 
+                  colaboradorId={selectedEmployee.id} 
                   disabled={isViewMode}
                 />
-                <Label htmlFor="temPida">Possui PI/DA (Propriedade Intelectual / Direitos Autorais)</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="ativo"
-                  checked={formData.ativo}
-                  onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
-                  disabled={isViewMode}
-                />
-                <Label htmlFor="ativo">Colaborador Ativo</Label>
-              </div>
-            </div>
-
-            <Separator />
-
-            {/* Simulação */}
-            <Card className="bg-muted/30">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                  Simulação da Remuneração Estratégica
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const simulationData = {
-                          colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
-                          componentes: [
-                            { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
-                            { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
-                            { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
-                            { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
-                            { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
-                          ],
-                          rendimentoTotal: calculateRendimentoTotal(),
-                        };
-                        generateSimulationPDF(simulationData);
-                        toast({ title: 'PDF gerado', description: 'Simulação exportada com sucesso.' });
-                      }}
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      PDF
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const simulationData = {
-                          colaborador: { nome: formData.nome, matricula: formData.matricula, departamento: formData.departamento, email: formData.email },
-                          componentes: [
-                            { nome: 'Salário Base', valor: formData.salarioBase, tipo: 'Fixo' },
-                            { nome: 'Vale Alimentação', valor: formData.valeAlimentacao, tipo: 'Fixo' },
-                            { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
-                            { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
-                            { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
-                          ],
-                          rendimentoTotal: calculateRendimentoTotal(),
-                        };
-                        exportSimulationToExcel(simulationData);
-                        toast({ title: 'Excel gerado', description: 'Simulação exportada com sucesso.' });
-                      }}
-                    >
-                      <FileText className="h-4 w-4 mr-1" />
-                      Excel
-                    </Button>
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="grid grid-cols-3 gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
-                    <span>Componente</span>
-                    <span className="text-right">Valor</span>
-                    <span className="text-right">Tipo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Salário Base</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.salarioBase)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Vale Alimentação</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.valeAlimentacao)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Vale Refeição</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.valeRefeicao)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Ajuda de Custo</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.ajudaCusto)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Mobilidade</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.mobilidade)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Transporte</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.transporte)}</span>
-                    <span className="text-right text-muted-foreground">Fixo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>Cesta de Benefícios</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.cestaBeneficiosTeto)}</span>
-                    <span className="text-right text-muted-foreground">Teto Variável</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-sm">
-                    <span>PI/DA</span>
-                    <span className="text-right font-mono">{formatCurrency(formData.pidaTeto)}</span>
-                    <span className="text-right text-muted-foreground">Teto Variável</span>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-3 gap-2 text-sm font-bold">
-                    <span>Rendimento Total</span>
-                    <span className="text-right font-mono text-primary">{formatCurrency(calculateRendimentoTotal())}</span>
-                    <span></span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              )}
+            </TabsContent>
+          </Tabs>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
