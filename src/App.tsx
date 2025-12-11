@@ -9,7 +9,6 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DashboardRH from "./pages/DashboardRH";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
-import KPIsDashboard from "./pages/KPIsDashboard";
 import Colaboradores from "./pages/Colaboradores";
 import TiposDespesas from "./pages/TiposDespesas";
 import Calendario from "./pages/Calendario";
@@ -23,6 +22,7 @@ import Instalar from "./pages/Instalar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import GerenciarUsuarios from "./pages/GerenciarUsuarios";
+import Perfil from "./pages/Perfil";
 
 const queryClient = new QueryClient();
 
@@ -89,16 +89,12 @@ const App = () => (
                   <HistoricoAuditoria />
                 </ProtectedRoute>
               } />
-              <Route path="/kpis" element={
-                <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
-                  <KPIsDashboard />
-                </ProtectedRoute>
-              } />
               <Route path="/gerenciar-usuarios" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <GerenciarUsuarios />
                 </ProtectedRoute>
               } />
+              <Route path="/perfil" element={<Perfil />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

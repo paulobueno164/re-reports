@@ -18,13 +18,12 @@ import {
   CheckSquare,
   FileSpreadsheet,
   BarChart3,
-  Settings,
   LogOut,
   Activity,
   History,
-  Target,
   X,
   UserCog,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -106,16 +105,15 @@ const navigation: NavItem[] = [
     roles: ['RH', 'FINANCEIRO'],
   },
   {
-    label: 'KPIs',
-    href: '/kpis',
-    icon: <Target className="w-5 h-5" />,
-    roles: ['RH', 'FINANCEIRO'],
-  },
-  {
     label: 'Gerenciar Usuários',
     href: '/gerenciar-usuarios',
     icon: <UserCog className="w-5 h-5" />,
     roles: ['RH'],
+  },
+  {
+    label: 'Meu Perfil',
+    href: '/perfil',
+    icon: <User className="w-5 h-5" />,
   },
 ];
 
@@ -188,10 +186,6 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
       {/* Footer */}
       <div className="border-t border-sidebar-border p-3">
-        <button className="nav-link w-full text-sidebar-foreground/60 hover:text-sidebar-foreground">
-          <Settings className="w-5 h-5" />
-          Configurações
-        </button>
         <button
           onClick={handleLogout}
           className="nav-link w-full text-sidebar-foreground/60 hover:text-destructive"
