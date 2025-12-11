@@ -22,6 +22,7 @@ import HistoricoAuditoria from "./pages/HistoricoAuditoria";
 import Instalar from "./pages/Instalar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import GerenciarUsuarios from "./pages/GerenciarUsuarios";
 
 const queryClient = new QueryClient();
 
@@ -91,6 +92,11 @@ const App = () => (
               <Route path="/kpis" element={
                 <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
                   <KPIsDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/gerenciar-usuarios" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <GerenciarUsuarios />
                 </ProtectedRoute>
               } />
             </Route>

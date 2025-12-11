@@ -24,6 +24,7 @@ import {
   History,
   Target,
   X,
+  UserCog,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -109,6 +110,12 @@ const navigation: NavItem[] = [
     href: '/kpis',
     icon: <Target className="w-5 h-5" />,
     roles: ['RH', 'FINANCEIRO'],
+  },
+  {
+    label: 'Gerenciar Usuários',
+    href: '/gerenciar-usuarios',
+    icon: <UserCog className="w-5 h-5" />,
+    roles: ['RH'],
   },
 ];
 
