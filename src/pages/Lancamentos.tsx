@@ -287,13 +287,15 @@ const Lancamentos = () => {
     {
       key: 'createdAt',
       header: 'Data',
+      hideOnMobile: true,
       render: (item: Expense) => formatDate(item.createdAt),
     },
-    { key: 'colaboradorNome', header: 'Colaborador' },
-    { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
+    { key: 'colaboradorNome', header: 'Colaborador', hideOnMobile: true },
+    { key: 'tipoDespesaNome', header: 'Tipo' },
     {
       key: 'origem',
       header: 'Origem',
+      hideOnMobile: true,
       render: (item: Expense) => {
         const labels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
         return labels[item.origem] || item.origem;
@@ -301,13 +303,14 @@ const Lancamentos = () => {
     },
     {
       key: 'valorLancado',
-      header: 'Valor Lançado',
+      header: 'Valor',
       className: 'text-right font-mono',
       render: (item: Expense) => formatCurrency(item.valorLancado),
     },
     {
       key: 'valorConsiderado',
-      header: 'Valor Considerado',
+      header: 'Considerado',
+      hideOnMobile: true,
       className: 'text-right font-mono',
       render: (item: Expense) => (
         <span className={item.valorNaoConsiderado > 0 ? 'text-warning' : ''}>
@@ -322,13 +325,14 @@ const Lancamentos = () => {
     },
     {
       key: 'actions',
-      header: 'Ações',
-      className: 'text-right',
+      header: '',
+      className: 'text-right w-[100px]',
       render: (item: Expense) => (
         <div className="flex justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
+            className="h-9 w-9"
             onClick={(e) => {
               e.stopPropagation();
               handleView(item);
@@ -341,6 +345,7 @@ const Lancamentos = () => {
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-9 w-9 hidden sm:inline-flex"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleEdit(item);
@@ -351,6 +356,7 @@ const Lancamentos = () => {
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-9 w-9 hidden sm:inline-flex"
                 onClick={(e) => {
                   e.stopPropagation();
                   handleDelete(item);

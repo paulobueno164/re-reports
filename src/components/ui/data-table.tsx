@@ -7,11 +7,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Column<T> {
   key: keyof T | string;
   header: string;
   className?: string;
+  hideOnMobile?: boolean;
   render?: (item: T) => React.ReactNode;
 }
 
@@ -30,6 +32,8 @@ export function DataTable<T extends { id: string | number }>({
   emptyMessage = 'Nenhum registro encontrado',
   className,
 }: DataTableProps<T>) {
+  const isMobile = useIsMobile();
+  
   const getValue = (item: T, key: string): unknown => {
     const keys = key.split('.');
     let value: unknown = item;
@@ -39,50 +43,67 @@ export function DataTable<T extends { id: string | number }>({
     return value;
   };
 
+  // Filter columns for mobile
+  const visibleColumns = isMobile 
+    ? columns.filter(col => !col.hideOnMobile)
+    : columns;
+
   return (
     <div className={cn('rounded-lg border border-border bg-card overflow-hidden', className)}>
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50 hover:bg-muted/50">
-            {columns.map((column) => (
-              <TableHead
-                key={String(column.key)}
-                className={cn('font-medium text-muted-foreground', column.className)}
-              >
-                {column.header}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={columns.length}
-                className="h-24 text-center text-muted-foreground"
-              >
-                {emptyMessage}
-              </TableCell>
+      {/* Scroll container for horizontal overflow on mobile */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              {visibleColumns.map((column) => (
+                <TableHead
+                  key={String(column.key)}
+                  className={cn(
+                    'font-medium text-muted-foreground whitespace-nowrap',
+                    column.className
+                  )}
+                >
+                  {column.header}
+                </TableHead>
+              ))}
             </TableRow>
-          ) : (
-            data.map((item) => (
-              <TableRow
-                key={item.id}
-                onClick={() => onRowClick?.(item)}
-                className={cn(onRowClick && 'cursor-pointer')}
-              >
-                {columns.map((column) => (
-                  <TableCell key={String(column.key)} className={column.className}>
-                    {column.render
-                      ? column.render(item)
-                      : String(getValue(item, String(column.key)) ?? '-')}
-                  </TableCell>
-                ))}
+          </TableHeader>
+          <TableBody>
+            {data.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={visibleColumns.length}
+                  className="h-24 text-center text-muted-foreground"
+                >
+                  {emptyMessage}
+                </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+            ) : (
+              data.map((item) => (
+                <TableRow
+                  key={item.id}
+                  onClick={() => onRowClick?.(item)}
+                  className={cn(
+                    onRowClick && 'cursor-pointer',
+                    'active:bg-muted/50'
+                  )}
+                >
+                  {visibleColumns.map((column) => (
+                    <TableCell 
+                      key={String(column.key)} 
+                      className={cn('whitespace-nowrap', column.className)}
+                    >
+                      {column.render
+                        ? column.render(item)
+                        : String(getValue(item, String(column.key)) ?? '-')}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

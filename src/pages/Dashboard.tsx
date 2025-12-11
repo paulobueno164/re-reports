@@ -239,7 +239,7 @@ const Dashboard = () => {
 
   const expenseColumns = [
     { key: 'colaboradorNome', header: 'Colaborador' },
-    { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
+    { key: 'tipoDespesaNome', header: 'Tipo', hideOnMobile: true },
     {
       key: 'valorLancado',
       header: 'Valor',
@@ -254,6 +254,7 @@ const Dashboard = () => {
     {
       key: 'createdAt',
       header: 'Data',
+      hideOnMobile: true,
       render: (item: Expense) => formatDate(item.createdAt),
     },
   ];

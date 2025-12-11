@@ -1,6 +1,13 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +23,9 @@ import {
   Activity,
   History,
   Target,
+  X,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface NavItem {
   label: string;
@@ -97,7 +106,12 @@ const navigation: NavItem[] = [
   },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, hasRole, roles } = useAuth();
@@ -113,67 +127,91 @@ export function Sidebar() {
   });
 
   return (
-    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
-      <div className="flex h-full flex-col">
-        {/* Logo */}
-        <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-            <span className="text-lg font-bold text-sidebar-primary-foreground">RE</span>
-          </div>
-          <div>
-            <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
-            <p className="text-xs text-sidebar-foreground/60">Remuneração Estratégica</p>
-          </div>
+    <div className="flex h-full flex-col">
+      {/* Logo */}
+      <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
+          <span className="text-lg font-bold text-sidebar-primary-foreground">RE</span>
         </div>
-
-        {/* Role Badge */}
-        <div className="px-6 py-3 border-b border-sidebar-border">
-          <div className="flex flex-wrap gap-1">
-            {roles.map((role) => (
-              <span
-                key={role}
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary"
-              >
-                {role}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <ul className="space-y-1">
-            {filteredNavigation.map((item) => (
-              <li key={item.href}>
-                <NavLink
-                  to={item.href}
-                  className={({ isActive }) =>
-                    cn('nav-link', isActive && 'nav-link-active')
-                  }
-                >
-                  {item.icon}
-                  {item.label}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* Footer */}
-        <div className="border-t border-sidebar-border p-3">
-          <button className="nav-link w-full text-sidebar-foreground/60 hover:text-sidebar-foreground">
-            <Settings className="w-5 h-5" />
-            Configurações
-          </button>
-          <button
-            onClick={handleLogout}
-            className="nav-link w-full text-sidebar-foreground/60 hover:text-destructive"
-          >
-            <LogOut className="w-5 h-5" />
-            Sair
-          </button>
+        <div>
+          <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
+          <p className="text-xs text-sidebar-foreground/60">Remuneração Estratégica</p>
         </div>
       </div>
+
+      {/* Role Badge */}
+      <div className="px-6 py-3 border-b border-sidebar-border">
+        <div className="flex flex-wrap gap-1">
+          {roles.map((role) => (
+            <span
+              key={role}
+              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary"
+            >
+              {role}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-1">
+          {filteredNavigation.map((item) => (
+            <li key={item.href}>
+              <NavLink
+                to={item.href}
+                onClick={onNavClick}
+                className={({ isActive }) =>
+                  cn('nav-link', isActive && 'nav-link-active')
+                }
+              >
+                {item.icon}
+                {item.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      </nav>
+
+      {/* Footer */}
+      <div className="border-t border-sidebar-border p-3">
+        <button className="nav-link w-full text-sidebar-foreground/60 hover:text-sidebar-foreground">
+          <Settings className="w-5 h-5" />
+          Configurações
+        </button>
+        <button
+          onClick={handleLogout}
+          className="nav-link w-full text-sidebar-foreground/60 hover:text-destructive"
+        >
+          <LogOut className="w-5 h-5" />
+          Sair
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function Sidebar({ open, onOpenChange }: SidebarProps) {
+  const isMobile = useIsMobile();
+
+  // Mobile: Sheet/Drawer
+  if (isMobile) {
+    return (
+      <Sheet open={open} onOpenChange={onOpenChange}>
+        <SheetContent side="left" className="w-72 p-0 bg-sidebar border-sidebar-border">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Menu de navegação</SheetTitle>
+          </SheetHeader>
+          <SidebarContent onNavClick={() => onOpenChange?.(false)} />
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // Desktop: Fixed sidebar
+  return (
+    <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-sidebar border-r border-sidebar-border">
+      <SidebarContent />
     </aside>
   );
 }
