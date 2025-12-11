@@ -1,1 +1,7 @@
 project_id = "uvjbblwkgvkqejgcdlvc"
+
+[functions.send-email-smtp]
+verify_jwt = true
+
+[functions.check-pending-expenses]
+verify_jwt = false
