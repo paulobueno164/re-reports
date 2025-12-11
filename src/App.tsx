@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
+import DashboardRH from "./pages/DashboardRH";
 import Colaboradores from "./pages/Colaboradores";
 import TiposDespesas from "./pages/TiposDespesas";
 import Calendario from "./pages/Calendario";
@@ -15,6 +16,7 @@ import Lancamentos from "./pages/Lancamentos";
 import Validacao from "./pages/Validacao";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
+import HistoricoAuditoria from "./pages/HistoricoAuditoria";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -35,6 +37,11 @@ const App = () => (
               </ProtectedRoute>
             }>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard-rh" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <DashboardRH />
+                </ProtectedRoute>
+              } />
               <Route path="/colaboradores" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <Colaboradores />
@@ -67,6 +74,11 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/relatorios" element={<Relatorios />} />
+              <Route path="/auditoria" element={
+                <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
+                  <HistoricoAuditoria />
+                </ProtectedRoute>
+              } />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
