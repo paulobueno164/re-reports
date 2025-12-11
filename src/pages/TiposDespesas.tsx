@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Search, Edit, Trash2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Edit, Trash2, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -23,23 +23,83 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { mockExpenseTypes, formatCurrency, expenseGroups } from '@/lib/mock-data';
-import { ExpenseType, ExpenseOrigin } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
+import { formatCurrency } from '@/lib/expense-validation';
+
+interface ExpenseType {
+  id: string;
+  nome: string;
+  classificacao: 'fixo' | 'variavel';
+  valorPadraoTeto: number;
+  grupo: string;
+  origemPermitida: string[];
+  ativo: boolean;
+}
+
+const expenseGroups = ['Equipamentos', 'Seguros', 'Educação', 'Saúde', 'Cultura'];
 
 const TiposDespesas = () => {
   const { toast } = useToast();
-  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>(mockExpenseTypes);
+  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterGrupo, setFilterGrupo] = useState('all');
+  const [filterClassificacao, setFilterClassificacao] = useState('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<ExpenseType | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const filteredTypes = expenseTypes.filter(
-    (type) =>
+  // Form state
+  const [formData, setFormData] = useState({
+    nome: '',
+    classificacao: 'variavel' as 'fixo' | 'variavel',
+    valorPadraoTeto: 0,
+    grupo: '',
+    origemPropio: true,
+    origemConjuge: false,
+    origemFilhos: false,
+    ativo: true,
+  });
+
+  useEffect(() => {
+    fetchExpenseTypes();
+  }, []);
+
+  const fetchExpenseTypes = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('tipos_despesas')
+      .select('*')
+      .order('nome');
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else if (data) {
+      setExpenseTypes(
+        data.map((t) => ({
+          id: t.id,
+          nome: t.nome,
+          classificacao: t.classificacao as 'fixo' | 'variavel',
+          valorPadraoTeto: Number(t.valor_padrao_teto),
+          grupo: t.grupo,
+          origemPermitida: t.origem_permitida as string[],
+          ativo: t.ativo,
+        }))
+      );
+    }
+    setLoading(false);
+  };
+
+  const filteredTypes = expenseTypes.filter((type) => {
+    const matchesSearch =
       type.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      type.grupo.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      type.grupo.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGrupo = filterGrupo === 'all' || type.grupo === filterGrupo;
+    const matchesClassificacao = filterClassificacao === 'all' || type.classificacao === filterClassificacao;
+    return matchesSearch && matchesGrupo && matchesClassificacao;
+  });
 
-  const originLabels: Record<ExpenseOrigin, string> = {
+  const originLabels: Record<string, string> = {
     proprio: 'Próprio',
     conjuge: 'Cônjuge',
     filhos: 'Filhos',
@@ -70,7 +130,7 @@ const TiposDespesas = () => {
         <div className="flex gap-1 flex-wrap">
           {item.origemPermitida.map((origin) => (
             <Badge key={origin} variant="outline" className="text-xs">
-              {originLabels[origin]}
+              {originLabels[origin] || origin}
             </Badge>
           ))}
         </div>
@@ -92,24 +152,10 @@ const TiposDespesas = () => {
       className: 'text-right',
       render: (item: ExpenseType) => (
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleEdit(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(item);
-            }}
-          >
+          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -119,23 +165,99 @@ const TiposDespesas = () => {
 
   const handleEdit = (type: ExpenseType) => {
     setSelectedType(type);
+    setFormData({
+      nome: type.nome,
+      classificacao: type.classificacao,
+      valorPadraoTeto: type.valorPadraoTeto,
+      grupo: type.grupo,
+      origemPropio: type.origemPermitida.includes('proprio'),
+      origemConjuge: type.origemPermitida.includes('conjuge'),
+      origemFilhos: type.origemPermitida.includes('filhos'),
+      ativo: type.ativo,
+    });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (type: ExpenseType) => {
-    if (confirm(`Deseja realmente excluir o tipo de despesa "${type.nome}"?`)) {
-      setExpenseTypes(expenseTypes.filter((t) => t.id !== type.id));
-      toast({
-        title: 'Tipo de despesa excluído',
-        description: `"${type.nome}" foi removido.`,
-      });
+  const handleDelete = async (type: ExpenseType) => {
+    if (!confirm(`Deseja realmente excluir o tipo de despesa "${type.nome}"?`)) return;
+
+    const { error } = await supabase.from('tipos_despesas').delete().eq('id', type.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Tipo excluído', description: `"${type.nome}" foi removido.` });
+      fetchExpenseTypes();
     }
   };
 
   const handleNew = () => {
     setSelectedType(null);
+    setFormData({
+      nome: '',
+      classificacao: 'variavel',
+      valorPadraoTeto: 0,
+      grupo: '',
+      origemPropio: true,
+      origemConjuge: false,
+      origemFilhos: false,
+      ativo: true,
+    });
     setIsDialogOpen(true);
   };
+
+  const handleSave = async () => {
+    if (!formData.nome || !formData.grupo) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
+    }
+
+    const origemPermitida: string[] = [];
+    if (formData.origemPropio) origemPermitida.push('proprio');
+    if (formData.origemConjuge) origemPermitida.push('conjuge');
+    if (formData.origemFilhos) origemPermitida.push('filhos');
+
+    if (origemPermitida.length === 0) {
+      toast({ title: 'Erro', description: 'Selecione pelo menos uma origem permitida.', variant: 'destructive' });
+      return;
+    }
+
+    setSaving(true);
+    const dbData = {
+      nome: formData.nome,
+      classificacao: formData.classificacao,
+      valor_padrao_teto: formData.valorPadraoTeto,
+      grupo: formData.grupo,
+      origem_permitida: origemPermitida as ('proprio' | 'conjuge' | 'filhos')[],
+      ativo: formData.ativo,
+    };
+
+    try {
+      if (selectedType) {
+        const { error } = await supabase.from('tipos_despesas').update(dbData).eq('id', selectedType.id);
+        if (error) throw error;
+        toast({ title: 'Tipo atualizado', description: 'Os dados foram salvos com sucesso.' });
+      } else {
+        const { error } = await supabase.from('tipos_despesas').insert([dbData]);
+        if (error) throw error;
+        toast({ title: 'Tipo criado', description: 'O tipo de despesa foi cadastrado.' });
+      }
+      setIsDialogOpen(false);
+      fetchExpenseTypes();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -160,7 +282,7 @@ const TiposDespesas = () => {
             className="pl-9"
           />
         </div>
-        <Select defaultValue="all">
+        <Select value={filterGrupo} onValueChange={setFilterGrupo}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Grupo" />
           </SelectTrigger>
@@ -173,7 +295,7 @@ const TiposDespesas = () => {
             ))}
           </SelectContent>
         </Select>
-        <Select defaultValue="all">
+        <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Classificação" />
           </SelectTrigger>
@@ -186,29 +308,22 @@ const TiposDespesas = () => {
       </div>
 
       {/* Table */}
-      <DataTable
-        data={filteredTypes}
-        columns={columns}
-        emptyMessage="Nenhum tipo de despesa encontrado"
-      />
+      <DataTable data={filteredTypes} columns={columns} emptyMessage="Nenhum tipo de despesa encontrado" />
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {selectedType ? 'Editar Tipo de Despesa' : 'Novo Tipo de Despesa'}
-            </DialogTitle>
-            <DialogDescription>
-              Configure os parâmetros do tipo de despesa
-            </DialogDescription>
+            <DialogTitle>{selectedType ? 'Editar Tipo de Despesa' : 'Novo Tipo de Despesa'}</DialogTitle>
+            <DialogDescription>Configure os parâmetros do tipo de despesa</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Nome do Tipo de Despesa</Label>
               <Input
-                defaultValue={selectedType?.nome || ''}
+                value={formData.nome}
+                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
                 placeholder="Ex: Notebook, Previdência Privada"
               />
             </div>
@@ -216,7 +331,10 @@ const TiposDespesas = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Classificação</Label>
-                <Select defaultValue={selectedType?.classificacao || 'variavel'}>
+                <Select
+                  value={formData.classificacao}
+                  onValueChange={(value: 'fixo' | 'variavel') => setFormData({ ...formData, classificacao: value })}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -228,7 +346,7 @@ const TiposDespesas = () => {
               </div>
               <div className="space-y-2">
                 <Label>Grupo</Label>
-                <Select defaultValue={selectedType?.grupo || ''}>
+                <Select value={formData.grupo} onValueChange={(value) => setFormData({ ...formData, grupo: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -247,24 +365,22 @@ const TiposDespesas = () => {
               <Label>Valor Padrão para Teto (R$)</Label>
               <Input
                 type="number"
-                defaultValue={selectedType?.valorPadraoTeto || 0}
+                value={formData.valorPadraoTeto}
+                onChange={(e) => setFormData({ ...formData, valorPadraoTeto: parseFloat(e.target.value) || 0 })}
                 placeholder="0,00"
               />
-              <p className="text-xs text-muted-foreground">
-                Este valor será sugerido ao cadastrar novos colaboradores
-              </p>
+              <p className="text-xs text-muted-foreground">Este valor será sugerido ao cadastrar novos colaboradores</p>
             </div>
 
             <div className="space-y-3">
               <Label>Origem Permitida</Label>
-              <p className="text-xs text-muted-foreground">
-                Selecione quem pode ser beneficiário desta despesa
-              </p>
+              <p className="text-xs text-muted-foreground">Selecione quem pode ser beneficiário desta despesa</p>
               <div className="space-y-2">
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="proprio"
-                    defaultChecked={selectedType?.origemPermitida.includes('proprio') ?? true}
+                    checked={formData.origemPropio}
+                    onCheckedChange={(checked) => setFormData({ ...formData, origemPropio: !!checked })}
                   />
                   <Label htmlFor="proprio" className="font-normal">
                     Próprio (Colaborador)
@@ -273,7 +389,8 @@ const TiposDespesas = () => {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="conjuge"
-                    defaultChecked={selectedType?.origemPermitida.includes('conjuge') ?? false}
+                    checked={formData.origemConjuge}
+                    onCheckedChange={(checked) => setFormData({ ...formData, origemConjuge: !!checked })}
                   />
                   <Label htmlFor="conjuge" className="font-normal">
                     Cônjuge
@@ -282,7 +399,8 @@ const TiposDespesas = () => {
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="filhos"
-                    defaultChecked={selectedType?.origemPermitida.includes('filhos') ?? false}
+                    checked={formData.origemFilhos}
+                    onCheckedChange={(checked) => setFormData({ ...formData, origemFilhos: !!checked })}
                   />
                   <Label htmlFor="filhos" className="font-normal">
                     Filhos
@@ -296,15 +414,8 @@ const TiposDespesas = () => {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button
-              onClick={() => {
-                toast({
-                  title: selectedType ? 'Tipo atualizado' : 'Tipo criado',
-                  description: 'Os dados foram salvos com sucesso.',
-                });
-                setIsDialogOpen(false);
-              }}
-            >
+            <Button onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Salvar
             </Button>
           </DialogFooter>
