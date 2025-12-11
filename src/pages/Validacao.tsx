@@ -37,6 +37,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer';
 import { BatchApprovalPanel } from '@/components/validation/BatchApprovalPanel';
+import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
 import { createAuditLog } from '@/lib/audit-log';
 
 interface Expense {
@@ -641,6 +642,9 @@ const Validacao = () => {
                   <AttachmentViewer lancamentoId={selectedExpense.id} />
                 </div>
               </div>
+
+              {/* Expense Timeline */}
+              <ExpenseTimeline expenseId={selectedExpense.id} />
 
               <Separator />
 
