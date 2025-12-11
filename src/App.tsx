@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DashboardRH from "./pages/DashboardRH";
+import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 import KPIsDashboard from "./pages/KPIsDashboard";
 import Colaboradores from "./pages/Colaboradores";
 import TiposDespesas from "./pages/TiposDespesas";
@@ -41,6 +42,11 @@ const App = () => (
               <Route path="/dashboard-rh" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <DashboardRH />
+                </ProtectedRoute>
+              } />
+              <Route path="/dashboard-financeiro" element={
+                <ProtectedRoute requiredRoles={['FINANCEIRO']}>
+                  <DashboardFinanceiro />
                 </ProtectedRoute>
               } />
               <Route path="/colaboradores" element={

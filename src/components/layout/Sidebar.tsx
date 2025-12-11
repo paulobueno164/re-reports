@@ -47,6 +47,12 @@ const navigation: NavItem[] = [
     roles: ['RH'],
   },
   {
+    label: 'Dashboard Financeiro',
+    href: '/dashboard-financeiro',
+    icon: <BarChart3 className="w-5 h-5" />,
+    roles: ['FINANCEIRO'],
+  },
+  {
     label: 'Colaboradores',
     href: '/colaboradores',
     icon: <Users className="w-5 h-5" />,
