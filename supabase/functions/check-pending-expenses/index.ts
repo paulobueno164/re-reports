@@ -12,6 +12,21 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Verify CRON_SECRET for authentication (since verify_jwt is disabled for cron job access)
+  const expectedSecret = Deno.env.get("CRON_SECRET");
+  const providedSecret = req.headers.get("x-cron-secret");
+  
+  if (!expectedSecret || providedSecret !== expectedSecret) {
+    console.error("Unauthorized access attempt - invalid or missing CRON_SECRET");
+    return new Response(
+      JSON.stringify({ error: "Unauthorized" }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+
   try {
     console.log("Starting pending expenses check...");
 
