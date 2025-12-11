@@ -9,7 +9,17 @@ export interface Attachment {
   tipoArquivo: string;
   tamanho: number;
   storagePath: string;
+  hashComprovante?: string;
   createdAt: Date;
+}
+
+// Generate a hash for uniqueness validation
+async function generateFileHash(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
 }
 
 export function useAttachments(lancamentoId?: string) {
@@ -28,13 +38,14 @@ export function useAttachments(lancamentoId?: string) {
       return [];
     }
 
-    const mapped = data.map((a) => ({
+    const mapped = data.map((a: any) => ({
       id: a.id,
       lancamentoId: a.lancamento_id,
       nomeArquivo: a.nome_arquivo,
       tipoArquivo: a.tipo_arquivo,
       tamanho: a.tamanho,
       storagePath: a.storage_path,
+      hashComprovante: a.hash_comprovante,
       createdAt: new Date(a.created_at),
     }));
 
@@ -67,6 +78,9 @@ export function useAttachments(lancamentoId?: string) {
         throw new Error('Tipo de arquivo não permitido');
       }
 
+      // Generate file hash for uniqueness validation
+      const fileHash = await generateFileHash(file);
+
       // Generate unique file path
       const fileExt = file.name.split('.').pop();
       const fileName = `${lancamentoId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -80,18 +94,25 @@ export function useAttachments(lancamentoId?: string) {
         throw uploadError;
       }
 
-      // Save metadata to anexos table
+      // Save metadata to anexos table with hash
       const { error: insertError } = await supabase.from('anexos').insert({
         lancamento_id: lancamentoId,
         nome_arquivo: file.name,
         tipo_arquivo: file.type,
         tamanho: file.size,
         storage_path: fileName,
+        hash_comprovante: fileHash,
       });
 
       if (insertError) {
         // Rollback storage upload
         await supabase.storage.from('comprovantes').remove([fileName]);
+        
+        // Check if it's a duplicate error
+        if (insertError.message.includes('comprovante já foi utilizado') || 
+            insertError.code === '23505') {
+          throw new Error('Este comprovante já foi utilizado em outro lançamento. Cada nota fiscal/recibo só pode ser lançado uma única vez.');
+        }
         throw insertError;
       }
 

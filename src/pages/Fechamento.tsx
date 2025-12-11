@@ -237,13 +237,26 @@ const Fechamento = () => {
 
       // Calculate PI/DA conversions (difference between teto and used)
       let totalPidaConvertido = 0;
-      const pidaConversions: { colaboradorId: string; valor: number; nome: string }[] = [];
+      const pidaConversions: { 
+        colaboradorId: string; 
+        valorDiferenca: number; 
+        valorBasePida: number;
+        nome: string 
+      }[] = [];
       
       colaboradorTotals.forEach((data, colabId) => {
-        if (data.teto > data.total) {
-          const diferenca = data.teto - data.total;
-          totalPidaConvertido += diferenca;
-          pidaConversions.push({ colaboradorId: colabId, valor: diferenca, nome: data.nome });
+        const diferenca = Math.max(0, data.teto - data.total);
+        const basePida = data.temPida ? data.pidaTeto : 0;
+        const totalPida = diferenca + basePida;
+        
+        if (totalPida > 0) {
+          totalPidaConvertido += totalPida;
+          pidaConversions.push({ 
+            colaboradorId: colabId, 
+            valorDiferenca: diferenca,
+            valorBasePida: basePida,
+            nome: data.nome 
+          });
         }
       });
 
@@ -251,11 +264,11 @@ const Fechamento = () => {
 
       // Calculate totals
       const totalColaboradores = colaboradorTotals.size;
-      const totalEventos = (lancamentos?.length || 0) + pidaConversions.length; // Include PI/DA events
+      const totalEventos = (lancamentos?.length || 0) + pidaConversions.length;
       const valorTotal = (lancamentos?.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0) || 0) + totalPidaConvertido;
 
       // Create closing record
-      const { error: fechError } = await supabase
+      const { data: fechamentoData, error: fechError } = await supabase
         .from('fechamentos')
         .insert({
           periodo_id: selectedPeriod,
@@ -264,9 +277,32 @@ const Fechamento = () => {
           total_eventos: totalEventos,
           valor_total: valorTotal,
           status: 'sucesso',
-        });
+        })
+        .select('id')
+        .single();
 
       if (fechError) throw fechError;
+
+      // Insert PI/DA events into eventos_pida table
+      if (pidaConversions.length > 0 && fechamentoData) {
+        const pidaInserts = pidaConversions.map(pida => ({
+          fechamento_id: fechamentoData.id,
+          colaborador_id: pida.colaboradorId,
+          periodo_id: selectedPeriod,
+          valor_base_pida: pida.valorBasePida,
+          valor_diferenca_cesta: pida.valorDiferenca,
+          valor_total_pida: pida.valorBasePida + pida.valorDiferenca,
+        }));
+
+        const { error: pidaError } = await supabase
+          .from('eventos_pida')
+          .insert(pidaInserts);
+
+        if (pidaError) {
+          console.error('Erro ao inserir eventos PI/DA:', pidaError);
+          // Log but don't fail the entire process
+        }
+      }
 
       setProcessingProgress(90);
 
@@ -279,12 +315,12 @@ const Fechamento = () => {
       setProcessingProgress(100);
 
       const pidaMsg = pidaConversions.length > 0 
-        ? ` ${pidaConversions.length} conversão(ões) PI/DA gerada(s) (${formatCurrency(totalPidaConvertido)}).`
+        ? ` ${pidaConversions.length} evento(s) PI/DA gerado(s) (${formatCurrency(totalPidaConvertido)}).`
         : '';
 
       toast({
         title: 'Fechamento concluído',
-        description: `${lancamentos?.length || 0} eventos + ${pidaConversions.length} PI/DA para ${totalColaboradores} colaboradores.${pidaMsg}`,
+        description: `${lancamentos?.length || 0} lançamentos + ${pidaConversions.length} PI/DA para ${totalColaboradores} colaboradores.${pidaMsg}`,
       });
 
       setIsDialogOpen(false);
@@ -306,6 +342,7 @@ const Fechamento = () => {
       const period = periods.find(p => p.periodo === log.periodo);
       if (!period) return;
 
+      // Fetch lancamentos
       const { data: lancamentos } = await supabase
         .from('lancamentos')
         .select(`
@@ -318,16 +355,28 @@ const Fechamento = () => {
         .eq('periodo_id', period.id)
         .eq('status', 'valido');
 
-      if (!lancamentos || lancamentos.length === 0) {
+      // Fetch eventos PI/DA for this closing
+      const { data: eventosPida } = await supabase
+        .from('eventos_pida')
+        .select(`
+          valor_total_pida,
+          valor_base_pida,
+          valor_diferenca_cesta,
+          colaboradores_elegiveis (matricula, nome, departamento)
+        `)
+        .eq('fechamento_id', log.id);
+
+      if ((!lancamentos || lancamentos.length === 0) && (!eventosPida || eventosPida.length === 0)) {
         toast({
           title: 'Sem dados',
-          description: 'Não há lançamentos válidos para exportar.',
+          description: 'Não há lançamentos ou eventos PI/DA para exportar.',
           variant: 'destructive',
         });
         return;
       }
 
-      const exportData = lancamentos.map((l: any) => ({
+      // Map regular expenses
+      const exportData = (lancamentos || []).map((l: any) => ({
         matricula: l.colaboradores_elegiveis?.matricula || '',
         nome: l.colaboradores_elegiveis?.nome || '',
         departamento: l.colaboradores_elegiveis?.departamento || '',
@@ -337,7 +386,20 @@ const Fechamento = () => {
         periodo: log.periodo,
       }));
 
-      exportToExcel(exportData, log.periodo);
+      // Add PI/DA events
+      const pidaExportData = (eventosPida || []).map((e: any) => ({
+        matricula: e.colaboradores_elegiveis?.matricula || '',
+        nome: e.colaboradores_elegiveis?.nome || '',
+        departamento: e.colaboradores_elegiveis?.departamento || '',
+        codigoEvento: 'PIDA',
+        descricaoEvento: 'PI/DA - Propriedade Intelectual / Direitos Autorais',
+        valor: Number(e.valor_total_pida),
+        periodo: log.periodo,
+      }));
+
+      const allExportData = [...exportData, ...pidaExportData];
+
+      exportToExcel(allExportData, log.periodo);
 
       // Log the export
       if (user) {
@@ -348,13 +410,13 @@ const Fechamento = () => {
             fechamento_id: log.id,
             usuario_id: user.id,
             nome_arquivo: `RemuneracaoEstrategica_${log.periodo.replace('/', '')}.xlsx`,
-            qtd_registros: exportData.length,
+            qtd_registros: allExportData.length,
           });
       }
 
       toast({
         title: 'Exportação concluída',
-        description: `Arquivo Excel gerado com ${exportData.length} registros.`,
+        description: `Arquivo Excel gerado com ${allExportData.length} registros (${exportData.length} despesas + ${pidaExportData.length} PI/DA).`,
       });
     } catch (error: any) {
       toast({

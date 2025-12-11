@@ -17,6 +17,7 @@ export type Database = {
       anexos: {
         Row: {
           created_at: string
+          hash_comprovante: string | null
           id: string
           lancamento_id: string
           nome_arquivo: string
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          hash_comprovante?: string | null
           id?: string
           lancamento_id: string
           nome_arquivo: string
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          hash_comprovante?: string | null
           id?: string
           lancamento_id?: string
           nome_arquivo?: string
@@ -189,6 +192,61 @@ export type Database = {
           vale_refeicao?: number
         }
         Relationships: []
+      }
+      eventos_pida: {
+        Row: {
+          colaborador_id: string
+          created_at: string
+          fechamento_id: string
+          id: string
+          periodo_id: string
+          valor_base_pida: number
+          valor_diferenca_cesta: number
+          valor_total_pida: number
+        }
+        Insert: {
+          colaborador_id: string
+          created_at?: string
+          fechamento_id: string
+          id?: string
+          periodo_id: string
+          valor_base_pida?: number
+          valor_diferenca_cesta?: number
+          valor_total_pida?: number
+        }
+        Update: {
+          colaborador_id?: string
+          created_at?: string
+          fechamento_id?: string
+          id?: string
+          periodo_id?: string
+          valor_base_pida?: number
+          valor_diferenca_cesta?: number
+          valor_total_pida?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_pida_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores_elegiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_pida_fechamento_id_fkey"
+            columns: ["fechamento_id"]
+            isOneToOne: false
+            referencedRelation: "fechamentos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eventos_pida_periodo_id_fkey"
+            columns: ["periodo_id"]
+            isOneToOne: false
+            referencedRelation: "calendario_periodos"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       exportacoes: {
         Row: {
