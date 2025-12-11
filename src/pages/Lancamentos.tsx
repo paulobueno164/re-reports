@@ -535,10 +535,16 @@ const Lancamentos = () => {
         lancamentoId = data.id;
       }
 
-      // Upload attachment if provided
+      // Upload attachment if provided (with hash for uniqueness)
       if (formFile && lancamentoId) {
         const fileExt = formFile.name.split('.').pop();
         const filePath = `${colaborador.id}/${lancamentoId}/${Date.now()}.${fileExt}`;
+
+        // Generate file hash
+        const buffer = await formFile.arrayBuffer();
+        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
         const { error: uploadError } = await supabase.storage
           .from('comprovantes')
@@ -547,14 +553,30 @@ const Lancamentos = () => {
         if (uploadError) {
           console.error('Error uploading file:', uploadError);
         } else {
-          // Create attachment record
-          await supabase.from('anexos').insert({
+          // Create attachment record with hash
+          const { error: anexoError } = await supabase.from('anexos').insert({
             lancamento_id: lancamentoId,
             nome_arquivo: formFile.name,
             storage_path: filePath,
             tamanho: formFile.size,
             tipo_arquivo: formFile.type || 'application/octet-stream',
+            hash_comprovante: fileHash,
           });
+
+          if (anexoError) {
+            // Rollback storage upload if duplicate
+            await supabase.storage.from('comprovantes').remove([filePath]);
+            
+            if (anexoError.message.includes('comprovante já foi utilizado') || anexoError.code === '23505') {
+              toast({ 
+                title: 'Comprovante duplicado', 
+                description: 'Este comprovante já foi utilizado em outro lançamento.', 
+                variant: 'destructive' 
+              });
+              return;
+            }
+            console.error('Error creating attachment:', anexoError);
+          }
         }
       }
 
@@ -566,7 +588,20 @@ const Lancamentos = () => {
       setIsDialogOpen(false);
       fetchData();
     } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      // Handle specific trigger errors
+      let errorMessage = error.message;
+      
+      if (error.message.includes('Período não encontrado')) {
+        errorMessage = 'O período selecionado não foi encontrado.';
+      } else if (error.message.includes('período está fechado')) {
+        errorMessage = 'Este período está fechado para lançamentos.';
+      } else if (error.message.includes('ainda não iniciou')) {
+        errorMessage = error.message; // Use the trigger message
+      } else if (error.message.includes('encerrado')) {
+        errorMessage = 'O período de lançamento foi encerrado. Seu lançamento será direcionado para o próximo mês.';
+      }
+      
+      toast({ title: 'Erro', description: errorMessage, variant: 'destructive' });
     }
   };
 
