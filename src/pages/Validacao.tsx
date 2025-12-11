@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock, Send } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -81,7 +81,7 @@ const Validacao = () => {
   const [filterValueMax, setFilterValueMax] = useState('');
   const [departments, setDepartments] = useState<string[]>([]);
 
-  const [stats, setStats] = useState({ pending: 0, approvedToday: 0, rejectedToday: 0 });
+  const [stats, setStats] = useState({ enviado: 0, emAnalise: 0, approvedToday: 0, rejectedToday: 0 });
 
   useEffect(() => {
     fetchExpenses();
@@ -106,6 +106,8 @@ const Validacao = () => {
       .order('created_at', { ascending: false });
 
     if (filterStatus === 'pending') query = query.in('status', ['enviado', 'em_analise']);
+    else if (filterStatus === 'enviado') query = query.eq('status', 'enviado');
+    else if (filterStatus === 'em_analise') query = query.eq('status', 'em_analise');
 
     const { data, error } = await query;
     if (error) {
@@ -129,7 +131,8 @@ const Validacao = () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       setStats({
-        pending: mapped.filter((e) => e.status === 'enviado' || e.status === 'em_analise').length,
+        enviado: mapped.filter((e) => e.status === 'enviado').length,
+        emAnalise: mapped.filter((e) => e.status === 'em_analise').length,
         approvedToday: mapped.filter((e) => e.status === 'valido' && new Date(e.createdAt) >= today).length,
         rejectedToday: mapped.filter((e) => e.status === 'invalido' && new Date(e.createdAt) >= today).length,
       });
@@ -353,21 +356,34 @@ const Validacao = () => {
       />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-warning/5 border-warning/20">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="bg-warning/5 border-warning/20 cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => setFilterStatus('enviado')}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-warning" />
-              Pendentes de Análise
+              <Send className="h-4 w-4 text-warning" />
+              Aguardando Análise
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-warning">{stats.pending}</p>
-            <p className="text-xs text-muted-foreground">lançamentos aguardando validação</p>
+            <p className="text-3xl font-bold text-warning">{stats.enviado}</p>
+            <p className="text-xs text-muted-foreground">novos lançamentos</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-blue-500/5 border-blue-500/20 cursor-pointer hover:bg-blue-500/10 transition-colors" onClick={() => setFilterStatus('em_analise')}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-blue-500" />
+              Em Análise
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold text-blue-500">{stats.emAnalise}</p>
+            <p className="text-xs text-muted-foreground">sendo analisados</p>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setFilterStatus('all')}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-success" />
@@ -380,7 +396,7 @@ const Validacao = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setFilterStatus('all')}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <XCircle className="h-4 w-4 text-destructive" />
@@ -411,7 +427,9 @@ const Validacao = () => {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="pending">Pendentes</SelectItem>
+              <SelectItem value="pending">Todos Pendentes</SelectItem>
+              <SelectItem value="enviado">Aguardando Análise</SelectItem>
+              <SelectItem value="em_analise">Em Análise</SelectItem>
               <SelectItem value="all">Todos</SelectItem>
             </SelectContent>
           </Select>
