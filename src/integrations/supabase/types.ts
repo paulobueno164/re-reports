@@ -130,6 +130,48 @@ export type Database = {
         }
         Relationships: []
       }
+      colaborador_tipos_despesas: {
+        Row: {
+          ativo: boolean | null
+          colaborador_id: string
+          created_at: string | null
+          id: string
+          teto_individual: number | null
+          tipo_despesa_id: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          colaborador_id: string
+          created_at?: string | null
+          id?: string
+          teto_individual?: number | null
+          tipo_despesa_id: string
+        }
+        Update: {
+          ativo?: boolean | null
+          colaborador_id?: string
+          created_at?: string | null
+          id?: string
+          teto_individual?: number | null
+          tipo_despesa_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "colaborador_tipos_despesas_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "colaboradores_elegiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "colaborador_tipos_despesas_tipo_despesa_id_fkey"
+            columns: ["tipo_despesa_id"]
+            isOneToOne: false
+            referencedRelation: "tipos_despesas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       colaboradores_elegiveis: {
         Row: {
           ajuda_custo: number

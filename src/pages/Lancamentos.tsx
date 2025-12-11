@@ -174,15 +174,38 @@ const Lancamentos = () => {
       setCestaTeto(Number(colabData.cesta_beneficios_teto));
     }
 
-    // Fetch expense types
-    const { data: typesData } = await supabase
-      .from('tipos_despesas')
-      .select('id, nome, origem_permitida')
-      .eq('classificacao', 'variavel')
-      .eq('ativo', true);
+    // Fetch expense types - first try colaborador-specific, fallback to all
+    let typesData: any[] = [];
+    
+    if (colabData) {
+      // Try to get colaborador-specific expense types
+      const { data: vinculosData } = await supabase
+        .from('colaborador_tipos_despesas')
+        .select(`
+          teto_individual,
+          tipos_despesas (id, nome, origem_permitida)
+        `)
+        .eq('colaborador_id', colabData.id)
+        .eq('ativo', true);
 
-    if (typesData) {
-      setExpenseTypes(typesData.map(t => ({
+      if (vinculosData && vinculosData.length > 0) {
+        typesData = vinculosData.map((v: any) => v.tipos_despesas).filter(Boolean);
+      }
+    }
+
+    // Fallback to all variable expense types if no specific bindings
+    if (typesData.length === 0) {
+      const { data: allTypesData } = await supabase
+        .from('tipos_despesas')
+        .select('id, nome, origem_permitida')
+        .eq('classificacao', 'variavel')
+        .eq('ativo', true);
+      
+      typesData = allTypesData || [];
+    }
+
+    if (typesData.length > 0) {
+      setExpenseTypes(typesData.map((t: any) => ({
         id: t.id,
         nome: t.nome,
         origemPermitida: t.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],

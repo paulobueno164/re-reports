@@ -57,11 +57,13 @@ const Fechamento = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('');
   const [closingLogs, setClosingLogs] = useState<ClosingLog[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
-  const [pendingValidation, setPendingValidation] = useState(0);
+  const [pendingEnviado, setPendingEnviado] = useState(0);
+  const [pendingEmAnalise, setPendingEmAnalise] = useState(0);
   const [totalLancamentos, setTotalLancamentos] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const currentPeriod = periods.find((p) => p.status === 'aberto');
+  const pendingValidation = pendingEnviado + pendingEmAnalise;
   const canProcess = pendingValidation === 0 && hasRole('RH');
   const canExport = hasRole('FINANCEIRO');
 
@@ -86,13 +88,19 @@ const Fechamento = () => {
       }
     }
 
-    // Fetch pending validation count
-    const { count: pendingCount } = await supabase
+    // Fetch pending validation count - separate by status
+    const { count: enviadoCount } = await supabase
       .from('lancamentos')
       .select('*', { count: 'exact', head: true })
-      .in('status', ['enviado', 'em_analise']);
+      .eq('status', 'enviado');
     
-    setPendingValidation(pendingCount || 0);
+    const { count: emAnaliseCount } = await supabase
+      .from('lancamentos')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'em_analise');
+    
+    setPendingEnviado(enviadoCount || 0);
+    setPendingEmAnalise(emAnaliseCount || 0);
 
     // Fetch total lancamentos
     const { count: totalCount } = await supabase
@@ -477,9 +485,14 @@ const Fechamento = () => {
             <p className={`text-2xl font-bold ${pendingValidation > 0 ? 'text-warning' : 'text-success'}`}>
               {pendingValidation}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {pendingValidation > 0 ? 'Valide antes do fechamento' : 'Pronto para processar'}
-            </p>
+            {pendingValidation > 0 ? (
+              <div className="text-xs text-muted-foreground space-y-0.5">
+                <p>{pendingEnviado} aguardando análise</p>
+                <p>{pendingEmAnalise} em análise</p>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Pronto para processar</p>
+            )}
           </CardContent>
         </Card>
 
