@@ -19,6 +19,7 @@ import Validacao from "./pages/Validacao";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import HistoricoAuditoria from "./pages/HistoricoAuditoria";
+import Instalar from "./pages/Instalar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +33,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/instalar" element={<Instalar />} />
             <Route path="/auth" element={<Auth />} />
             <Route element={
               <ProtectedRoute>
