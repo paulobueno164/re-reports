@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface StatCardProps {
   title: string;
@@ -12,6 +13,7 @@ interface StatCardProps {
   };
   className?: string;
   variant?: 'default' | 'primary' | 'accent' | 'success' | 'warning';
+  href?: string;
 }
 
 export function StatCard({
@@ -22,6 +24,7 @@ export function StatCard({
   trend,
   className,
   variant = 'default',
+  href,
 }: StatCardProps) {
   const variantStyles = {
     default: 'bg-card',
@@ -39,49 +42,62 @@ export function StatCard({
     warning: 'bg-warning/20 text-warning',
   };
 
-  return (
-    <div
-      className={cn(
-        'stat-card',
-        variantStyles[variant],
-        className
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
+  const content = (
+    <div className="flex items-start justify-between">
+      <div className="space-y-1">
+        <p className={cn(
+          'text-sm font-medium',
+          variant === 'default' ? 'text-muted-foreground' : 'opacity-80'
+        )}>
+          {title}
+        </p>
+        <p className="text-2xl font-bold tracking-tight">{value}</p>
+        {description && (
           <p className={cn(
-            'text-sm font-medium',
-            variant === 'default' ? 'text-muted-foreground' : 'opacity-80'
+            'text-xs',
+            variant === 'default' ? 'text-muted-foreground' : 'opacity-70'
           )}>
-            {title}
+            {description}
           </p>
-          <p className="text-2xl font-bold tracking-tight">{value}</p>
-          {description && (
-            <p className={cn(
-              'text-xs',
-              variant === 'default' ? 'text-muted-foreground' : 'opacity-70'
-            )}>
-              {description}
-            </p>
-          )}
-          {trend && (
-            <p className={cn(
-              'text-xs font-medium',
-              trend.isPositive ? 'text-success' : 'text-destructive'
-            )}>
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
-            </p>
-          )}
-        </div>
-        {Icon && (
-          <div className={cn(
-            'rounded-lg p-2.5',
-            iconStyles[variant]
+        )}
+        {trend && (
+          <p className={cn(
+            'text-xs font-medium',
+            trend.isPositive ? 'text-success' : 'text-destructive'
           )}>
-            <Icon className="h-5 w-5" />
-          </div>
+            {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+          </p>
         )}
       </div>
+      {Icon && (
+        <div className={cn(
+          'rounded-lg p-2.5',
+          iconStyles[variant]
+        )}>
+          <Icon className="h-5 w-5" />
+        </div>
+      )}
+    </div>
+  );
+
+  const cardClasses = cn(
+    'stat-card',
+    variantStyles[variant],
+    href && 'cursor-pointer hover:scale-[1.02] transition-transform',
+    className
+  );
+
+  if (href) {
+    return (
+      <Link to={href} className={cardClasses}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={cardClasses}>
+      {content}
     </div>
   );
 }
