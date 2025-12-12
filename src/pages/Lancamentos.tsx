@@ -915,7 +915,12 @@ const Lancamentos = () => {
                     <Paperclip className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm font-medium">Comprovantes Anexados</p>
                   </div>
-                  <AttachmentList key={attachmentRefreshKey} lancamentoId={selectedExpense.id} />
+                  <AttachmentList 
+                    key={attachmentRefreshKey} 
+                    lancamentoId={selectedExpense.id}
+                    allowDelete={selectedExpense.status === 'rascunho'}
+                    onDeleteComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
+                  />
                   
                   {/* Allow adding attachments when in draft status */}
                   {selectedExpense.status === 'rascunho' && (
@@ -1079,6 +1084,28 @@ const Lancamentos = () => {
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
               {isViewMode ? 'Fechar' : 'Cancelar'}
             </Button>
+            {isViewMode && selectedExpense?.status === 'rascunho' && (
+              <Button 
+                onClick={async () => {
+                  try {
+                    const { error } = await supabase
+                      .from('lancamentos')
+                      .update({ status: 'enviado' })
+                      .eq('id', selectedExpense.id);
+                    
+                    if (error) throw error;
+                    
+                    toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
+                    setIsDialogOpen(false);
+                    fetchData();
+                  } catch (error: any) {
+                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                  }
+                }}
+              >
+                Enviar para Análise
+              </Button>
+            )}
             {!isViewMode && (
               <>
                 <Button variant="secondary" onClick={() => handleSave('rascunho')}>
