@@ -39,9 +39,12 @@ import { AttachmentViewer } from '@/components/attachments/AttachmentViewer';
 import { BatchApprovalPanel } from '@/components/validation/BatchApprovalPanel';
 import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
 import { createAuditLog } from '@/lib/audit-log';
+import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
+import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
 
 interface Expense {
   id: string;
+  colaboradorId: string;
   colaboradorNome: string;
   tipoDespesaNome: string;
   departamento: string;
@@ -66,6 +69,7 @@ const originLabels: Record<string, string> = {
 const Validacao = () => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { hasInconsistency, getDisplayName } = useNameInconsistency();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -103,8 +107,8 @@ const Validacao = () => {
       .from('lancamentos')
       .select(`
         id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, created_at, motivo_invalidacao,
-        colaboradores_elegiveis (nome, departamento),
+        descricao_fato_gerador, status, created_at, motivo_invalidacao, colaborador_id,
+        colaboradores_elegiveis (id, nome, departamento),
         tipos_despesas (nome)
       `)
       .order('created_at', { ascending: false });
@@ -134,6 +138,7 @@ const Validacao = () => {
 
         return {
           id: e.id,
+          colaboradorId: e.colaboradores_elegiveis?.id || e.colaborador_id || '',
           colaboradorNome: e.colaboradores_elegiveis?.nome || '',
           tipoDespesaNome: e.tipos_despesas?.nome || '',
           departamento: e.colaboradores_elegiveis?.departamento || '',
@@ -228,7 +233,25 @@ const Validacao = () => {
         ) : null
       ),
     },
-    { key: 'colaboradorNome', header: 'Colaborador' },
+    { 
+      key: 'colaboradorNome', 
+      header: 'Colaborador',
+      render: (item: Expense) => {
+        const inconsistency = hasInconsistency(item.colaboradorId);
+        const displayName = getDisplayName(item.colaboradorId, item.colaboradorNome, true);
+        return (
+          <span className="inline-flex items-center gap-1">
+            {displayName}
+            {inconsistency && (
+              <NameInconsistencyAlert 
+                colaboradorNome={inconsistency.colaboradorNome} 
+                profileNome={inconsistency.profileNome} 
+              />
+            )}
+          </span>
+        );
+      },
+    },
     { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
     {
       key: 'origem',
