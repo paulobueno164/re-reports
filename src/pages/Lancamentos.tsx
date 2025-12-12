@@ -120,10 +120,23 @@ const Lancamentos = () => {
     mensagem: string;
   } | null>(null);
 
-  const currentPeriod = periods.find((p) => p.status === 'aberto');
+  // Find the period where today falls within or after the launch window
+  const today = new Date();
+  const todayTime = today.getTime();
+  
+  // Find period where today is within the launch window (abre <= today <= fecha + end of day)
+  const currentPeriod = periods.find((p) => {
+    if (p.status !== 'aberto') return false;
+    const abertura = p.abreLancamento.getTime();
+    const fechamento = p.fechaLancamento.getTime() + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
+    return todayTime >= abertura && todayTime <= fechamento;
+  }) || periods.find((p) => p.status === 'aberto'); // Fallback to first open period
+  
+  // Next period is the one after current in the list (sorted DESC, so next is at lower index)
   const nextPeriod = periods.find((p, idx) => {
-    const currentIdx = periods.findIndex(pp => pp.status === 'aberto');
-    return currentIdx >= 0 && idx === currentIdx - 1;
+    if (!currentPeriod) return false;
+    const currentIdx = periods.findIndex(pp => pp.id === currentPeriod.id);
+    return currentIdx >= 0 && idx === currentIdx - 1 && p.status === 'aberto';
   });
 
   useEffect(() => {
