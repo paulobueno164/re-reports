@@ -127,26 +127,31 @@ const GerenciarUsuarios = () => {
 
     setSaving(true);
     try {
-      // Remove existing roles
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', selectedUser.id);
+      const currentRoles = selectedUser.roles;
+      const newRoles = selectedRoles;
 
-      if (deleteError) throw deleteError;
+      // Calculate roles to add and remove
+      const rolesToAdd = newRoles.filter((role) => !currentRoles.includes(role));
+      const rolesToRemove = currentRoles.filter((role) => !newRoles.includes(role));
 
-      // Add new roles
-      if (selectedRoles.length > 0) {
-        const rolesToInsert = selectedRoles.map((role) => ({
-          user_id: selectedUser.id,
-          role,
-        }));
-
+      // First, add new roles (safer - if this fails, we haven't lost anything)
+      if (rolesToAdd.length > 0) {
         const { error: insertError } = await supabase
           .from('user_roles')
-          .insert(rolesToInsert);
+          .insert(rolesToAdd.map((role) => ({ user_id: selectedUser.id, role })));
 
         if (insertError) throw insertError;
+      }
+
+      // Then, remove old roles (only after adds succeeded)
+      if (rolesToRemove.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', selectedUser.id)
+          .in('role', rolesToRemove);
+
+        if (deleteError) throw deleteError;
       }
 
       toast({
@@ -158,6 +163,8 @@ const GerenciarUsuarios = () => {
       fetchUsers();
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      // Refresh to show current state
+      fetchUsers();
     } finally {
       setSaving(false);
     }
