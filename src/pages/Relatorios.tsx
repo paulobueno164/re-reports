@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Download, Users, User, Loader2 } from 'lucide-react';
+import { FileText, Download, Users, User, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
@@ -94,6 +96,7 @@ const Relatorios = () => {
 
     const despesas = lancamentos || [];
     const aprovados = despesas.filter((d: any) => d.status === 'valido');
+    const pendentes = despesas.filter((d: any) => d.status === 'enviado' || d.status === 'em_analise');
     const categorias: Record<string, number> = {};
     aprovados.forEach((d: any) => {
       const grupo = d.tipos_despesas?.grupo || 'Outros';
@@ -101,6 +104,7 @@ const Relatorios = () => {
     });
 
     const totalCesta = aprovados.reduce((acc: number, d: any) => acc + Number(d.valor_considerado), 0);
+    const totalPendente = pendentes.reduce((acc: number, d: any) => acc + Number(d.valor_lancado), 0);
     const diferencaPida = Math.max(0, colaborador.cesta_beneficios_teto - totalCesta);
 
     const resumo = [
@@ -123,9 +127,12 @@ const Relatorios = () => {
       periodo: periodo?.periodo || '',
       resumo,
       rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
-      utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida },
+      utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, totalPendente, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida },
       despesas: despesas.map((d: any) => ({ tipo: d.tipos_despesas?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
       totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor })),
+      totalLancamentos: despesas.length,
+      qtdAprovados: aprovados.length,
+      qtdPendentes: pendentes.length,
     });
   };
 
@@ -278,6 +285,29 @@ const Relatorios = () => {
             <Card>
               <CardHeader><CardTitle className="text-lg flex items-center justify-between">Prévia do Extrato<span className="text-sm font-normal text-muted-foreground">{previewData.colaborador.nome} - {previewData.periodo}</span></CardTitle></CardHeader>
               <CardContent className="space-y-6">
+                {/* Alert when no expenses in period */}
+                {previewData.totalLancamentos === 0 && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      Nenhum lançamento encontrado neste período. Os valores exibidos são apenas os componentes fixos parametrizados para o colaborador.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {/* Alert for pending expenses */}
+                {previewData.qtdPendentes > 0 && (
+                  <Alert className="border-warning/50 bg-warning/10">
+                    <Clock className="h-4 w-4 text-warning" />
+                    <AlertDescription className="flex items-center gap-2">
+                      <span>{previewData.qtdPendentes} lançamento(s) pendente(s) de validação</span>
+                      <Badge variant="outline" className="border-warning text-warning">
+                        {formatCurrency(previewData.utilizacao.totalPendente)}
+                      </Badge>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Resumo Geral</h3>
                   <div className="rounded-lg border overflow-hidden">
@@ -293,11 +323,14 @@ const Relatorios = () => {
                 <Separator />
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Análise de Utilização - Cesta de Benefícios</h3>
-                  <div className="grid grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                     <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold">{formatCurrency(previewData.utilizacao.limiteCesta)}</p><p className="text-xs text-muted-foreground">Limite Total</p></div>
-                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold text-primary">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Utilizado</p></div>
+                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold text-primary">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Aprovado</p></div>
+                    {previewData.utilizacao.totalPendente > 0 && (
+                      <div className="p-4 bg-warning/10 rounded-lg text-center"><p className="text-2xl font-bold text-warning">{formatCurrency(previewData.utilizacao.totalPendente)}</p><p className="text-xs text-muted-foreground">Pendente</p></div>
+                    )}
                     <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold">{previewData.utilizacao.percentual}%</p><p className="text-xs text-muted-foreground">Percentual</p></div>
-                    <div className="p-4 bg-warning/10 rounded-lg text-center"><p className="text-2xl font-bold text-warning">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Convertido PI/DA</p></div>
+                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold text-muted-foreground">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Conv. PI/DA</p></div>
                   </div>
                   <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
                 </div>
