@@ -72,7 +72,9 @@ const Dashboard = () => {
   const { user, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [periods, setPeriods] = useState<Period[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('todos');
   const [data, setData] = useState<DashboardData>({
     totalColaboradores: 0,
     totalLancamentosMes: 0,
@@ -88,9 +90,10 @@ const Dashboard = () => {
     utilizationData: { used: 0, available: 0, total: 0, percentage: 0 },
   });
 
-  // Fetch all periods on mount
+  // Fetch all periods and departments on mount
   useEffect(() => {
-    const fetchPeriods = async () => {
+    const fetchInitialData = async () => {
+      // Fetch periods
       const { data: allPeriods } = await supabase
         .from('calendario_periodos')
         .select('id, periodo, status, data_inicio')
@@ -98,7 +101,6 @@ const Dashboard = () => {
 
       if (allPeriods && allPeriods.length > 0) {
         setPeriods(allPeriods);
-        // Find the closest period to current date
         const today = new Date();
         let closestPeriod = allPeriods[0];
         let minDiff = Infinity;
@@ -112,15 +114,26 @@ const Dashboard = () => {
         }
         setSelectedPeriodId(closestPeriod.id);
       }
+
+      // Fetch departments
+      const { data: colaboradores } = await supabase
+        .from('colaboradores_elegiveis')
+        .select('departamento')
+        .eq('ativo', true);
+
+      if (colaboradores) {
+        const uniqueDepts = [...new Set(colaboradores.map(c => c.departamento))].sort();
+        setDepartments(uniqueDepts);
+      }
     };
-    fetchPeriods();
+    fetchInitialData();
   }, []);
 
   useEffect(() => {
     if (selectedPeriodId) {
       fetchDashboardData();
     }
-  }, [user, selectedPeriodId]);
+  }, [user, selectedPeriodId, selectedDepartment]);
 
   const fetchDashboardData = async () => {
     if (!user || !selectedPeriodId) return;
@@ -141,14 +154,33 @@ const Dashboard = () => {
         ? Math.max(0, Math.ceil((new Date(periodData.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
-      // Fetch total colaboradores
-      const { count: totalColaboradores } = await supabase
+      // Fetch total colaboradores (filtered by department)
+      let colaboradoresQuery = supabase
         .from('colaboradores_elegiveis')
         .select('*', { count: 'exact', head: true })
         .eq('ativo', true);
+      
+      if (selectedDepartment !== 'todos') {
+        colaboradoresQuery = colaboradoresQuery.eq('departamento', selectedDepartment);
+      }
+      
+      const { count: totalColaboradores } = await colaboradoresQuery;
 
-      // Fetch lancamentos for the selected period
-      const { data: lancamentos } = await supabase
+      // Get colaborador IDs for the selected department
+      let colaboradorIdsQuery = supabase
+        .from('colaboradores_elegiveis')
+        .select('id')
+        .eq('ativo', true);
+      
+      if (selectedDepartment !== 'todos') {
+        colaboradorIdsQuery = colaboradorIdsQuery.eq('departamento', selectedDepartment);
+      }
+      
+      const { data: colaboradorIds } = await colaboradorIdsQuery;
+      const ids = colaboradorIds?.map(c => c.id) || [];
+
+      // Fetch lancamentos for the selected period and department
+      let lancamentosQuery = supabase
         .from('lancamentos')
         .select(`
           id,
@@ -156,17 +188,33 @@ const Dashboard = () => {
           valor_considerado,
           status,
           created_at,
-          colaboradores_elegiveis (id, nome, cesta_beneficios_teto),
+          colaborador_id,
+          colaboradores_elegiveis (id, nome, departamento, cesta_beneficios_teto),
           tipos_despesas (id, nome, grupo)
         `)
         .eq('periodo_id', selectedPeriodId)
         .order('created_at', { ascending: false });
 
-      // Fetch ALL pending lancamentos (regardless of period) for the pendentesValidacao count
-      const { data: allPendingLancamentos } = await supabase
+      const { data: allLancamentosPeriodo } = await lancamentosQuery;
+      
+      // Filter by department if needed
+      const lancamentos = selectedDepartment === 'todos' 
+        ? allLancamentosPeriodo 
+        : allLancamentosPeriodo?.filter((l: any) => 
+            l.colaboradores_elegiveis?.departamento === selectedDepartment
+          );
+
+      // Fetch ALL pending lancamentos (filtered by department) for the pendentesValidacao count
+      const { data: allPendingLancamentosRaw } = await supabase
         .from('lancamentos')
-        .select('id, status')
+        .select('id, status, colaborador_id, colaboradores_elegiveis (departamento)')
         .in('status', ['enviado', 'em_analise']);
+      
+      const allPendingLancamentos = selectedDepartment === 'todos'
+        ? allPendingLancamentosRaw
+        : allPendingLancamentosRaw?.filter((l: any) => 
+            l.colaboradores_elegiveis?.departamento === selectedDepartment
+          );
 
       // Calculate totals
       const totalLancamentosMes = lancamentos?.length || 0;
@@ -224,11 +272,17 @@ const Dashboard = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Utilization calculation
-      const { data: colaboradores } = await supabase
+      // Utilization calculation (filtered by department)
+      let utilizationQuery = supabase
         .from('colaboradores_elegiveis')
         .select('id, cesta_beneficios_teto')
         .eq('ativo', true);
+      
+      if (selectedDepartment !== 'todos') {
+        utilizationQuery = utilizationQuery.eq('departamento', selectedDepartment);
+      }
+      
+      const { data: colaboradores } = await utilizationQuery;
 
       const totalCestaTeto = colaboradores?.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0) || 0;
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
@@ -312,7 +366,7 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Dashboard" description={`Período: ${data.periodoAtual || 'N/A'}`}>
+      <PageHeader title="Dashboard" description={`Período: ${data.periodoAtual || 'N/A'}${selectedDepartment !== 'todos' ? ` • ${selectedDepartment}` : ''}`}>
         <div className="flex flex-col sm:flex-row gap-2">
           <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
             <SelectTrigger className="w-[180px]">
@@ -322,6 +376,19 @@ const Dashboard = () => {
               {periods.map((p) => (
                 <SelectItem key={p.id} value={p.id}>
                   {p.periodo} {p.status === 'fechado' && '(Fechado)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Departamentos</SelectItem>
+              {departments.map((dept) => (
+                <SelectItem key={dept} value={dept}>
+                  {dept}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -339,6 +406,7 @@ const Dashboard = () => {
           value={data.totalColaboradores}
           description="Cadastrados no sistema"
           icon={Users}
+          href="/colaboradores"
         />
         <StatCard
           title="Lançamentos no Mês"
@@ -346,6 +414,7 @@ const Dashboard = () => {
           description={formatCurrency(data.valorTotalMes)}
           icon={Receipt}
           variant="primary"
+          href="/lancamentos"
         />
         <StatCard
           title="Pendentes de Validação"
@@ -361,6 +430,7 @@ const Dashboard = () => {
           description="Para fechamento do período"
           icon={Clock}
           variant="accent"
+          href="/calendario"
         />
       </div>
 
