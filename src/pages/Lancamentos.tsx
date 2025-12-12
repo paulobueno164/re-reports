@@ -19,6 +19,17 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -104,6 +115,8 @@ const Lancamentos = () => {
   const [loading, setLoading] = useState(true);
   const [existingAttachmentHashes, setExistingAttachmentHashes] = useState<Set<string>>(new Set());
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
+  const [attachmentCount, setAttachmentCount] = useState(0);
+  const [sendingToAnalysis, setSendingToAnalysis] = useState(false);
 
   // Form state
   const [formPeriodoId, setFormPeriodoId] = useState('');
@@ -913,13 +926,21 @@ const Lancamentos = () => {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Paperclip className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">Comprovantes Anexados</p>
+                    <p className="text-sm font-medium">
+                      Comprovantes Anexados
+                      {attachmentCount > 0 && (
+                        <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          {attachmentCount}
+                        </span>
+                      )}
+                    </p>
                   </div>
                   <AttachmentList 
                     key={attachmentRefreshKey} 
                     lancamentoId={selectedExpense.id}
                     allowDelete={selectedExpense.status === 'rascunho'}
                     onDeleteComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
+                    onCountChange={setAttachmentCount}
                   />
                   
                   {/* Allow adding attachments when in draft status */}
@@ -1085,26 +1106,55 @@ const Lancamentos = () => {
               {isViewMode ? 'Fechar' : 'Cancelar'}
             </Button>
             {isViewMode && selectedExpense?.status === 'rascunho' && (
-              <Button 
-                onClick={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from('lancamentos')
-                      .update({ status: 'enviado' })
-                      .eq('id', selectedExpense.id);
-                    
-                    if (error) throw error;
-                    
-                    toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
-                    setIsDialogOpen(false);
-                    fetchData();
-                  } catch (error: any) {
-                    toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                  }
-                }}
-              >
-                Enviar para Análise
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button disabled={sendingToAnalysis}>
+                    {sendingToAnalysis ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      'Enviar para Análise'
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Após o envio, o lançamento não poderá mais ser editado ou excluído. 
+                      Certifique-se de que todas as informações e comprovantes estão corretos.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        setSendingToAnalysis(true);
+                        try {
+                          const { error } = await supabase
+                            .from('lancamentos')
+                            .update({ status: 'enviado' })
+                            .eq('id', selectedExpense.id);
+                          
+                          if (error) throw error;
+                          
+                          toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
+                          setIsDialogOpen(false);
+                          fetchData();
+                        } catch (error: any) {
+                          toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                        } finally {
+                          setSendingToAnalysis(false);
+                        }
+                      }}
+                    >
+                      Confirmar Envio
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
             {!isViewMode && (
               <>
