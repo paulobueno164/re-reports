@@ -229,7 +229,8 @@ function formatCurrency(value: number): string {
 }
 
 function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('pt-BR').format(date);
+  // Use UTC to avoid timezone shift issues with date-only strings
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
 export { formatCurrency, formatDate };

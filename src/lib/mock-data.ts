@@ -360,7 +360,8 @@ export function formatPercentage(value: number): string {
 
 // Helper para formatar data
 export function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat('pt-BR').format(date);
+  // Use UTC to avoid timezone shift issues with date-only strings
+  return new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' }).format(date);
 }
 
 // Helper para status label
