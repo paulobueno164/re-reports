@@ -1106,55 +1106,87 @@ const Lancamentos = () => {
               {isViewMode ? 'Fechar' : 'Cancelar'}
             </Button>
             {isViewMode && selectedExpense?.status === 'rascunho' && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button disabled={sendingToAnalysis}>
-                    {sendingToAnalysis ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      'Enviar para Análise'
-                    )}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Após o envio, o lançamento não poderá mais ser editado ou excluído. 
-                      Certifique-se de que todas as informações e comprovantes estão corretos.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={async () => {
-                        setSendingToAnalysis(true);
-                        try {
-                          const { error } = await supabase
-                            .from('lancamentos')
-                            .update({ status: 'enviado' })
-                            .eq('id', selectedExpense.id);
-                          
-                          if (error) throw error;
-                          
-                          toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
-                          setIsDialogOpen(false);
-                          fetchData();
-                        } catch (error: any) {
-                          toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-                        } finally {
-                          setSendingToAnalysis(false);
-                        }
-                      }}
-                    >
-                      Confirmar Envio
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <>
+                <Button 
+                  variant="secondary"
+                  onClick={() => {
+                    // Switch to edit mode with form populated
+                    setFormPeriodoId(selectedExpense.periodoId);
+                    setFormTipoDespesaId(selectedExpense.tipoDespesaId);
+                    setFormOrigem(selectedExpense.origem as 'proprio' | 'conjuge' | 'filhos');
+                    setFormValor(selectedExpense.valorLancado.toString());
+                    setFormDescricao(selectedExpense.descricaoFatoGerador);
+                    setFormFile(null);
+                    setIsViewMode(false);
+                  }}
+                >
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button disabled={sendingToAnalysis}>
+                      {sendingToAnalysis ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Enviando...
+                        </>
+                      ) : (
+                        'Enviar para Análise'
+                      )}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
+                      <AlertDialogDescription asChild>
+                        <div className="space-y-3">
+                          <p>
+                            Após o envio, o lançamento não poderá mais ser editado ou excluído. 
+                            Certifique-se de que todas as informações e comprovantes estão corretos.
+                          </p>
+                          {attachmentCount === 0 && (
+                            <Alert variant="destructive" className="mt-2">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertTitle>Atenção: Sem comprovantes</AlertTitle>
+                              <AlertDescription>
+                                Este lançamento não possui comprovantes anexados. 
+                                Recomendamos anexar os documentos antes de enviar.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          setSendingToAnalysis(true);
+                          try {
+                            const { error } = await supabase
+                              .from('lancamentos')
+                              .update({ status: 'enviado' })
+                              .eq('id', selectedExpense.id);
+                            
+                            if (error) throw error;
+                            
+                            toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
+                            setIsDialogOpen(false);
+                            fetchData();
+                          } catch (error: any) {
+                            toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+                          } finally {
+                            setSendingToAnalysis(false);
+                          }
+                        }}
+                      >
+                        {attachmentCount === 0 ? 'Enviar mesmo assim' : 'Confirmar Envio'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
             )}
             {!isViewMode && (
               <>
