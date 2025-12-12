@@ -689,7 +689,7 @@ const Lancamentos = () => {
         </Button>
       </PageHeader>
 
-      {!colaborador && (
+      {!colaborador && !hasRole('RH') && !hasRole('FINANCEIRO') && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Atenção</AlertTitle>
