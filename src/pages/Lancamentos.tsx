@@ -3,6 +3,7 @@ import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { AttachmentList } from '@/components/attachments/AttachmentList';
+import { AttachmentUploadSimple } from '@/components/attachments/AttachmentUploadSimple';
 import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
 import { Separator } from '@/components/ui/separator';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -59,6 +60,7 @@ interface Expense {
   valorNaoConsiderado: number;
   descricaoFatoGerador: string;
   status: string;
+  motivoInvalidacao: string | null;
   createdAt: Date;
 }
 
@@ -101,6 +103,7 @@ const Lancamentos = () => {
   const [isViewMode, setIsViewMode] = useState(false);
   const [loading, setLoading] = useState(true);
   const [existingAttachmentHashes, setExistingAttachmentHashes] = useState<Set<string>>(new Set());
+  const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
 
   // Form state
   const [formPeriodoId, setFormPeriodoId] = useState('');
@@ -255,6 +258,7 @@ const Lancamentos = () => {
         valor_nao_considerado,
         descricao_fato_gerador,
         status,
+        motivo_invalidacao,
         created_at,
         colaboradores_elegiveis (id, nome),
         calendario_periodos (id, periodo),
@@ -279,6 +283,7 @@ const Lancamentos = () => {
         valorNaoConsiderado: Number(e.valor_nao_considerado),
         descricaoFatoGerador: e.descricao_fato_gerador,
         status: e.status,
+        motivoInvalidacao: e.motivo_invalidacao,
         createdAt: new Date(e.created_at),
       }));
 
@@ -891,6 +896,17 @@ const Lancamentos = () => {
                   </Alert>
                 )}
 
+                {/* Rejection Reason - Show prominently when status is invalido */}
+                {selectedExpense.status === 'invalido' && selectedExpense.motivoInvalidacao && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Lançamento Rejeitado</AlertTitle>
+                    <AlertDescription className="mt-2">
+                      <p className="font-medium">{selectedExpense.motivoInvalidacao}</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <Separator />
 
                 {/* Attachments Section */}
@@ -899,7 +915,15 @@ const Lancamentos = () => {
                     <Paperclip className="h-4 w-4 text-muted-foreground" />
                     <p className="text-sm font-medium">Comprovantes Anexados</p>
                   </div>
-                  <AttachmentList lancamentoId={selectedExpense.id} />
+                  <AttachmentList key={attachmentRefreshKey} lancamentoId={selectedExpense.id} />
+                  
+                  {/* Allow adding attachments when in draft status */}
+                  {selectedExpense.status === 'rascunho' && (
+                    <AttachmentUploadSimple 
+                      lancamentoId={selectedExpense.id}
+                      onUploadComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
+                    />
+                  )}
                 </div>
 
                 <Separator />
