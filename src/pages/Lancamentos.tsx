@@ -813,177 +813,222 @@ const Lancamentos = () => {
               </Alert>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Mês Referência</Label>
-                {isViewMode ? (
-                  <p className="font-medium">{selectedExpense?.periodo}</p>
-                ) : (
-                  <Select value={formPeriodoId} onValueChange={setFormPeriodoId} disabled>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {periods.map((period) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {period.periodo}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {!isViewMode && periodoValidation?.periodoDestino === 'proximo' && (
-                  <p className="text-xs text-warning">Lançamento será registrado no próximo período</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Tipo de Despesa</Label>
-                {isViewMode ? (
-                  <p className="font-medium">{selectedExpense?.tipoDespesaNome}</p>
-                ) : (
-                  <Select value={formTipoDespesaId} onValueChange={(value) => {
-                    setFormTipoDespesaId(value);
-                    // Reset origin to first allowed when type changes
-                    const type = expenseTypes.find(t => t.id === value);
-                    if (type && !type.origemPermitida.includes(formOrigem)) {
-                      setFormOrigem(type.origemPermitida[0]);
-                    }
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {expenseTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.nome}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Origem da Despesa</Label>
-                {isViewMode ? (
-                  <p className="font-medium">
-                    {{ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[selectedExpense?.origem || ''] || selectedExpense?.origem}
+            {/* View Mode - Improved Layout */}
+            {isViewMode && selectedExpense && (
+              <div className="space-y-6">
+                {/* Status Badge */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <StatusBadge 
+                      status={selectedExpense.status as any} 
+                    />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Criado em {new Date(selectedExpense.createdAt).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
                   </p>
-                ) : (
-                  <Select 
-                    value={formOrigem} 
-                    onValueChange={(value) => setFormOrigem(value as 'proprio' | 'conjuge' | 'filhos')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(['proprio', 'conjuge', 'filhos'] as const).map((origem) => {
-                        const isAllowed = !selectedType || selectedType.origemPermitida.includes(origem);
-                        return (
-                          <SelectItem 
-                            key={origem} 
-                            value={origem} 
-                            disabled={!isAllowed}
-                          >
-                            {originLabels[origem]}
-                            {!isAllowed && ' (não permitida)'}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
-                )}
-                {!isViewMode && selectedType && (
-                  <p className="text-xs text-muted-foreground">
-                    Origens permitidas: {selectedType.origemPermitida.map(o => 
-                      ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[o])
-                    ).join(', ')}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Valor da Despesa (R$)</Label>
-                {isViewMode ? (
-                  <p className="font-mono text-lg font-bold">{formatCurrency(selectedExpense?.valorLancado || 0)}</p>
-                ) : (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={formValor}
-                    onChange={(e) => setFormValor(e.target.value)}
-                    placeholder="0,00"
-                    className="font-mono"
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Descrição do Fato Gerador</Label>
-              {isViewMode ? (
-                <p className="p-3 bg-muted rounded-lg text-sm">{selectedExpense?.descricaoFatoGerador}</p>
-              ) : (
-                <Textarea
-                  value={formDescricao}
-                  onChange={(e) => setFormDescricao(e.target.value)}
-                  placeholder="Descreva o motivo/natureza da despesa..."
-                  rows={3}
-                />
-              )}
-            </div>
-
-            {!isViewMode && (
-              <div className="space-y-2">
-                <Label>Anexo do Comprovante</Label>
-                <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-                  <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground mb-1">
-                    Arraste arquivos ou clique para selecionar
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Formatos aceitos: PDF, XLSX, DOC, DOCX, PNG, JPG (máx. 5MB)
-                  </p>
-                  <p className="text-xs text-warning mt-1">
-                    ⚠️ Cada comprovante só pode ser utilizado uma vez
-                  </p>
-                  <Input
-                    type="file"
-                    className="hidden"
-                    id="file-upload"
-                    accept=".pdf,.xlsx,.doc,.docx,.png,.jpg,.jpeg"
-                    onChange={(e) => setFormFile(e.target.files?.[0] || null)}
-                  />
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => document.getElementById('file-upload')?.click()}>
-                    Selecionar Arquivo
-                  </Button>
-                  {formFile && (
-                    <div className="mt-3 flex items-center justify-center gap-2 text-sm">
-                      <FileText className="h-4 w-4" />
-                      <span>{formFile.name}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFormFile(null)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
                 </div>
+
+                {/* Main Info Grid */}
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Mês Referência</p>
+                    <p className="font-semibold text-lg">{selectedExpense.periodo}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Tipo de Despesa</p>
+                    <p className="font-semibold text-lg">{selectedExpense.tipoDespesaNome}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Origem da Despesa</p>
+                    <p className="font-semibold text-lg">
+                      {{ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[selectedExpense.origem] || selectedExpense.origem}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm text-muted-foreground">Valor Lançado</p>
+                    <p className="font-mono font-bold text-xl text-primary">{formatCurrency(selectedExpense.valorLancado)}</p>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">Descrição do Fato Gerador</p>
+                  <div className="p-4 bg-muted/50 rounded-lg border">
+                    <p className="text-sm whitespace-pre-wrap">{selectedExpense.descricaoFatoGerador}</p>
+                  </div>
+                </div>
+
+                {/* Values breakdown if there's a difference */}
+                {selectedExpense.valorNaoConsiderado > 0 && (
+                  <Alert className="border-warning/50 bg-warning/10">
+                    <AlertCircle className="h-4 w-4 text-warning" />
+                    <AlertTitle className="text-warning">Valor Parcialmente Considerado</AlertTitle>
+                    <AlertDescription>
+                      <div className="grid grid-cols-3 gap-4 mt-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Valor Lançado</p>
+                          <p className="font-mono font-medium">{formatCurrency(selectedExpense.valorLancado)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Valor Considerado</p>
+                          <p className="font-mono font-medium text-success">{formatCurrency(selectedExpense.valorConsiderado)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Não Considerado</p>
+                          <p className="font-mono font-medium text-destructive">{formatCurrency(selectedExpense.valorNaoConsiderado)}</p>
+                        </div>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
             )}
 
-            {isViewMode && selectedExpense?.valorNaoConsiderado && selectedExpense.valorNaoConsiderado > 0 && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Valor Parcialmente Considerado</AlertTitle>
-                <AlertDescription>
-                  <strong>Valor lançado:</strong> {formatCurrency(selectedExpense.valorLancado)}<br />
-                  <strong>Valor considerado:</strong> {formatCurrency(selectedExpense.valorConsiderado)}<br />
-                  <strong>Valor não considerado:</strong> {formatCurrency(selectedExpense.valorNaoConsiderado)}
-                </AlertDescription>
-              </Alert>
+            {/* Edit/Create Mode */}
+            {!isViewMode && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Mês Referência</Label>
+                    <Select value={formPeriodoId} onValueChange={setFormPeriodoId} disabled>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {periods.map((period) => (
+                          <SelectItem key={period.id} value={period.id}>
+                            {period.periodo}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {periodoValidation?.periodoDestino === 'proximo' && (
+                      <p className="text-xs text-warning">Lançamento será registrado no próximo período</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Tipo de Despesa</Label>
+                    <Select value={formTipoDespesaId} onValueChange={(value) => {
+                      setFormTipoDespesaId(value);
+                      const type = expenseTypes.find(t => t.id === value);
+                      if (type && !type.origemPermitida.includes(formOrigem)) {
+                        setFormOrigem(type.origemPermitida[0]);
+                      }
+                    }}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {expenseTypes.map((type) => (
+                          <SelectItem key={type.id} value={type.id}>
+                            {type.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Origem da Despesa</Label>
+                    <Select 
+                      value={formOrigem} 
+                      onValueChange={(value) => setFormOrigem(value as 'proprio' | 'conjuge' | 'filhos')}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(['proprio', 'conjuge', 'filhos'] as const).map((origem) => {
+                          const isAllowed = !selectedType || selectedType.origemPermitida.includes(origem);
+                          return (
+                            <SelectItem 
+                              key={origem} 
+                              value={origem} 
+                              disabled={!isAllowed}
+                            >
+                              {originLabels[origem]}
+                              {!isAllowed && ' (não permitida)'}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    {selectedType && (
+                      <p className="text-xs text-muted-foreground">
+                        Origens permitidas: {selectedType.origemPermitida.map(o => 
+                          ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[o])
+                        ).join(', ')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Valor da Despesa (R$)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={formValor}
+                      onChange={(e) => setFormValor(e.target.value)}
+                      placeholder="0,00"
+                      className="font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Descrição do Fato Gerador</Label>
+                  <Textarea
+                    value={formDescricao}
+                    onChange={(e) => setFormDescricao(e.target.value)}
+                    placeholder="Descreva o motivo/natureza da despesa..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Anexo do Comprovante</Label>
+                  <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+                    <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-1">
+                      Arraste arquivos ou clique para selecionar
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Formatos aceitos: PDF, XLSX, DOC, DOCX, PNG, JPG (máx. 5MB)
+                    </p>
+                    <p className="text-xs text-warning mt-1">
+                      ⚠️ Cada comprovante só pode ser utilizado uma vez
+                    </p>
+                    <Input
+                      type="file"
+                      className="hidden"
+                      id="file-upload"
+                      accept=".pdf,.xlsx,.doc,.docx,.png,.jpg,.jpeg"
+                      onChange={(e) => setFormFile(e.target.files?.[0] || null)}
+                    />
+                    <Button variant="outline" size="sm" className="mt-3" onClick={() => document.getElementById('file-upload')?.click()}>
+                      Selecionar Arquivo
+                    </Button>
+                    {formFile && (
+                      <div className="mt-3 flex items-center justify-center gap-2 text-sm">
+                        <FileText className="h-4 w-4" />
+                        <span>{formFile.name}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFormFile(null)}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
           </div>
 
