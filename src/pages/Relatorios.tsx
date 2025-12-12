@@ -59,6 +59,7 @@ const Relatorios = () => {
   const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
   const [selectAll, setSelectAll] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
+  const [includePendentes, setIncludePendentes] = useState(false);
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
@@ -150,14 +151,24 @@ const Relatorios = () => {
     if (!previewData) return;
     setGenerating(true);
     try {
-      const blob = await generatePDFReport(previewData);
+      // Filter despesas based on includePendentes option
+      const filteredDespesas = includePendentes 
+        ? previewData.despesas 
+        : previewData.despesas.filter((d: any) => d.status === 'valido');
+      
+      const reportData = {
+        ...previewData,
+        despesas: filteredDespesas,
+      };
+      
+      const blob = await generatePDFReport(reportData);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `Extrato_${previewData.colaborador.nome.replace(/\s/g, '_')}_${previewData.periodo}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ title: 'PDF gerado', description: 'O extrato em PDF foi baixado com sucesso.' });
+      toast({ title: 'PDF gerado', description: includePendentes ? 'Extrato com pendentes baixado.' : 'Extrato em PDF baixado com sucesso.' });
     } catch {
       toast({ title: 'Erro', description: 'Falha ao gerar o PDF.', variant: 'destructive' });
     }
@@ -275,9 +286,17 @@ const Relatorios = () => {
                   </Select>
                 </div>
               </div>
-              <div className="flex gap-3">
-                <Button onClick={handleGeneratePDF} disabled={!previewData || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Gerar PDF</Button>
-                <Button variant="outline" onClick={handleGenerateExcel} disabled={!previewData || generating}><FileText className="mr-2 h-4 w-4" />Gerar Excel</Button>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-3">
+                  <Button onClick={handleGeneratePDF} disabled={!previewData || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Gerar PDF</Button>
+                  <Button variant="outline" onClick={handleGenerateExcel} disabled={!previewData || generating}><FileText className="mr-2 h-4 w-4" />Gerar Excel</Button>
+                </div>
+                {previewData?.qtdPendentes > 0 && (
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="includePendentes" checked={includePendentes} onCheckedChange={(c) => setIncludePendentes(!!c)} />
+                    <Label htmlFor="includePendentes" className="font-normal text-sm">Incluir pendentes no relatório</Label>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -334,6 +353,49 @@ const Relatorios = () => {
                   </div>
                   <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
                 </div>
+                
+                {/* Detailed expenses list */}
+                {previewData.despesas.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3">Lançamentos do Período</h3>
+                      <div className="rounded-lg border overflow-hidden">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/50">
+                              <th className="text-left px-4 py-2 font-medium">Tipo</th>
+                              <th className="text-left px-4 py-2 font-medium">Origem</th>
+                              <th className="text-right px-4 py-2 font-medium">Valor</th>
+                              <th className="text-center px-4 py-2 font-medium">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.despesas.map((d: any, i: number) => (
+                              <tr key={i} className="border-t">
+                                <td className="px-4 py-2">{d.tipo}</td>
+                                <td className="px-4 py-2 capitalize">{d.origem}</td>
+                                <td className="px-4 py-2 text-right font-mono">{formatCurrency(d.valor)}</td>
+                                <td className="px-4 py-2 text-center">
+                                  <Badge variant={
+                                    d.status === 'valido' ? 'default' : 
+                                    d.status === 'invalido' ? 'destructive' : 
+                                    d.status === 'rascunho' ? 'secondary' : 'outline'
+                                  } className="text-xs">
+                                    {d.status === 'valido' ? 'Aprovado' : 
+                                     d.status === 'invalido' ? 'Rejeitado' : 
+                                     d.status === 'enviado' ? 'Pendente' : 
+                                     d.status === 'em_analise' ? 'Em Análise' : 'Rascunho'}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           )}
