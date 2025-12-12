@@ -29,6 +29,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 import { ExpenseTypesManager } from '@/components/colaboradores/ExpenseTypesManager';
+import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
+import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
 
 interface Colaborador {
   id: string;
@@ -60,6 +62,7 @@ const departments = [
 
 const Colaboradores = () => {
   const { toast } = useToast();
+  const { hasInconsistency } = useNameInconsistency();
   const [employees, setEmployees] = useState<Colaborador[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -135,7 +138,24 @@ const Colaboradores = () => {
 
   const columns = [
     { key: 'matricula', header: 'Matrícula', className: 'font-mono' },
-    { key: 'nome', header: 'Nome' },
+    { 
+      key: 'nome', 
+      header: 'Nome',
+      render: (item: Colaborador) => {
+        const inconsistency = hasInconsistency(item.id);
+        return (
+          <span className="inline-flex items-center gap-1">
+            {item.nome}
+            {inconsistency && (
+              <NameInconsistencyAlert 
+                colaboradorNome={inconsistency.colaboradorNome} 
+                profileNome={inconsistency.profileNome} 
+              />
+            )}
+          </span>
+        );
+      },
+    },
     { key: 'departamento', header: 'Departamento' },
     {
       key: 'cestaBeneficiosTeto',
