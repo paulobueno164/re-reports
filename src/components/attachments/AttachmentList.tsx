@@ -43,6 +43,8 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   const [deleting, setDeleting] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [inlinePreviewUrl, setInlinePreviewUrl] = useState<string | null>(null);
+  const [loadingInlinePreview, setLoadingInlinePreview] = useState(false);
 
   useEffect(() => {
     fetchAttachments();
@@ -65,8 +67,27 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       }));
       setAttachments(mapped);
       onCountChange?.(mapped.length);
+      
+      // Load inline preview if single image attachment
+      if (mapped.length === 1 && mapped[0].tipoArquivo.startsWith('image/')) {
+        loadInlinePreview(mapped[0]);
+      } else {
+        setInlinePreviewUrl(null);
+      }
     }
     setLoading(false);
+  };
+
+  const loadInlinePreview = async (attachment: Attachment) => {
+    setLoadingInlinePreview(true);
+    const { data, error } = await supabase.storage
+      .from('comprovantes')
+      .createSignedUrl(attachment.storagePath, 60 * 10); // 10 min expiry
+
+    if (!error && data) {
+      setInlinePreviewUrl(data.signedUrl);
+    }
+    setLoadingInlinePreview(false);
   };
 
   const handleDownload = async (attachment: Attachment) => {
@@ -163,7 +184,42 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {/* Inline preview for single image attachment */}
+      {attachments.length === 1 && attachments[0].tipoArquivo.startsWith('image/') && (
+        <div className="rounded-lg border overflow-hidden bg-muted/30">
+          {loadingInlinePreview ? (
+            <div className="flex items-center justify-center h-48">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : inlinePreviewUrl ? (
+            <img
+              src={inlinePreviewUrl}
+              alt={attachments[0].nomeArquivo}
+              className="w-full max-h-64 object-contain cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={() => {
+                setPreviewUrl(inlinePreviewUrl);
+                setPreviewOpen(true);
+              }}
+            />
+          ) : null}
+        </div>
+      )}
+      
+      {/* Single PDF attachment - show open button */}
+      {attachments.length === 1 && attachments[0].tipoArquivo === 'application/pdf' && (
+        <div className="rounded-lg border p-4 bg-muted/30 flex items-center justify-center">
+          <Button 
+            variant="outline" 
+            onClick={() => handlePreview(attachments[0])}
+            className="gap-2"
+          >
+            <FileText className="h-4 w-4" />
+            Visualizar PDF
+          </Button>
+        </div>
+      )}
+
       {attachments.map((attachment) => (
         <div
           key={attachment.id}
