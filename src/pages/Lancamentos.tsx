@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X, Lock } from 'lucide-react';
+import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X, Lock, Paperclip, History } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
+import { AttachmentList } from '@/components/attachments/AttachmentList';
+import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
+import { Separator } from '@/components/ui/separator';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -887,6 +890,22 @@ const Lancamentos = () => {
                     </AlertDescription>
                   </Alert>
                 )}
+
+                <Separator />
+
+                {/* Attachments Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">Comprovantes Anexados</p>
+                  </div>
+                  <AttachmentList lancamentoId={selectedExpense.id} />
+                </div>
+
+                <Separator />
+
+                {/* Timeline Section */}
+                <ExpenseTimeline expenseId={selectedExpense.id} />
               </div>
             )}
 
