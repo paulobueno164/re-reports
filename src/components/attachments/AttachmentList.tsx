@@ -33,9 +33,10 @@ interface AttachmentListProps {
   lancamentoId: string;
   allowDelete?: boolean;
   onDeleteComplete?: () => void;
+  onCountChange?: (count: number) => void;
 }
 
-export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComplete }: AttachmentListProps) {
+export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComplete, onCountChange }: AttachmentListProps) {
   const { toast } = useToast();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,15 +56,15 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       .eq('lancamento_id', lancamentoId);
 
     if (!error && data) {
-      setAttachments(
-        data.map((a) => ({
-          id: a.id,
-          nomeArquivo: a.nome_arquivo,
-          tipoArquivo: a.tipo_arquivo,
-          tamanho: a.tamanho,
-          storagePath: a.storage_path,
-        }))
-      );
+      const mapped = data.map((a) => ({
+        id: a.id,
+        nomeArquivo: a.nome_arquivo,
+        tipoArquivo: a.tipo_arquivo,
+        tamanho: a.tamanho,
+        storagePath: a.storage_path,
+      }));
+      setAttachments(mapped);
+      onCountChange?.(mapped.length);
     }
     setLoading(false);
   };
@@ -116,7 +117,9 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
         description: `${attachment.nomeArquivo} foi removido com sucesso.`,
       });
 
-      setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+      const newAttachments = attachments.filter((a) => a.id !== attachment.id);
+      setAttachments(newAttachments);
+      onCountChange?.(newAttachments.length);
       onDeleteComplete?.();
     } catch (error: any) {
       toast({
