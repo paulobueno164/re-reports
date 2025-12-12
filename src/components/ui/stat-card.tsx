@@ -81,9 +81,9 @@ export function StatCard({
   );
 
   const cardClasses = cn(
-    'stat-card',
+    'stat-card block',
     variantStyles[variant],
-    href && 'cursor-pointer hover:scale-[1.02] transition-transform',
+    href && 'cursor-pointer hover:brightness-95 transition-all',
     className
   );
 
