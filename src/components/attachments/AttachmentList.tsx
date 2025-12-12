@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileText, Image, Download, Eye, Loader2 } from 'lucide-react';
+import { FileText, Image, Download, Eye, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -7,7 +7,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Attachment {
   id: string;
@@ -19,11 +31,15 @@ interface Attachment {
 
 interface AttachmentListProps {
   lancamentoId: string;
+  allowDelete?: boolean;
+  onDeleteComplete?: () => void;
 }
 
-export function AttachmentList({ lancamentoId }: AttachmentListProps) {
+export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComplete }: AttachmentListProps) {
+  const { toast } = useToast();
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -81,6 +97,35 @@ export function AttachmentList({ lancamentoId }: AttachmentListProps) {
       } else {
         window.open(data.signedUrl, '_blank');
       }
+    }
+  };
+
+  const handleDelete = async (attachment: Attachment) => {
+    setDeleting(attachment.id);
+    try {
+      // Delete from storage
+      await supabase.storage.from('comprovantes').remove([attachment.storagePath]);
+
+      // Delete from database
+      const { error } = await supabase.from('anexos').delete().eq('id', attachment.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Comprovante removido',
+        description: `${attachment.nomeArquivo} foi removido com sucesso.`,
+      });
+
+      setAttachments((prev) => prev.filter((a) => a.id !== attachment.id));
+      onDeleteComplete?.();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -149,6 +194,38 @@ export function AttachmentList({ lancamentoId }: AttachmentListProps) {
             >
               <Download className="h-4 w-4" />
             </Button>
+            {allowDelete && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Remover"
+                    disabled={deleting === attachment.id}
+                  >
+                    {deleting === attachment.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Remover comprovante?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja remover "{attachment.nomeArquivo}"? Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => handleDelete(attachment)}>
+                      Remover
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         </div>
       ))}
