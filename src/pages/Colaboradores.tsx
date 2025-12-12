@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Download, Loader2, FileText } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Download, Loader2, FileText, Link, UserCheck, UserX } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
@@ -71,6 +72,11 @@ const Colaboradores = () => {
   const [selectedEmployee, setSelectedEmployee] = useState<Colaborador | null>(null);
   const [isViewMode, setIsViewMode] = useState(false);
   const [saving, setSaving] = useState(false);
+  
+  // User linking state
+  const [foundUser, setFoundUser] = useState<{ id: string; nome: string; email: string } | null>(null);
+  const [searchingUser, setSearchingUser] = useState(false);
+  const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -125,6 +131,39 @@ const Colaboradores = () => {
       );
     }
     setLoading(false);
+  };
+
+  // Search for existing user by email
+  const searchUserByEmail = async (email: string) => {
+    if (!email || !email.includes('@')) {
+      setFoundUser(null);
+      return;
+    }
+    
+    setSearchingUser(true);
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, nome, email')
+      .eq('email', email.toLowerCase().trim())
+      .maybeSingle();
+    
+    setFoundUser(profile);
+    setSearchingUser(false);
+  };
+
+  const handleLinkUser = () => {
+    if (foundUser) {
+      setLinkedUserId(foundUser.id);
+      toast({ 
+        title: 'Usuário vinculado', 
+        description: `${foundUser.nome} será vinculado ao salvar.` 
+      });
+    }
+  };
+
+  const handleUnlinkUser = () => {
+    setLinkedUserId(null);
+    toast({ title: 'Vínculo removido' });
   };
 
   const filteredEmployees = employees.filter((emp) => {
@@ -221,6 +260,8 @@ const Colaboradores = () => {
       pidaTeto: employee.pidaTeto,
       ativo: employee.ativo,
     });
+    setFoundUser(null);
+    setLinkedUserId(null);
     setIsViewMode(true);
     setIsDialogOpen(true);
   };
@@ -243,6 +284,8 @@ const Colaboradores = () => {
       pidaTeto: employee.pidaTeto,
       ativo: employee.ativo,
     });
+    setFoundUser(null);
+    setLinkedUserId(null);
     setIsViewMode(false);
     setIsDialogOpen(true);
   };
@@ -278,6 +321,8 @@ const Colaboradores = () => {
       pidaTeto: 0,
       ativo: true,
     });
+    setFoundUser(null);
+    setLinkedUserId(null);
     setIsViewMode(false);
     setIsDialogOpen(true);
   };
@@ -289,7 +334,7 @@ const Colaboradores = () => {
     }
 
     setSaving(true);
-    const dbData = {
+    const dbData: any = {
       matricula: formData.matricula,
       nome: formData.nome,
       email: formData.email,
@@ -305,6 +350,11 @@ const Colaboradores = () => {
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
     };
+    
+    // Include user_id if linking
+    if (linkedUserId) {
+      dbData.user_id = linkedUserId;
+    }
 
     try {
       if (selectedEmployee) {
@@ -472,6 +522,79 @@ const Colaboradores = () => {
                   />
                   <Label htmlFor="ativo">Colaborador Ativo</Label>
                 </div>
+                
+                {/* User Linking Section */}
+                {!isViewMode && (
+                  <Separator className="my-4" />
+                )}
+                {!isViewMode && (
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Link className="h-4 w-4" />
+                      Vincular a Usuário Existente
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Busque um usuário já cadastrado no sistema pelo e-mail para vincular a este colaborador.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => searchUserByEmail(formData.email)}
+                        disabled={!formData.email || searchingUser}
+                      >
+                        {searchingUser ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <Search className="h-4 w-4 mr-2" />
+                        )}
+                        Buscar Usuário
+                      </Button>
+                    </div>
+                    
+                    {foundUser && !linkedUserId && (
+                      <Alert className="border-success/50 bg-success/5">
+                        <UserCheck className="h-4 w-4 text-success" />
+                        <AlertDescription className="flex items-center justify-between">
+                          <div>
+                            <span className="font-medium">{foundUser.nome}</span>
+                            <span className="text-muted-foreground ml-2">({foundUser.email})</span>
+                          </div>
+                          <Button size="sm" variant="outline" onClick={handleLinkUser}>
+                            <Link className="h-4 w-4 mr-2" />
+                            Vincular
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    {linkedUserId && foundUser && (
+                      <Alert className="border-primary/50 bg-primary/5">
+                        <UserCheck className="h-4 w-4 text-primary" />
+                        <AlertDescription className="flex items-center justify-between">
+                          <div>
+                            <span className="font-medium">Vinculado a: {foundUser.nome}</span>
+                            <span className="text-muted-foreground ml-2">({foundUser.email})</span>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={handleUnlinkUser}>
+                            <UserX className="h-4 w-4 mr-2" />
+                            Remover
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    {foundUser === null && formData.email && !searchingUser && (
+                      <Alert className="border-muted">
+                        <UserX className="h-4 w-4 text-muted-foreground" />
+                        <AlertDescription>
+                          Nenhum usuário encontrado com este e-mail. O colaborador poderá ser vinculado posteriormente quando o usuário se cadastrar.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </div>
+                )}
               </div>
             </TabsContent>
 
