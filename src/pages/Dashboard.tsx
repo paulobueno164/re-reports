@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +37,13 @@ interface Expense {
   createdAt: Date;
 }
 
+interface Period {
+  id: string;
+  periodo: string;
+  status: string;
+  data_inicio: string;
+}
+
 interface DashboardData {
   totalColaboradores: number;
   totalLancamentosMes: number;
@@ -63,6 +71,8 @@ const STATUS_COLORS: Record<string, string> = {
 const Dashboard = () => {
   const { user, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [periods, setPeriods] = useState<Period[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [data, setData] = useState<DashboardData>({
     totalColaboradores: 0,
     totalLancamentosMes: 0,
@@ -78,26 +88,57 @@ const Dashboard = () => {
     utilizationData: { used: 0, available: 0, total: 0, percentage: 0 },
   });
 
+  // Fetch all periods on mount
   useEffect(() => {
-    fetchDashboardData();
-  }, [user]);
+    const fetchPeriods = async () => {
+      const { data: allPeriods } = await supabase
+        .from('calendario_periodos')
+        .select('id, periodo, status, data_inicio')
+        .order('data_inicio', { ascending: false });
+
+      if (allPeriods && allPeriods.length > 0) {
+        setPeriods(allPeriods);
+        // Find the closest period to current date
+        const today = new Date();
+        let closestPeriod = allPeriods[0];
+        let minDiff = Infinity;
+        
+        for (const p of allPeriods) {
+          const diff = Math.abs(new Date(p.data_inicio).getTime() - today.getTime());
+          if (diff < minDiff) {
+            minDiff = diff;
+            closestPeriod = p;
+          }
+        }
+        setSelectedPeriodId(closestPeriod.id);
+      }
+    };
+    fetchPeriods();
+  }, []);
+
+  useEffect(() => {
+    if (selectedPeriodId) {
+      fetchDashboardData();
+    }
+  }, [user, selectedPeriodId]);
 
   const fetchDashboardData = async () => {
-    if (!user) return;
+    if (!user || !selectedPeriodId) return;
     setLoading(true);
 
     try {
-      // Fetch current period
-      const { data: periods } = await supabase
+      // Find the selected period
+      const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
+      
+      // Fetch full period data for dias restantes calculation
+      const { data: periodData } = await supabase
         .from('calendario_periodos')
         .select('*')
-        .eq('status', 'aberto')
-        .order('periodo', { ascending: false })
-        .limit(1);
+        .eq('id', selectedPeriodId)
+        .single();
 
-      const currentPeriod = periods?.[0];
-      const diasRestantes = currentPeriod
-        ? Math.max(0, Math.ceil((new Date(currentPeriod.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      const diasRestantes = periodData
+        ? Math.max(0, Math.ceil((new Date(periodData.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
       // Fetch total colaboradores
@@ -106,8 +147,8 @@ const Dashboard = () => {
         .select('*', { count: 'exact', head: true })
         .eq('ativo', true);
 
-      // Fetch lancamentos for the current period
-      let lancamentosQuery = supabase
+      // Fetch lancamentos for the selected period
+      const { data: lancamentos } = await supabase
         .from('lancamentos')
         .select(`
           id,
@@ -118,13 +159,8 @@ const Dashboard = () => {
           colaboradores_elegiveis (id, nome, cesta_beneficios_teto),
           tipos_despesas (id, nome, grupo)
         `)
+        .eq('periodo_id', selectedPeriodId)
         .order('created_at', { ascending: false });
-
-      if (currentPeriod) {
-        lancamentosQuery = lancamentosQuery.eq('periodo_id', currentPeriod.id);
-      }
-
-      const { data: lancamentos } = await lancamentosQuery;
 
       // Fetch ALL pending lancamentos (regardless of period) for the pendentesValidacao count
       const { data: allPendingLancamentos } = await supabase
@@ -228,7 +264,7 @@ const Dashboard = () => {
         totalLancamentosMes,
         valorTotalMes,
         pendentesValidacao,
-        periodoAtual: currentPeriod?.periodo || null,
+        periodoAtual: periodData?.periodo || null,
         diasRestantes,
         recentExpenses,
         expensesByCategory,
@@ -276,10 +312,24 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Dashboard" description={`Período atual: ${data.periodoAtual || 'N/A'}`}>
-        <Button asChild>
-          <Link to="/lancamentos">Novo Lançamento</Link>
-        </Button>
+      <PageHeader title="Dashboard" description={`Período: ${data.periodoAtual || 'N/A'}`}>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.periodo} {p.status === 'fechado' && '(Fechado)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button asChild>
+            <Link to="/lancamentos">Novo Lançamento</Link>
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Stats Grid */}
@@ -303,6 +353,7 @@ const Dashboard = () => {
           description="Aguardando análise do RH"
           icon={AlertTriangle}
           variant="warning"
+          href="/validacao"
         />
         <StatCard
           title="Dias Restantes"
