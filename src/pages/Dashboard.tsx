@@ -126,10 +126,17 @@ const Dashboard = () => {
 
       const { data: lancamentos } = await lancamentosQuery;
 
+      // Fetch ALL pending lancamentos (regardless of period) for the pendentesValidacao count
+      const { data: allPendingLancamentos } = await supabase
+        .from('lancamentos')
+        .select('id, status')
+        .in('status', ['enviado', 'em_analise']);
+
       // Calculate totals
       const totalLancamentosMes = lancamentos?.length || 0;
       const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
-      const pendentesValidacao = lancamentos?.filter((l) => l.status === 'enviado' || l.status === 'em_analise').length || 0;
+      // Use ALL pending lancamentos for the card, not just current period
+      const pendentesValidacao = allPendingLancamentos?.length || 0;
 
       // Recent expenses
       const recentExpenses: Expense[] = (lancamentos || []).slice(0, 5).map((l: any) => ({
