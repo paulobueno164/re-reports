@@ -13,7 +13,7 @@ import { ColaboradoresLista, ColaboradorForm, ColaboradorDetalhe } from "./pages
 import { TiposDespesasLista, TipoDespesaForm } from "./pages/tipos-despesas";
 import { CalendarioLista, PeriodoForm } from "./pages/calendario";
 import { EventosFolhaLista, EventoFolhaForm } from "./pages/eventos-folha";
-import { LancamentosLista, LancamentoForm, LancamentoDetalhe } from "./pages/lancamentos";
+import { LancamentosLista, LancamentoForm, LancamentoDetalhe, ColaboradorLancamentos } from "./pages/lancamentos";
 import { ValidacaoLista, ValidacaoDetalhe } from "./pages/validacao";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
@@ -123,6 +123,7 @@ const App = () => (
               } />
               {/* Lançamentos */}
               <Route path="/lancamentos" element={<LancamentosLista />} />
+              <Route path="/lancamentos/colaborador/:id" element={<ColaboradorLancamentos />} />
               <Route path="/lancamentos/novo" element={<LancamentoForm />} />
               <Route path="/lancamentos/:id" element={<LancamentoDetalhe />} />
               <Route path="/lancamentos/:id/editar" element={<LancamentoForm />} />

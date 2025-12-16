@@ -1,42 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, AlertCircle, MoreVertical } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Search, Eye, Loader2, Users, Calendar } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
-import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, formatDate, validarPeriodoLancamento, verificarBloqueioAposLimite } from '@/lib/expense-validation';
-
-interface Expense {
-  id: string;
-  colaboradorNome: string;
-  colaboradorId: string;
-  periodoId: string;
-  periodo: string;
-  tipoDespesaId: string;
-  tipoDespesaNome: string;
-  origem: string;
-  valorLancado: number;
-  valorConsiderado: number;
-  valorNaoConsiderado: number;
-  descricaoFatoGerador: string;
-  status: string;
-  motivoInvalidacao: string | null;
-  createdAt: Date;
-}
+import { formatCurrency } from '@/lib/expense-validation';
 
 interface CalendarPeriod {
   id: string;
@@ -46,261 +26,246 @@ interface CalendarPeriod {
   fechaLancamento: Date;
 }
 
-interface Colaborador {
+interface ColaboradorResumo {
   id: string;
   nome: string;
+  matricula: string;
+  departamento: string;
   cestaBeneficiosTeto: number;
+  totalLancado: number;
+  totalConsiderado: number;
+  qtdLancamentos: number;
+  qtdPendentes: number;
+  qtdValidos: number;
 }
 
 const LancamentosLista = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, hasRole } = useAuth();
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
-  const [colaborador, setColaborador] = useState<Colaborador | null>(null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [colaboradores, setColaboradores] = useState<ColaboradorResumo[]>([]);
+  const [departamentos, setDepartamentos] = useState<string[]>([]);
+  const [selectedDepartamento, setSelectedDepartamento] = useState<string>('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [totalUsado, setTotalUsado] = useState(0);
-  const [cestaTeto, setCestaTeto] = useState(0);
-  const [saldoDisponivel, setSaldoDisponivel] = useState(0);
-  const [percentualUsado, setPercentualUsado] = useState(0);
-  const [bloqueadoPorUltimoLancamento, setBloqueadoPorUltimoLancamento] = useState(false);
-  const [periodoValidation, setPeriodoValidation] = useState<{
-    permitido: boolean;
-    periodoDestino: 'atual' | 'proximo' | 'bloqueado';
-    periodoDestinoId?: string;
-    mensagem: string;
-  } | null>(null);
+  const [redirecting, setRedirecting] = useState(false);
 
-  const today = new Date();
-  const todayTime = today.getTime();
-  
-  const currentPeriod = periods.find((p) => {
-    if (p.status !== 'aberto') return false;
-    const abertura = p.abreLancamento.getTime();
-    const fechamento = p.fechaLancamento.getTime() + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
-    return todayTime >= abertura && todayTime <= fechamento;
-  }) || periods.find((p) => p.status === 'aberto');
-  
-  const nextPeriod = periods.find((p, idx) => {
-    if (!currentPeriod) return false;
-    const currentIdx = periods.findIndex(pp => pp.id === currentPeriod.id);
-    return currentIdx >= 0 && idx === currentIdx - 1 && p.status === 'aberto';
-  });
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
+
+  // Determine current period based on today's date
+  const getCurrentPeriod = (periodsData: CalendarPeriod[]) => {
+    const today = new Date();
+    const todayTime = today.getTime();
+    
+    // First try to find open period where today is within launch window
+    const currentOpen = periodsData.find((p) => {
+      if (p.status !== 'aberto') return false;
+      const abertura = p.abreLancamento.getTime();
+      const fechamento = p.fechaLancamento.getTime() + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
+      return todayTime >= abertura && todayTime <= fechamento;
+    });
+    
+    if (currentOpen) return currentOpen;
+    
+    // Fall back to most recent open period
+    return periodsData.find((p) => p.status === 'aberto') || periodsData[0];
+  };
+
+  // Redirect COLABORADOR users to their own expenses page
+  useEffect(() => {
+    const checkAndRedirect = async () => {
+      if (!user || isRHorFinanceiro) return;
+      
+      // COLABORADOR role - redirect to own expenses
+      const { data: colabData } = await supabase
+        .from('colaboradores_elegiveis')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (colabData) {
+        setRedirecting(true);
+        navigate(`/lancamentos/colaborador/${colabData.id}`, { replace: true });
+      }
+    };
+    
+    checkAndRedirect();
+  }, [user, isRHorFinanceiro, navigate]);
 
   useEffect(() => {
-    fetchData();
-  }, [user]);
+    if (isRHorFinanceiro) {
+      fetchPeriods();
+    }
+  }, [isRHorFinanceiro]);
 
   useEffect(() => {
-    if (currentPeriod) {
-      const validation = validarPeriodoLancamento(
-        new Date(),
-        {
-          id: currentPeriod.id,
-          periodo: currentPeriod.periodo,
-          abreLancamento: currentPeriod.abreLancamento,
-          fechaLancamento: currentPeriod.fechaLancamento,
-          status: currentPeriod.status,
-        },
-        nextPeriod ? {
-          id: nextPeriod.id,
-          periodo: nextPeriod.periodo,
-          abreLancamento: nextPeriod.abreLancamento,
-          fechaLancamento: nextPeriod.fechaLancamento,
-          status: nextPeriod.status,
-        } : null
-      );
-      setPeriodoValidation(validation);
+    if (selectedPeriodId) {
+      fetchColaboradores();
     }
-  }, [currentPeriod, nextPeriod]);
+  }, [selectedPeriodId]);
 
-  const fetchData = async () => {
-    if (!user) return;
-    setLoading(true);
-
-    const { data: colabData } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('id, nome, cesta_beneficios_teto')
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (colabData) {
-      setColaborador({
-        id: colabData.id,
-        nome: colabData.nome,
-        cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto),
-      });
-      setCestaTeto(Number(colabData.cesta_beneficios_teto));
-    }
-
-    const { data: periodsData } = await supabase
+  const fetchPeriods = async () => {
+    const { data: periodsData, error } = await supabase
       .from('calendario_periodos')
       .select('id, periodo, status, abre_lancamento, fecha_lancamento')
       .order('periodo', { ascending: false });
 
+    if (error) {
+      toast({ title: 'Erro', description: 'Erro ao carregar períodos', variant: 'destructive' });
+      return;
+    }
+
     if (periodsData) {
-      setPeriods(periodsData.map(p => ({
+      const mapped = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
         status: p.status,
         abreLancamento: new Date(p.abre_lancamento),
         fechaLancamento: new Date(p.fecha_lancamento),
-      })));
-    }
-
-    let query = supabase
-      .from('lancamentos')
-      .select(`
-        id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, motivo_invalidacao, created_at,
-        colaboradores_elegiveis (id, nome),
-        calendario_periodos (id, periodo),
-        tipos_despesas (id, nome)
-      `)
-      .order('created_at', { ascending: false });
-
-    const { data: expensesData } = await query;
-
-    if (expensesData) {
-      const mapped = expensesData.map((e: any) => ({
-        id: e.id,
-        colaboradorId: e.colaboradores_elegiveis?.id,
-        colaboradorNome: e.colaboradores_elegiveis?.nome || '',
-        periodoId: e.calendario_periodos?.id,
-        periodo: e.calendario_periodos?.periodo || '',
-        tipoDespesaId: e.tipos_despesas?.id,
-        tipoDespesaNome: e.tipos_despesas?.nome || '',
-        origem: e.origem,
-        valorLancado: Number(e.valor_lancado),
-        valorConsiderado: Number(e.valor_considerado),
-        valorNaoConsiderado: Number(e.valor_nao_considerado),
-        descricaoFatoGerador: e.descricao_fato_gerador,
-        status: e.status,
-        motivoInvalidacao: e.motivo_invalidacao,
-        createdAt: new Date(e.created_at),
       }));
-
-      setExpenses(mapped);
-
-      const openPeriod = periodsData?.find(p => p.status === 'aberto');
-      if (colabData && openPeriod) {
-        const periodExpenses = mapped.filter(e => e.colaboradorId === colabData.id && e.periodoId === openPeriod.id);
-        const usado = periodExpenses.reduce((sum, e) => sum + e.valorConsiderado, 0);
-        setTotalUsado(usado);
-        setSaldoDisponivel(Number(colabData.cesta_beneficios_teto) - usado);
-        setPercentualUsado((usado / Number(colabData.cesta_beneficios_teto)) * 100);
-
-        const bloqueio = verificarBloqueioAposLimite(
-          periodExpenses.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
-        );
-        setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
+      setPeriods(mapped);
+      
+      // Set default to current period
+      const current = getCurrentPeriod(mapped);
+      if (current) {
+        setSelectedPeriodId(current.id);
       }
     }
+  };
 
+  const fetchColaboradores = async () => {
+    setLoading(true);
+
+    // Fetch all eligible collaborators
+    const { data: colabData, error: colabError } = await supabase
+      .from('colaboradores_elegiveis')
+      .select('id, nome, matricula, departamento, cesta_beneficios_teto')
+      .eq('ativo', true)
+      .order('nome');
+
+    if (colabError) {
+      toast({ title: 'Erro', description: 'Erro ao carregar colaboradores', variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+
+    // Get unique departments
+    const uniqueDepts = [...new Set(colabData?.map(c => c.departamento) || [])].sort();
+    setDepartamentos(uniqueDepts);
+
+    // Fetch expenses for selected period
+    const { data: expensesData, error: expError } = await supabase
+      .from('lancamentos')
+      .select('colaborador_id, valor_lancado, valor_considerado, status')
+      .eq('periodo_id', selectedPeriodId);
+
+    if (expError) {
+      toast({ title: 'Erro', description: 'Erro ao carregar lançamentos', variant: 'destructive' });
+      setLoading(false);
+      return;
+    }
+
+    // Map collaborators with expense summary
+    const colaboradoresResumo: ColaboradorResumo[] = (colabData || []).map(colab => {
+      const colabExpenses = expensesData?.filter(e => e.colaborador_id === colab.id) || [];
+      const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
+      const totalConsiderado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+      const qtdPendentes = colabExpenses.filter(e => ['rascunho', 'enviado', 'em_analise'].includes(e.status)).length;
+      const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
+
+      return {
+        id: colab.id,
+        nome: colab.nome,
+        matricula: colab.matricula,
+        departamento: colab.departamento,
+        cestaBeneficiosTeto: Number(colab.cesta_beneficios_teto),
+        totalLancado,
+        totalConsiderado,
+        qtdLancamentos: colabExpenses.length,
+        qtdPendentes,
+        qtdValidos,
+      };
+    });
+
+    setColaboradores(colaboradoresResumo);
     setLoading(false);
   };
 
-  const handleDelete = async (expense: Expense) => {
-    if (!confirm('Deseja realmente excluir este lançamento?')) return;
+  const filteredColaboradores = useMemo(() => {
+    return colaboradores.filter(colab => {
+      const matchesDept = selectedDepartamento === 'todos' || colab.departamento === selectedDepartamento;
+      const matchesSearch = colab.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           colab.matricula.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesDept && matchesSearch;
+    });
+  }, [colaboradores, selectedDepartamento, searchTerm]);
 
-    const { error } = await supabase.from('lancamentos').delete().eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      toast({ title: 'Sucesso', description: 'Lançamento excluído.' });
-      fetchData();
-    }
-  };
-
-  const handleNew = () => {
-    if (periodoValidation && !periodoValidation.permitido) {
-      toast({ title: 'Período não disponível', description: periodoValidation.mensagem, variant: 'destructive' });
-      return;
-    }
-    if (bloqueadoPorUltimoLancamento) {
-      toast({ title: 'Limite atingido', description: 'Você já fez um lançamento que ultrapassou o limite.', variant: 'destructive' });
-      return;
-    }
-    if (saldoDisponivel <= 0) {
-      toast({ title: 'Limite atingido', description: 'Você já atingiu o limite da Cesta de Benefícios.', variant: 'destructive' });
-      return;
-    }
-    navigate('/lancamentos/novo');
-  };
-
-  const filteredExpenses = expenses.filter(
-    (exp) =>
-      exp.colaboradorNome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      exp.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
 
   const columns = [
-    { key: 'createdAt', header: 'Data', hideOnMobile: true, render: (item: Expense) => formatDate(item.createdAt) },
-    { key: 'colaboradorNome', header: 'Colaborador', hideOnMobile: true },
-    { key: 'tipoDespesaNome', header: 'Tipo' },
-    { key: 'origem', header: 'Origem', hideOnMobile: true, render: (item: Expense) => ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[item.origem] || item.origem) },
-    { key: 'valorLancado', header: 'Valor', className: 'text-right font-mono', render: (item: Expense) => formatCurrency(item.valorLancado) },
-    { key: 'valorConsiderado', header: 'Considerado', hideOnMobile: true, className: 'text-right font-mono', render: (item: Expense) => <span className={item.valorNaoConsiderado > 0 ? 'text-warning' : ''}>{formatCurrency(item.valorConsiderado)}</span> },
-    { key: 'status', header: 'Status', render: (item: Expense) => <StatusBadge status={item.status} /> },
+    { key: 'matricula', header: 'Matrícula', hideOnMobile: true },
+    { key: 'nome', header: 'Colaborador' },
+    { key: 'departamento', header: 'Departamento', hideOnMobile: true },
+    { 
+      key: 'qtdLancamentos', 
+      header: 'Lançamentos', 
+      className: 'text-center',
+      render: (item: ColaboradorResumo) => (
+        <div className="text-center">
+          <span className="font-medium">{item.qtdLancamentos}</span>
+          {item.qtdPendentes > 0 && (
+            <span className="ml-1 text-xs text-warning">({item.qtdPendentes} pend.)</span>
+          )}
+        </div>
+      )
+    },
+    { 
+      key: 'totalConsiderado', 
+      header: 'Utilizado', 
+      className: 'text-right font-mono',
+      hideOnMobile: true,
+      render: (item: ColaboradorResumo) => (
+        <div className="text-right">
+          <div className="font-medium">{formatCurrency(item.totalConsiderado)}</div>
+          <div className="text-xs text-muted-foreground">
+            de {formatCurrency(item.cestaBeneficiosTeto)}
+          </div>
+        </div>
+      )
+    },
     {
       key: 'actions',
       header: '',
-      className: 'text-right w-[100px]',
-      render: (item: Expense) => (
-        <div className="flex justify-end gap-1">
-          <div className="hidden sm:flex gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/lancamentos/${item.id}`)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {item.status === 'rascunho' && (
-              <>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/lancamentos/${item.id}/editar`)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleDelete(item)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </>
-            )}
-          </div>
-          <div className="sm:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/lancamentos/${item.id}`)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Visualizar
-                </DropdownMenuItem>
-                {item.status === 'rascunho' && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate(`/lancamentos/${item.id}/editar`)}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDelete(item)} className="text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Excluir
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+      className: 'text-right w-[80px]',
+      render: (item: ColaboradorResumo) => (
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="h-9 w-9"
+          onClick={() => navigate(`/lancamentos/colaborador/${item.id}?periodo=${selectedPeriodId}`)}
+        >
+          <Eye className="h-4 w-4" />
+        </Button>
       ),
     },
   ];
 
-  const canCreateNew = colaborador && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
+  // Summary stats
+  const totalColaboradores = filteredColaboradores.length;
+  const totalComLancamentos = filteredColaboradores.filter(c => c.qtdLancamentos > 0).length;
+  const totalValorConsiderado = filteredColaboradores.reduce((sum, c) => sum + c.totalConsiderado, 0);
 
-  if (loading) {
+  if (loading && periods.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (redirecting) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -310,92 +275,113 @@ const LancamentosLista = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <PageHeader title="Lançamentos de Despesas" description={`Período atual: ${currentPeriod?.periodo || 'N/A'}`}>
-        <Button onClick={handleNew} disabled={!canCreateNew}>
-          {!canCreateNew && bloqueadoPorUltimoLancamento ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-          Novo Lançamento
-        </Button>
-      </PageHeader>
+      <PageHeader 
+        title="Lançamentos de Despesas" 
+        description={`Visualização por colaborador - Período: ${selectedPeriod?.periodo || 'Selecione'}`}
+      />
 
-      {!colaborador && !hasRole('RH') && !hasRole('FINANCEIRO') && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Atenção</AlertTitle>
-          <AlertDescription>Você não está cadastrado como colaborador elegível. Entre em contato com o RH.</AlertDescription>
-        </Alert>
-      )}
-
-      {periodoValidation && !periodoValidation.permitido && (
-        <Alert variant="destructive">
-          <Lock className="h-4 w-4" />
-          <AlertTitle>Período Bloqueado</AlertTitle>
-          <AlertDescription>{periodoValidation.mensagem}</AlertDescription>
-        </Alert>
-      )}
-
-      {bloqueadoPorUltimoLancamento && (
-        <Alert variant="destructive">
-          <Lock className="h-4 w-4" />
-          <AlertTitle>Lançamentos Bloqueados</AlertTitle>
-          <AlertDescription>Você já fez um lançamento que ultrapassou o limite. Não é possível fazer novos lançamentos neste período.</AlertDescription>
-        </Alert>
-      )}
-
-      {colaborador && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-          <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span>Utilizado</span>
-                  <span className="font-mono font-medium">{formatCurrency(totalUsado)}</span>
-                </div>
-                <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
-                  <span>Teto: {formatCurrency(cestaTeto)}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Lançamentos no Período</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl sm:text-2xl font-bold">{expenses.filter(e => e.periodoId === currentPeriod?.id).length}</p>
-              <p className="text-xs text-muted-foreground">{expenses.filter(e => e.status === 'valido').length} válidos</p>
-            </CardContent>
-          </Card>
-
-          <Card className="sm:col-span-2 md:col-span-1">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Janela de Lançamento</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm sm:text-lg font-semibold">
-                {currentPeriod && formatDate(currentPeriod.abreLancamento)} - {currentPeriod && formatDate(currentPeriod.fechaLancamento)}
-              </p>
-              <p className={`text-xs ${periodoValidation?.permitido ? 'text-success' : 'text-destructive'}`}>
-                {periodoValidation?.permitido ? 'Período aberto' : 'Período fechado'}
-              </p>
-            </CardContent>
-          </Card>
+      {/* Period and Department Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 sm:max-w-[200px]">
+          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+            <SelectTrigger>
+              <Calendar className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map(period => (
+                <SelectItem key={period.id} value={period.id}>
+                  {period.periodo} {period.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      )}
 
-      <div className="flex">
+        <div className="flex-1 sm:max-w-[200px]">
+          <Select value={selectedDepartamento} onValueChange={setSelectedDepartamento}>
+            <SelectTrigger>
+              <Users className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Departamento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Departamentos</SelectItem>
+              {departamentos.map(dept => (
+                <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+          <Input 
+            placeholder="Buscar por nome ou matrícula..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            className="pl-9" 
+          />
         </div>
       </div>
 
-      <DataTable data={filteredExpenses} columns={columns} emptyMessage="Nenhum lançamento encontrado" />
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Colaboradores
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl sm:text-2xl font-bold">{totalColaboradores}</p>
+            <p className="text-xs text-muted-foreground">
+              {totalComLancamentos} com lançamentos
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Total Lançamentos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl sm:text-2xl font-bold">
+              {filteredColaboradores.reduce((sum, c) => sum + c.qtdLancamentos, 0)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {filteredColaboradores.reduce((sum, c) => sum + c.qtdValidos, 0)} válidos
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Valor Total Considerado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl sm:text-2xl font-bold font-mono">
+              {formatCurrency(totalValorConsiderado)}
+            </p>
+            <p className="text-xs text-muted-foreground">no período selecionado</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center h-32">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </div>
+      ) : (
+        <DataTable 
+          data={filteredColaboradores} 
+          columns={columns} 
+          emptyMessage="Nenhum colaborador encontrado" 
+        />
+      )}
     </div>
   );
 };
