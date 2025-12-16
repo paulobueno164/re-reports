@@ -198,7 +198,7 @@ const ValidacaoDetalhe = () => {
       isViewMode={true}
       extraActions={
         canValidate && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
             {expense.status === 'enviado' && (
               <Button
                 variant="outline"
