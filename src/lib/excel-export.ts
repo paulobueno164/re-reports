@@ -195,3 +195,103 @@ export function exportBatchToZip(statements: StatementData[]): void {
   const fileName = `Relatorios_Lote_${dataFormatada}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
+
+interface ColaboradorExpenseData {
+  colaborador: {
+    nome: string;
+    matricula: string;
+    departamento: string;
+  };
+  periodo: string;
+  expenses: {
+    data: string;
+    tipoDespesa: string;
+    origem: string;
+    valorLancado: number;
+    valorConsiderado: number;
+    valorNaoConsiderado: number;
+    status: string;
+    descricao: string;
+  }[];
+  totais: {
+    total: number;
+    totalConsiderado: number;
+    cestaTeto: number;
+  };
+  statusCounts: {
+    rascunho: number;
+    enviado: number;
+    em_analise: number;
+    valido: number;
+    invalido: number;
+  };
+}
+
+export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
+  const hoje = new Date();
+  const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
+  const periodoFormatado = data.periodo.replace('/', '');
+  
+  const wb = XLSX.utils.book_new();
+  
+  const statusLabels: Record<string, string> = {
+    rascunho: 'Rascunho',
+    enviado: 'Enviado',
+    em_analise: 'Em Análise',
+    valido: 'Válido',
+    invalido: 'Inválido',
+  };
+  
+  // Aba: Resumo e Lançamentos
+  const sheetData = [
+    ['DESPESAS DO COLABORADOR'],
+    [],
+    ['Colaborador:', data.colaborador.nome],
+    ['Matrícula:', data.colaborador.matricula],
+    ['Departamento:', data.colaborador.departamento],
+    ['Período:', data.periodo],
+    [],
+    ['RESUMO POR STATUS'],
+    ['Status', 'Quantidade'],
+    ['Rascunho', data.statusCounts.rascunho],
+    ['Enviado', data.statusCounts.enviado],
+    ['Em Análise', data.statusCounts.em_analise],
+    ['Válido', data.statusCounts.valido],
+    ['Inválido', data.statusCounts.invalido],
+    ['Total', data.expenses.length],
+    [],
+    ['TOTAIS'],
+    ['Total Lançado', data.totais.total],
+    ['Total Considerado', data.totais.totalConsiderado],
+    ['Teto Cesta de Benefícios', data.totais.cestaTeto],
+    [],
+    ['DETALHAMENTO DE LANÇAMENTOS'],
+    ['Data', 'Tipo de Despesa', 'Origem', 'Descrição', 'Valor Lançado', 'Valor Considerado', 'Não Considerado', 'Status'],
+    ...data.expenses.map(e => [
+      e.data,
+      e.tipoDespesa,
+      e.origem,
+      e.descricao,
+      e.valorLancado,
+      e.valorConsiderado,
+      e.valorNaoConsiderado,
+      statusLabels[e.status] || e.status,
+    ]),
+  ];
+  
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 12 },
+    { wch: 25 },
+    { wch: 12 },
+    { wch: 35 },
+    { wch: 15 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 12 },
+  ];
+  XLSX.utils.book_append_sheet(wb, ws, 'Despesas');
+  
+  const fileName = `Despesas_${data.colaborador.matricula}_${periodoFormatado}_${dataFormatada}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
