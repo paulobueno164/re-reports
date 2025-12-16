@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Eye, Loader2, Users, Calendar, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
+import { Search, Eye, Loader2, Users, Calendar, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle, Filter } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -58,6 +58,7 @@ const LancamentosLista = () => {
   const [redirecting, setRedirecting] = useState(false);
   const [sortField, setSortField] = useState<SortField>('nome');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [showOnlySemLancamentos, setShowOnlySemLancamentos] = useState(false);
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
@@ -226,7 +227,8 @@ const LancamentosLista = () => {
       const matchesDept = selectedDepartamento === 'todos' || colab.departamento === selectedDepartamento;
       const matchesSearch = colab.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            colab.matricula.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesDept && matchesSearch;
+      const matchesSemLancamentos = !showOnlySemLancamentos || colab.qtdLancamentos === 0;
+      return matchesDept && matchesSearch && matchesSemLancamentos;
     });
 
     // Then sort
@@ -252,7 +254,7 @@ const LancamentosLista = () => {
     });
 
     return result;
-  }, [colaboradores, selectedDepartamento, searchTerm, sortField, sortDirection]);
+  }, [colaboradores, selectedDepartamento, searchTerm, sortField, sortDirection, showOnlySemLancamentos]);
 
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
 
@@ -437,6 +439,17 @@ const LancamentosLista = () => {
             className="pl-9" 
           />
         </div>
+
+        <Button
+          variant={showOnlySemLancamentos ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowOnlySemLancamentos(!showOnlySemLancamentos)}
+          className="h-10 whitespace-nowrap"
+        >
+          <Filter className="mr-2 h-4 w-4" />
+          <span className="hidden sm:inline">Sem lançamentos</span>
+          <span className="sm:hidden">Pendentes</span>
+        </Button>
       </div>
 
       {/* Summary Cards */}
