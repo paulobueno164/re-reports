@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Users, CheckCircle, XCircle, Clock, TrendingUp, AlertTriangle, Activity, BarChart3, Loader2 } from 'lucide-react';
+import { Users, CheckCircle, XCircle, Clock, TrendingUp, AlertTriangle, Activity, BarChart3, Loader2, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from 'recharts';
+import { StatCard } from '@/components/ui/stat-card';
 
 interface ValidationMetrics {
   totalPending: number;
@@ -20,15 +20,8 @@ interface ValidationMetrics {
   pendingValue: number;
   approvedValue: number;
   rejectedValue: number;
-}
-
-interface ValidatorMetrics {
-  userId: string;
-  userName: string;
-  totalValidated: number;
-  approved: number;
-  rejected: number;
-  avgTimeMinutes: number;
+  totalColaboradores: number;
+  utilizationData: { used: number; available: number; total: number; percentage: number };
 }
 
 interface DepartmentMetrics {
@@ -55,6 +48,8 @@ const DashboardRH = () => {
     pendingValue: 0,
     approvedValue: 0,
     rejectedValue: 0,
+    totalColaboradores: 0,
+    utilizationData: { used: 0, available: 0, total: 0, percentage: 0 },
   });
   const [departmentMetrics, setDepartmentMetrics] = useState<DepartmentMetrics[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
@@ -70,12 +65,26 @@ const DashboardRH = () => {
     today.setHours(0, 0, 0, 0);
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
+    // Fetch total colaboradores
+    const { count: totalColaboradores } = await supabase
+      .from('colaboradores_elegiveis')
+      .select('*', { count: 'exact', head: true })
+      .eq('ativo', true);
+
+    // Fetch colaboradores for cesta calculation
+    const { data: colaboradores } = await supabase
+      .from('colaboradores_elegiveis')
+      .select('id, cesta_beneficios_teto')
+      .eq('ativo', true);
+
     // Fetch all lancamentos
     const { data: lancamentos } = await supabase
       .from('lancamentos')
       .select('id, status, valor_lancado, valor_considerado, created_at, validado_em, colaborador_id, colaboradores_elegiveis(departamento)');
 
-    if (lancamentos) {
+    let utilizationData = { used: 0, available: 0, total: 0, percentage: 0 };
+
+    if (lancamentos && colaboradores) {
       const pending = lancamentos.filter((l) => l.status === 'enviado' || l.status === 'em_analise');
       const approvedToday = lancamentos.filter((l) => l.status === 'valido' && l.validado_em && new Date(l.validado_em) >= today);
       const rejectedToday = lancamentos.filter((l) => l.status === 'invalido' && l.validado_em && new Date(l.validado_em) >= today);
@@ -97,6 +106,16 @@ const DashboardRH = () => {
         avgTime = Math.round(totalMinutes / validatedWithTime.length);
       }
 
+      // Cesta utilization
+      const totalCestaTeto = colaboradores.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0);
+      const totalUtilizado = lancamentos.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0);
+      utilizationData = {
+        used: totalUtilizado,
+        available: Math.max(0, totalCestaTeto - totalUtilizado),
+        total: totalCestaTeto,
+        percentage: totalCestaTeto > 0 ? Math.round((totalUtilizado / totalCestaTeto) * 100) : 0,
+      };
+
       setMetrics({
         totalPending: pending.length,
         totalApprovedToday: approvedToday.length,
@@ -108,6 +127,8 @@ const DashboardRH = () => {
         pendingValue: pending.reduce((acc, l) => acc + Number(l.valor_lancado), 0),
         approvedValue: approvedMonth.reduce((acc, l) => acc + Number(l.valor_considerado), 0),
         rejectedValue: rejectedMonth.reduce((acc, l) => acc + Number(l.valor_lancado), 0),
+        totalColaboradores: totalColaboradores || 0,
+        utilizationData,
       });
 
       // Department metrics
@@ -178,10 +199,51 @@ const DashboardRH = () => {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Dashboard RH"
-        description="Métricas de validação e produtividade da equipe"
+        description="Métricas de validação, produtividade e visão geral"
       />
 
-      {/* KPI Cards */}
+      {/* Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          title="Colaboradores Elegíveis"
+          value={metrics.totalColaboradores}
+          description="Cadastrados no sistema"
+          icon={Users}
+          href="/colaboradores"
+        />
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-primary" />
+              Utilização Cesta de Benefícios
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{metrics.utilizationData.percentage}%</p>
+            <Progress value={metrics.utilizationData.percentage} className="h-2 mt-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatCurrency(metrics.utilizationData.used)} de {formatCurrency(metrics.utilizationData.total)}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-primary" />
+              Taxa de Aprovação
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{metrics.approvalRate}%</p>
+            <Progress value={metrics.approvalRate} className="h-2 mt-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {metrics.totalApprovedMonth} aprovados / {metrics.totalApprovedMonth + metrics.totalRejectedMonth} validados
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Validation KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-warning/5 border-warning/20">
           <CardHeader className="pb-2">
@@ -225,13 +287,13 @@ const DashboardRH = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" />
-              Taxa de Aprovação
+              <Activity className="h-4 w-4 text-primary" />
+              Valor Aprovado (Mês)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{metrics.approvalRate}%</p>
-            <Progress value={metrics.approvalRate} className="h-2 mt-2" />
+            <p className="text-2xl font-bold">{formatCurrency(metrics.approvedValue)}</p>
+            <p className="text-xs text-muted-foreground">{formatCurrency(metrics.rejectedValue)} rejeitados</p>
           </CardContent>
         </Card>
       </div>
