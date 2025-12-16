@@ -999,7 +999,7 @@ const Lancamentos = () => {
             {/* Edit/Create Mode */}
             {!isViewMode && (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Mês Referência</Label>
                     <Select value={formPeriodoId} onValueChange={setFormPeriodoId} disabled>
@@ -1042,7 +1042,7 @@ const Lancamentos = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Origem da Despesa</Label>
                     <Select 

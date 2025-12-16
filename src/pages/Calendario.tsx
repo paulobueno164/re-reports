@@ -331,7 +331,7 @@ const Calendario = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-lg">
           <DialogHeader>
             <DialogTitle>{selectedPeriod ? 'Editar Período' : 'Novo Período'}</DialogTitle>
             <DialogDescription>Configure as datas do período de remuneração</DialogDescription>
@@ -347,7 +347,7 @@ const Calendario = () => {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Data Início Acúmulo</Label>
                 <Input
@@ -366,7 +366,7 @@ const Calendario = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Abre Lançamento</Label>
                 <Input
