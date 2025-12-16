@@ -636,7 +636,7 @@ const Colaboradores = () => {
             <TabsContent value="remuneracao" className="space-y-6">
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Componentes Fixos</h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Salário Base (R$)</Label>
                     <Input
@@ -698,7 +698,7 @@ const Colaboradores = () => {
 
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Componentes Variáveis</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Cesta de Benefícios - Teto (R$)</Label>
                     <Input

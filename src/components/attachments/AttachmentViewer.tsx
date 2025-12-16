@@ -205,7 +205,7 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
 
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogContent className="w-full max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center justify-between pr-8">
               <span className="truncate">{previewName}</span>

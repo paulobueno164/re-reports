@@ -558,7 +558,7 @@ const Fechamento = () => {
 
       {/* Processing Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-lg">
           <DialogHeader>
             <DialogTitle>Processar Fechamento</DialogTitle>
             <DialogDescription>

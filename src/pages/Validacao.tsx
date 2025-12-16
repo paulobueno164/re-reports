@@ -616,7 +616,7 @@ const Validacao = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-2xl">
           <DialogHeader>
             <DialogTitle>Analisar Lançamento</DialogTitle>
             <DialogDescription>Revise os dados e decida sobre a validação</DialogDescription>
@@ -625,7 +625,7 @@ const Validacao = () => {
           {selectedExpense && (
             <div className="space-y-6 py-4">
               {/* Expense Details */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-muted-foreground">Colaborador</Label>
                   <p className="font-medium">{selectedExpense.colaboradorNome}</p>

@@ -327,7 +327,7 @@ const EventosFolha = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="w-full max-w-lg">
           <DialogHeader>
             <DialogTitle>{selectedEvent ? 'Editar Vínculo' : 'Novo Vínculo'}</DialogTitle>
             <DialogDescription>Vincule um tipo de despesa a um evento de folha de pagamento</DialogDescription>
