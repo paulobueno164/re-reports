@@ -45,7 +45,7 @@ export const PageFormLayout = ({
 
           {!isViewMode && (onSave || onCancel) && (
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
-              {extraActions}
+              <div className="flex flex-col-reverse sm:flex-row gap-3 flex-1 sm:flex-initial">{extraActions}</div>
               {onCancel && (
                 <Button variant="outline" onClick={onCancel} disabled={saving}>
                   Cancelar
@@ -61,7 +61,7 @@ export const PageFormLayout = ({
           )}
 
           {isViewMode && extraActions && (
-            <div className="flex justify-end gap-3 pt-4 border-t">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t">
               {extraActions}
             </div>
           )}

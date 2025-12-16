@@ -136,7 +136,7 @@ const LancamentoDetalhe = () => {
       isViewMode
       extraActions={
         expense.status === 'rascunho' && (
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button variant="outline" onClick={() => navigate(`/lancamentos/${id}/editar`)}>
               <Edit className="mr-2 h-4 w-4" />
               Editar
@@ -192,7 +192,7 @@ const LancamentoDetalhe = () => {
         )}
 
         {/* Main Info */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Mês Referência</p>
             <p className="font-semibold text-lg">{expense.periodo}</p>
@@ -225,7 +225,7 @@ const LancamentoDetalhe = () => {
             <AlertCircle className="h-4 w-4 text-warning" />
             <AlertTitle className="text-warning">Valor Parcialmente Considerado</AlertTitle>
             <AlertDescription>
-              <div className="grid grid-cols-3 gap-4 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-4 mt-2">
                 <div>
                   <p className="text-xs text-muted-foreground">Valor Lançado</p>
                   <p className="font-mono font-medium">{formatCurrency(expense.valorLancado)}</p>

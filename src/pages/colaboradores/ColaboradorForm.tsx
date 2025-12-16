@@ -226,10 +226,10 @@ const ColaboradorForm = () => {
       saving={saving}
     >
       <Tabs defaultValue="dados" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="dados">Dados Básicos</TabsTrigger>
-          <TabsTrigger value="remuneracao">Remuneração</TabsTrigger>
-          <TabsTrigger value="despesas" disabled={!isEditing}>Tipos de Despesa</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto">
+          <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados Básicos</TabsTrigger>
+          <TabsTrigger value="remuneracao" className="text-xs sm:text-sm">Remuneração</TabsTrigger>
+          <TabsTrigger value="despesas" disabled={!isEditing} className="text-xs sm:text-sm">Tipos de Despesa</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados" className="space-y-6">
@@ -363,7 +363,7 @@ const ColaboradorForm = () => {
         <TabsContent value="remuneracao" className="space-y-6">
           <div className="space-y-4">
             <h3 className="text-sm font-semibold text-foreground">Componentes Fixos</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Salário Base (R$)</Label>
                 <Input
@@ -452,9 +452,9 @@ const ColaboradorForm = () => {
 
           <Card className="bg-muted/30">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold flex items-center justify-between">
-                Simulação da Remuneração Estratégica
-                <div className="flex gap-2">
+                <CardTitle className="text-sm font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span>Simulação da Remuneração Estratégica</span>
+                <div className="flex gap-2 flex-wrap">
                   <Button
                     variant="outline"
                     size="sm"
