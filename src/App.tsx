@@ -13,7 +13,7 @@ import { ColaboradoresLista, ColaboradorForm, ColaboradorDetalhe } from "./pages
 import TiposDespesas from "./pages/TiposDespesas";
 import Calendario from "./pages/Calendario";
 import EventosFolha from "./pages/EventosFolha";
-import Lancamentos from "./pages/Lancamentos";
+import { LancamentosLista, LancamentoForm, LancamentoDetalhe } from "./pages/lancamentos";
 import Validacao from "./pages/Validacao";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
@@ -88,7 +88,11 @@ const App = () => (
                   <EventosFolha />
                 </ProtectedRoute>
               } />
-              <Route path="/lancamentos" element={<Lancamentos />} />
+              {/* Lançamentos */}
+              <Route path="/lancamentos" element={<LancamentosLista />} />
+              <Route path="/lancamentos/novo" element={<LancamentoForm />} />
+              <Route path="/lancamentos/:id" element={<LancamentoDetalhe />} />
+              <Route path="/lancamentos/:id/editar" element={<LancamentoForm />} />
               <Route path="/validacao" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <Validacao />
