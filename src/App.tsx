@@ -10,18 +10,18 @@ import Dashboard from "./pages/Dashboard";
 import DashboardRH from "./pages/DashboardRH";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 import { ColaboradoresLista, ColaboradorForm, ColaboradorDetalhe } from "./pages/colaboradores";
-import TiposDespesas from "./pages/TiposDespesas";
-import Calendario from "./pages/Calendario";
-import EventosFolha from "./pages/EventosFolha";
+import { TiposDespesasLista, TipoDespesaForm } from "./pages/tipos-despesas";
+import { CalendarioLista, PeriodoForm } from "./pages/calendario";
+import { EventosFolhaLista, EventoFolhaForm } from "./pages/eventos-folha";
 import { LancamentosLista, LancamentoForm, LancamentoDetalhe } from "./pages/lancamentos";
-import Validacao from "./pages/Validacao";
+import { ValidacaoLista, ValidacaoDetalhe } from "./pages/validacao";
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import HistoricoAuditoria from "./pages/HistoricoAuditoria";
 import Instalar from "./pages/Instalar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import GerenciarUsuarios from "./pages/GerenciarUsuarios";
+import { UsuariosLista, UsuarioRoles } from "./pages/gerenciar-usuarios";
 import Perfil from "./pages/Perfil";
 
 const queryClient = new QueryClient();
@@ -73,19 +73,52 @@ const App = () => (
                   <ColaboradorForm />
                 </ProtectedRoute>
               } />
+              {/* Tipos de Despesas */}
               <Route path="/tipos-despesas" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <TiposDespesas />
+                  <TiposDespesasLista />
                 </ProtectedRoute>
               } />
+              <Route path="/tipos-despesas/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <TipoDespesaForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/tipos-despesas/:id/editar" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <TipoDespesaForm />
+                </ProtectedRoute>
+              } />
+              {/* Calendário */}
               <Route path="/calendario" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <Calendario />
+                  <CalendarioLista />
                 </ProtectedRoute>
               } />
+              <Route path="/calendario/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <PeriodoForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/calendario/:id/editar" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <PeriodoForm />
+                </ProtectedRoute>
+              } />
+              {/* Eventos Folha */}
               <Route path="/eventos-folha" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <EventosFolha />
+                  <EventosFolhaLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/eventos-folha/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <EventoFolhaForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/eventos-folha/:id/editar" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <EventoFolhaForm />
                 </ProtectedRoute>
               } />
               {/* Lançamentos */}
@@ -93,9 +126,15 @@ const App = () => (
               <Route path="/lancamentos/novo" element={<LancamentoForm />} />
               <Route path="/lancamentos/:id" element={<LancamentoDetalhe />} />
               <Route path="/lancamentos/:id/editar" element={<LancamentoForm />} />
+              {/* Validação */}
               <Route path="/validacao" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <Validacao />
+                  <ValidacaoLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/validacao/:id" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <ValidacaoDetalhe />
                 </ProtectedRoute>
               } />
               <Route path="/fechamento" element={
@@ -109,9 +148,15 @@ const App = () => (
                   <HistoricoAuditoria />
                 </ProtectedRoute>
               } />
+              {/* Gerenciar Usuários */}
               <Route path="/gerenciar-usuarios" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <GerenciarUsuarios />
+                  <UsuariosLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/gerenciar-usuarios/:id/roles" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <UsuarioRoles />
                 </ProtectedRoute>
               } />
               <Route path="/perfil" element={<Perfil />} />
