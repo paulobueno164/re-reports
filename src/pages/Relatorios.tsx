@@ -1,14 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FileText, Download, Users, User, Loader2, AlertCircle, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Combobox, ComboboxOption } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,13 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
 import { generateZipWithPDFs } from '@/lib/zip-export';
-
 interface Colaborador {
   id: string;
   nome: string;
@@ -60,8 +54,29 @@ const Relatorios = () => {
   const [selectAll, setSelectAll] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [includePendentes, setIncludePendentes] = useState(false);
+  const [batchSearch, setBatchSearch] = useState('');
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
+
+  // Memoized options for comboboxes
+  const periodOptions: ComboboxOption[] = useMemo(() => 
+    periodos.map((p) => ({
+      value: p.id,
+      label: `${p.periodo}${p.status === 'aberto' ? ' (Atual)' : ''}`,
+      description: p.status === 'aberto' ? 'Período aberto' : 'Período fechado',
+    })), [periodos]);
+
+  const colaboradorOptions: ComboboxOption[] = useMemo(() => 
+    colaboradores.map((c) => ({
+      value: c.id,
+      label: c.nome,
+      description: `${c.matricula} • ${c.departamento}`,
+    })), [colaboradores]);
+
+  const departmentOptions: ComboboxOption[] = useMemo(() => [
+    { value: 'all', label: 'Todos os departamentos' },
+    ...departments.map((d) => ({ value: d, label: d })),
+  ], [departments]);
 
   useEffect(() => {
     fetchData();
@@ -254,7 +269,20 @@ const Relatorios = () => {
     setGenerating(false);
   };
 
-  const filteredColaboradores = selectedDepartment === 'all' ? colaboradores : colaboradores.filter((c) => c.departamento === selectedDepartment);
+  const filteredColaboradores = useMemo(() => {
+    let result = colaboradores;
+    if (selectedDepartment !== 'all') {
+      result = result.filter((c) => c.departamento === selectedDepartment);
+    }
+    if (batchSearch.trim()) {
+      const search = batchSearch.toLowerCase();
+      result = result.filter((c) => 
+        c.nome.toLowerCase().includes(search) || 
+        c.matricula.toLowerCase().includes(search)
+      );
+    }
+    return result;
+  }, [colaboradores, selectedDepartment, batchSearch]);
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -273,17 +301,25 @@ const Relatorios = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Período</Label>
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
-                    <SelectContent>{periodos.map((p) => <SelectItem key={p.id} value={p.id}>{p.periodo} {p.status === 'aberto' && '(Atual)'}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Combobox
+                    options={periodOptions}
+                    value={selectedPeriod}
+                    onValueChange={setSelectedPeriod}
+                    placeholder="Buscar período..."
+                    searchPlaceholder="Buscar por período..."
+                    emptyMessage="Nenhum período encontrado."
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Colaborador</Label>
-                  <Select value={selectedColaborador} onValueChange={setSelectedColaborador}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o colaborador" /></SelectTrigger>
-                    <SelectContent>{colaboradores.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Combobox
+                    options={colaboradorOptions}
+                    value={selectedColaborador}
+                    onValueChange={setSelectedColaborador}
+                    placeholder="Buscar colaborador..."
+                    searchPlaceholder="Buscar por nome ou matrícula..."
+                    emptyMessage="Nenhum colaborador encontrado."
+                  />
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -407,36 +443,60 @@ const Relatorios = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Período</Label>
-                  <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-                    <SelectTrigger><SelectValue placeholder="Selecione o período" /></SelectTrigger>
-                    <SelectContent>{periodos.map((p) => <SelectItem key={p.id} value={p.id}>{p.periodo} {p.status === 'aberto' && '(Atual)'}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Combobox
+                    options={periodOptions}
+                    value={selectedPeriod}
+                    onValueChange={setSelectedPeriod}
+                    placeholder="Buscar período..."
+                    searchPlaceholder="Buscar por período..."
+                    emptyMessage="Nenhum período encontrado."
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Filtrar por Departamento</Label>
-                  <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                    <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">Todos</SelectItem>{departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Combobox
+                    options={departmentOptions}
+                    value={selectedDepartment}
+                    onValueChange={setSelectedDepartment}
+                    placeholder="Todos os departamentos"
+                    searchPlaceholder="Buscar departamento..."
+                    emptyMessage="Nenhum departamento encontrado."
+                  />
                 </div>
               </div>
               <Separator />
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Selecionar Colaboradores</Label>
-                  <div className="flex items-center space-x-2"><Checkbox id="selectAll" checked={selectAll} onCheckedChange={(c) => handleSelectAll(!!c)} /><Label htmlFor="selectAll" className="font-normal">Selecionar Todos</Label></div>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1">
+                    <Input
+                      placeholder="Buscar por nome ou matrícula..."
+                      value={batchSearch}
+                      onChange={(e) => setBatchSearch(e.target.value)}
+                      className="max-w-sm"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="selectAll" checked={selectAll} onCheckedChange={(c) => handleSelectAll(!!c)} />
+                    <Label htmlFor="selectAll" className="font-normal">Selecionar Todos</Label>
+                  </div>
                 </div>
                 <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                  {filteredColaboradores.map((emp) => (
-                    <div key={emp.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50">
-                      <div className="flex items-center space-x-3">
-                        <Checkbox id={emp.id} checked={selectedEmployees.includes(emp.id)} onCheckedChange={(c) => handleSelectEmployee(emp.id, !!c)} />
-                        <div><p className="font-medium">{emp.nome}</p><p className="text-xs text-muted-foreground">{emp.matricula} • {emp.departamento}</p></div>
-                      </div>
+                  {filteredColaboradores.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-muted-foreground">
+                      Nenhum colaborador encontrado com os filtros aplicados.
                     </div>
-                  ))}
+                  ) : (
+                    filteredColaboradores.map((emp) => (
+                      <div key={emp.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50">
+                        <div className="flex items-center space-x-3">
+                          <Checkbox id={emp.id} checked={selectedEmployees.includes(emp.id)} onCheckedChange={(c) => handleSelectEmployee(emp.id, !!c)} />
+                          <div><p className="font-medium">{emp.nome}</p><p className="text-xs text-muted-foreground">{emp.matricula} • {emp.departamento}</p></div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-                <p className="text-sm text-muted-foreground">{selectedEmployees.length} colaborador(es) selecionado(s)</p>
+                <p className="text-sm text-muted-foreground">{selectedEmployees.length} colaborador(es) selecionado(s) de {filteredColaboradores.length} exibido(s)</p>
               </div>
               <div className="flex gap-3">
                 <Button onClick={handleGenerateBatch} disabled={selectedEmployees.length === 0 || !selectedPeriod || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Baixar ZIP ({selectedEmployees.length} PDFs)</Button>
