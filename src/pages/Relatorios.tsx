@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/expense-validation';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
 import { generateZipWithPDFs } from '@/lib/zip-export';
+
 interface Colaborador {
   id: string;
   nome: string;
