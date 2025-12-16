@@ -85,6 +85,10 @@ const ColaboradorLancamentos = () => {
 
   const isOwnProfile = colaborador?.id && user?.id;
   const canEdit = hasRole('RH') || hasRole('FINANCEIRO') || isOwnProfile;
+  const isRH = hasRole('RH');
+  
+  // Count pending validation items
+  const pendingValidation = expenses.filter(e => e.status === 'enviado' || e.status === 'em_analise').length;
 
   // Get current and next period for validation
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
@@ -397,7 +401,7 @@ const ColaboradorLancamentos = () => {
 
         {/* Summary Cards */}
         {colaborador && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRH ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
             <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
@@ -427,7 +431,24 @@ const ColaboradorLancamentos = () => {
               </CardContent>
             </Card>
 
-            <Card className="sm:col-span-2 md:col-span-1">
+            {/* Pending Validation Card - RH only */}
+            {isRH && (
+              <Card className={pendingValidation > 0 ? 'border-warning/50' : ''}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-xl sm:text-2xl font-bold ${pendingValidation > 0 ? 'text-warning' : ''}`}>
+                    {pendingValidation}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {expenses.filter(e => e.status === 'em_analise').length} em análise
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            <Card className={isRH ? '' : 'sm:col-span-2 md:col-span-1'}>
               <CardHeader className="pb-2">
                 <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
               </CardHeader>

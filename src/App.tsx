@@ -14,7 +14,7 @@ import { TiposDespesasLista, TipoDespesaForm } from "./pages/tipos-despesas";
 import { CalendarioLista, PeriodoForm } from "./pages/calendario";
 import { EventosFolhaLista, EventoFolhaForm } from "./pages/eventos-folha";
 import { LancamentosLista, LancamentoForm, LancamentoDetalhe, ColaboradorLancamentos } from "./pages/lancamentos";
-import { ValidacaoLista, ValidacaoDetalhe } from "./pages/validacao";
+
 import Fechamento from "./pages/Fechamento";
 import Relatorios from "./pages/Relatorios";
 import HistoricoAuditoria from "./pages/HistoricoAuditoria";
@@ -127,17 +127,6 @@ const App = () => (
               <Route path="/lancamentos/novo" element={<LancamentoForm />} />
               <Route path="/lancamentos/:id" element={<LancamentoDetalhe />} />
               <Route path="/lancamentos/:id/editar" element={<LancamentoForm />} />
-              {/* Validação */}
-              <Route path="/validacao" element={
-                <ProtectedRoute requiredRoles={['RH']}>
-                  <ValidacaoLista />
-                </ProtectedRoute>
-              } />
-              <Route path="/validacao/:id" element={
-                <ProtectedRoute requiredRoles={['RH']}>
-                  <ValidacaoDetalhe />
-                </ProtectedRoute>
-              } />
               <Route path="/fechamento" element={
                 <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
                   <Fechamento />

@@ -15,7 +15,6 @@ import {
   Calendar,
   Link2,
   Receipt,
-  CheckSquare,
   FileSpreadsheet,
   BarChart3,
   LogOut,
@@ -80,12 +79,6 @@ const navigation: NavItem[] = [
     label: 'Lançamentos',
     href: '/lancamentos',
     icon: <Receipt className="w-5 h-5" />,
-  },
-  {
-    label: 'Validação',
-    href: '/validacao',
-    icon: <CheckSquare className="w-5 h-5" />,
-    roles: ['RH'],
   },
   {
     label: 'Fechamento',

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Edit, Loader2, AlertCircle } from 'lucide-react';
+import { Edit, Loader2, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -9,6 +9,8 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { AttachmentList } from '@/components/attachments/AttachmentList';
 import { AttachmentUploadSimple } from '@/components/attachments/AttachmentUploadSimple';
 import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,10 +24,13 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { createAuditLog } from '@/lib/audit-log';
 
 interface Expense {
   id: string;
+  colaboradorId: string;
   colaboradorNome: string;
   periodoId: string;
   periodo: string;
@@ -44,11 +49,17 @@ const LancamentoDetalhe = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
   const [expense, setExpense] = useState<Expense | null>(null);
   const [attachmentCount, setAttachmentCount] = useState(0);
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
   const [sendingToAnalysis, setSendingToAnalysis] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+
+  const isRH = hasRole('RH');
+  const canValidate = isRH && (expense?.status === 'enviado' || expense?.status === 'em_analise');
 
   useEffect(() => {
     fetchExpense();
@@ -62,8 +73,8 @@ const LancamentoDetalhe = () => {
       .from('lancamentos')
       .select(`
         id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, motivo_invalidacao, created_at,
-        colaboradores_elegiveis (nome),
+        descricao_fato_gerador, status, motivo_invalidacao, created_at, colaborador_id,
+        colaboradores_elegiveis (id, nome),
         calendario_periodos (id, periodo),
         tipos_despesas (nome)
       `)
@@ -76,6 +87,7 @@ const LancamentoDetalhe = () => {
     } else if (data) {
       setExpense({
         id: data.id,
+        colaboradorId: (data.colaboradores_elegiveis as any)?.id || data.colaborador_id,
         colaboradorNome: (data.colaboradores_elegiveis as any)?.nome || '',
         periodoId: (data.calendario_periodos as any)?.id,
         periodo: (data.calendario_periodos as any)?.periodo || '',
@@ -115,6 +127,95 @@ const LancamentoDetalhe = () => {
     }
   };
 
+  const handleStartAnalysis = async () => {
+    if (!expense) return;
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({ status: 'em_analise' })
+      .eq('id', expense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      await createAuditLog({
+        userId: user?.id || '',
+        userName: profile?.nome || user?.email || '',
+        action: 'iniciar_analise',
+        entityType: 'lancamento',
+        entityId: expense.id,
+        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
+        oldValues: { status: expense.status },
+        newValues: { status: 'em_analise' },
+      });
+      toast({ title: 'Análise iniciada' });
+      fetchExpense();
+    }
+    setProcessing(false);
+  };
+
+  const handleApprove = async () => {
+    if (!expense) return;
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({ status: 'valido', validado_por: user?.id, validado_em: new Date().toISOString() })
+      .eq('id', expense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      await createAuditLog({
+        userId: user?.id || '',
+        userName: profile?.nome || user?.email || '',
+        action: 'aprovar',
+        entityType: 'lancamento',
+        entityId: expense.id,
+        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
+        oldValues: { status: expense.status },
+        newValues: { status: 'valido' },
+      });
+      toast({ title: 'Despesa aprovada' });
+      // Navigate back to collaborator's expenses
+      navigate(`/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`);
+    }
+    setProcessing(false);
+  };
+
+  const handleReject = async () => {
+    if (!expense || !rejectionReason.trim()) {
+      toast({ title: 'Motivo obrigatório', description: 'Por favor, informe o motivo da invalidação.', variant: 'destructive' });
+      return;
+    }
+
+    setProcessing(true);
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({ status: 'invalido', motivo_invalidacao: rejectionReason, validado_por: user?.id, validado_em: new Date().toISOString() })
+      .eq('id', expense.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      await createAuditLog({
+        userId: user?.id || '',
+        userName: profile?.nome || user?.email || '',
+        action: 'rejeitar',
+        entityType: 'lancamento',
+        entityId: expense.id,
+        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
+        oldValues: { status: expense.status },
+        newValues: { status: 'invalido', motivo: rejectionReason },
+      });
+      toast({ title: 'Despesa invalidada' });
+      navigate(`/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`);
+    }
+    setProcessing(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,59 +228,107 @@ const LancamentoDetalhe = () => {
 
   const originLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
 
+  // Determine back path based on context
+  const backPath = isRH && expense.colaboradorId 
+    ? `/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`
+    : '/lancamentos';
+
   return (
     <PageFormLayout
       title="Detalhes do Lançamento"
       description={`Criado em ${expense.createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
-      backTo="/lancamentos"
-      backLabel="Voltar para lista"
+      backTo={backPath}
+      backLabel="Voltar"
       isViewMode
       extraActions={
-        expense.status === 'rascunho' && (
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            <Button variant="outline" onClick={() => navigate(`/lancamentos/${id}/editar`)}>
-              <Edit className="mr-2 h-4 w-4" />
-              Editar
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button disabled={sendingToAnalysis}>
-                  {sendingToAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Enviar para Análise
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+          {/* Collaborator actions - edit and send to analysis */}
+          {expense.status === 'rascunho' && (
+            <>
+              <Button variant="outline" onClick={() => navigate(`/lancamentos/${id}/editar`)}>
+                <Edit className="mr-2 h-4 w-4" />
+                Editar
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button disabled={sendingToAnalysis}>
+                    {sendingToAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Enviar para Análise
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
+                    <AlertDialogDescription asChild>
+                      <div className="space-y-3">
+                        <p>Após o envio, o lançamento não poderá mais ser editado ou excluído.</p>
+                        {attachmentCount === 0 && (
+                          <Alert variant="destructive" className="mt-2">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Atenção: Sem comprovantes</AlertTitle>
+                            <AlertDescription>Este lançamento não possui comprovantes anexados.</AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleSendToAnalysis}>
+                      {attachmentCount === 0 ? 'Enviar mesmo assim' : 'Confirmar Envio'}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
+          
+          {/* RH validation actions */}
+          {canValidate && (
+            <>
+              {expense.status === 'enviado' && (
+                <Button
+                  variant="outline"
+                  onClick={handleStartAnalysis}
+                  disabled={processing}
+                >
+                  {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Clock className="mr-2 h-4 w-4" />
+                  Iniciar Análise
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
-                  <AlertDialogDescription asChild>
-                    <div className="space-y-3">
-                      <p>Após o envio, o lançamento não poderá mais ser editado ou excluído.</p>
-                      {attachmentCount === 0 && (
-                        <Alert variant="destructive" className="mt-2">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>Atenção: Sem comprovantes</AlertTitle>
-                          <AlertDescription>Este lançamento não possui comprovantes anexados.</AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleSendToAnalysis}>
-                    {attachmentCount === 0 ? 'Enviar mesmo assim' : 'Confirmar Envio'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        )
+              )}
+              <Button
+                variant="destructive"
+                onClick={handleReject}
+                disabled={!rejectionReason.trim() || processing}
+              >
+                {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <XCircle className="mr-2 h-4 w-4" />
+                Invalidar
+              </Button>
+              <Button
+                className="bg-success hover:bg-success/90"
+                onClick={handleApprove}
+                disabled={processing}
+              >
+                {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Aprovar
+              </Button>
+            </>
+          )}
+        </div>
       }
     >
       <div className="space-y-6">
         {/* Status */}
         <div className="flex items-center gap-3">
           <StatusBadge status={expense.status as any} />
+          {isRH && expense.colaboradorNome && (
+            <span className="text-sm text-muted-foreground">
+              Colaborador: <span className="font-medium text-foreground">{expense.colaboradorNome}</span>
+            </span>
+          )}
         </div>
 
         {/* Rejection reason */}
@@ -263,6 +412,19 @@ const LancamentoDetalhe = () => {
         </div>
 
         <Separator />
+
+        {/* Rejection Reason Input for RH */}
+        {canValidate && (
+          <div className="space-y-2">
+            <Label>Motivo da Invalidação (se aplicável)</Label>
+            <Textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Descreva o motivo caso precise invalidar esta despesa..."
+              rows={3}
+            />
+          </div>
+        )}
 
         {/* Timeline */}
         <div className="space-y-3">
