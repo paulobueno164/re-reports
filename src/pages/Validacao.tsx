@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock, Send } from 'lucide-react';
+import { Search, CheckCircle, XCircle, Eye, AlertCircle, Loader2, Filter, CalendarIcon, Clock, Send, MoreVertical } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
@@ -28,6 +28,12 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -277,46 +283,88 @@ const Validacao = () => {
       header: 'Ações',
       className: 'text-right',
       render: (item: Expense) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => handleView(item)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          {(item.status === 'enviado' || item.status === 'em_analise') && (
-            <>
-              {item.status === 'enviado' && (
+        <>
+          {/* Mobile dropdown */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleView(item)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar
+                </DropdownMenuItem>
+                {item.status === 'enviado' && (
+                  <DropdownMenuItem onClick={() => handleStartAnalysis(item)}>
+                    <Clock className="mr-2 h-4 w-4 text-warning" />
+                    Iniciar Análise
+                  </DropdownMenuItem>
+                )}
+                {(item.status === 'enviado' || item.status === 'em_analise') && (
+                  <>
+                    <DropdownMenuItem onClick={() => handleApprove(item)}>
+                      <CheckCircle className="mr-2 h-4 w-4 text-success" />
+                      Aprovar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setSelectedExpense(item);
+                      setRejectionReason('');
+                      setIsDialogOpen(true);
+                    }}>
+                      <XCircle className="mr-2 h-4 w-4 text-destructive" />
+                      Rejeitar
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Desktop buttons */}
+          <div className="hidden sm:flex justify-end gap-1">
+            <Button variant="ghost" size="icon" onClick={() => handleView(item)}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            {(item.status === 'enviado' || item.status === 'em_analise') && (
+              <>
+                {item.status === 'enviado' && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-warning hover:text-warning"
+                    onClick={() => handleStartAnalysis(item)}
+                    title="Iniciar Análise"
+                  >
+                    <Clock className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="text-warning hover:text-warning"
-                  onClick={() => handleStartAnalysis(item)}
-                  title="Iniciar Análise"
+                  className="text-success hover:text-success"
+                  onClick={() => handleApprove(item)}
                 >
-                  <Clock className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4" />
                 </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-success hover:text-success"
-                onClick={() => handleApprove(item)}
-              >
-                <CheckCircle className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:text-destructive"
-                onClick={() => {
-                  setSelectedExpense(item);
-                  setRejectionReason('');
-                  setIsDialogOpen(true);
-                }}
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </>
-          )}
-        </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    setSelectedExpense(item);
+                    setRejectionReason('');
+                    setIsDialogOpen(true);
+                  }}
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+        </>
       ),
     },
   ];
@@ -498,31 +546,33 @@ const Validacao = () => {
 
       {/* Search and Filters */}
       <div className="space-y-4">
-        <div className="flex gap-4">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Buscar por colaborador ou tipo de despesa..."
+              placeholder="Buscar por colaborador ou tipo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9"
             />
           </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pending">Todos Pendentes</SelectItem>
-              <SelectItem value="enviado">Aguardando Análise</SelectItem>
-              <SelectItem value="em_analise">Em Análise</SelectItem>
-              <SelectItem value="all">Todos</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
-            <Filter className="mr-2 h-4 w-4" />
-            Filtros Avançados
-          </Button>
+          <div className="flex gap-2">
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Todos Pendentes</SelectItem>
+                <SelectItem value="enviado">Aguardando Análise</SelectItem>
+                <SelectItem value="em_analise">Em Análise</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="shrink-0">
+              <Filter className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Filtros Avançados</span>
+            </Button>
+          </div>
         </div>
 
         <Collapsible open={showFilters} onOpenChange={setShowFilters}>
