@@ -1,0 +1,267 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Search, Edit, Trash2, Eye, Loader2, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { PageHeader } from '@/components/ui/page-header';
+import { DataTable } from '@/components/ui/data-table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { formatCurrency } from '@/lib/expense-validation';
+import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
+import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
+
+interface Colaborador {
+  id: string;
+  matricula: string;
+  nome: string;
+  email: string;
+  departamento: string;
+  salarioBase: number;
+  valeAlimentacao: number;
+  valeRefeicao: number;
+  ajudaCusto: number;
+  mobilidade: number;
+  transporte: number;
+  cestaBeneficiosTeto: number;
+  temPida: boolean;
+  pidaTeto: number;
+  ativo: boolean;
+}
+
+const departments = [
+  'Tecnologia da Informação',
+  'Financeiro',
+  'Recursos Humanos',
+  'Marketing',
+  'Comercial',
+  'Operações',
+  'Jurídico',
+];
+
+const ColaboradoresLista = () => {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const { hasInconsistency } = useNameInconsistency();
+  const [employees, setEmployees] = useState<Colaborador[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartamento, setFilterDepartamento] = useState('all');
+
+  useEffect(() => {
+    fetchEmployees();
+  }, []);
+
+  const fetchEmployees = async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('colaboradores_elegiveis')
+      .select('*')
+      .order('nome');
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else if (data) {
+      setEmployees(
+        data.map((e) => ({
+          id: e.id,
+          matricula: e.matricula,
+          nome: e.nome,
+          email: e.email,
+          departamento: e.departamento,
+          salarioBase: Number(e.salario_base),
+          valeAlimentacao: Number(e.vale_alimentacao),
+          valeRefeicao: Number(e.vale_refeicao),
+          ajudaCusto: Number(e.ajuda_custo),
+          mobilidade: Number(e.mobilidade),
+          transporte: Number(e.transporte),
+          cestaBeneficiosTeto: Number(e.cesta_beneficios_teto),
+          temPida: e.tem_pida,
+          pidaTeto: Number(e.pida_teto),
+          ativo: e.ativo,
+        }))
+      );
+    }
+    setLoading(false);
+  };
+
+  const filteredEmployees = employees.filter((emp) => {
+    const matchesSearch =
+      emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      emp.matricula.includes(searchTerm) ||
+      emp.departamento.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesDept = filterDepartamento === 'all' || emp.departamento === filterDepartamento;
+    return matchesSearch && matchesDept;
+  });
+
+  const handleDelete = async (employee: Colaborador) => {
+    if (!confirm(`Deseja realmente excluir o colaborador ${employee.nome}?`)) return;
+
+    const { error } = await supabase.from('colaboradores_elegiveis').delete().eq('id', employee.id);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({ title: 'Colaborador excluído', description: `${employee.nome} foi removido.` });
+      fetchEmployees();
+    }
+  };
+
+  const columns = [
+    { key: 'matricula', header: 'Matrícula', className: 'font-mono', hideOnMobile: true },
+    { 
+      key: 'nome', 
+      header: 'Nome',
+      render: (item: Colaborador) => {
+        const inconsistency = hasInconsistency(item.id);
+        return (
+          <span className="inline-flex items-center gap-1">
+            <span className="truncate max-w-[120px] sm:max-w-none">{item.nome}</span>
+            {inconsistency && (
+              <NameInconsistencyAlert 
+                colaboradorNome={inconsistency.colaboradorNome} 
+                profileNome={inconsistency.profileNome} 
+              />
+            )}
+          </span>
+        );
+      },
+    },
+    { key: 'departamento', header: 'Depto', hideOnMobile: true },
+    {
+      key: 'cestaBeneficiosTeto',
+      header: 'Teto Cesta',
+      className: 'text-right font-mono',
+      hideOnMobile: true,
+      render: (item: Colaborador) => formatCurrency(item.cestaBeneficiosTeto),
+    },
+    {
+      key: 'temPida',
+      header: 'PI/DA',
+      hideOnMobile: true,
+      render: (item: Colaborador) =>
+        item.temPida ? (
+          <span className="text-success font-medium">Sim</span>
+        ) : (
+          <span className="text-muted-foreground">Não</span>
+        ),
+    },
+    {
+      key: 'ativo',
+      header: 'Status',
+      render: (item: Colaborador) =>
+        item.ativo ? (
+          <span className="status-badge status-valid">Ativo</span>
+        ) : (
+          <span className="status-badge status-draft">Inativo</span>
+        ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-right',
+      render: (item: Colaborador) => (
+        <div className="flex justify-end gap-1">
+          <div className="hidden sm:flex gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/colaboradores/${item.id}`)}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/colaboradores/${item.id}/editar`)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.id}`)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.id}/editar`)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDelete(item)} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      ),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <PageHeader
+        title="Colaboradores Elegíveis"
+        description="Gerencie os colaboradores que utilizam a Remuneração Estratégica"
+      >
+        <Button onClick={() => navigate('/colaboradores/novo')}>
+          <Plus className="mr-2 h-4 w-4" />
+          Novo Colaborador
+        </Button>
+      </PageHeader>
+
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={filterDepartamento} onValueChange={setFilterDepartamento}>
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Departamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos</SelectItem>
+            {departments.map((dept) => (
+              <SelectItem key={dept} value={dept}>
+                {dept}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <DataTable data={filteredEmployees} columns={columns} emptyMessage="Nenhum colaborador encontrado" />
+    </div>
+  );
+};
+
+export default ColaboradoresLista;

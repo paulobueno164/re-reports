@@ -9,7 +9,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import Dashboard from "./pages/Dashboard";
 import DashboardRH from "./pages/DashboardRH";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
-import Colaboradores from "./pages/Colaboradores";
+import { ColaboradoresLista, ColaboradorForm, ColaboradorDetalhe } from "./pages/colaboradores";
 import TiposDespesas from "./pages/TiposDespesas";
 import Calendario from "./pages/Calendario";
 import EventosFolha from "./pages/EventosFolha";
@@ -52,9 +52,25 @@ const App = () => (
                   <DashboardFinanceiro />
                 </ProtectedRoute>
               } />
+              {/* Colaboradores */}
               <Route path="/colaboradores" element={
                 <ProtectedRoute requiredRoles={['RH']}>
-                  <Colaboradores />
+                  <ColaboradoresLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/colaboradores/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <ColaboradorForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/colaboradores/:id" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <ColaboradorDetalhe />
+                </ProtectedRoute>
+              } />
+              <Route path="/colaboradores/:id/editar" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <ColaboradorForm />
                 </ProtectedRoute>
               } />
               <Route path="/tipos-despesas" element={
