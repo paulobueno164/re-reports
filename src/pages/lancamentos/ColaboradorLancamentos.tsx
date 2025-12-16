@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, AlertCircle, MoreVertical, Calendar } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, MoreVertical, Calendar, Filter, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,6 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { DataTable } from '@/components/ui/data-table';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -22,6 +32,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -42,6 +55,8 @@ interface Expense {
   motivoInvalidacao: string | null;
   createdAt: Date;
 }
+
+type StatusFilter = 'todos' | 'pendentes' | 'rascunho' | 'valido' | 'invalido';
 
 interface CalendarPeriod {
   id: string;
@@ -71,6 +86,7 @@ const ColaboradorLancamentos = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>(searchParams.get('periodo') || '');
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [loading, setLoading] = useState(true);
   const [totalUsado, setTotalUsado] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
@@ -83,12 +99,25 @@ const ColaboradorLancamentos = () => {
     mensagem: string;
   } | null>(null);
 
+  // Batch approval states
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [batchRejectionReason, setBatchRejectionReason] = useState('');
+  const [processing, setProcessing] = useState(false);
+
   const isOwnProfile = colaborador?.id && user?.id;
   const canEdit = hasRole('RH') || hasRole('FINANCEIRO') || isOwnProfile;
   const isRH = hasRole('RH');
   
+  // Pending expenses for batch operations
+  const pendingExpenses = useMemo(() => 
+    expenses.filter(e => e.status === 'enviado' || e.status === 'em_analise'),
+    [expenses]
+  );
+  
   // Count pending validation items
-  const pendingValidation = expenses.filter(e => e.status === 'enviado' || e.status === 'em_analise').length;
+  const pendingValidation = pendingExpenses.length;
 
   // Get current and next period for validation
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
@@ -273,11 +302,138 @@ const ColaboradorLancamentos = () => {
     navigate('/lancamentos/novo');
   };
 
-  const filteredExpenses = expenses.filter(
-    (exp) => exp.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase())
+  // Batch approval handlers
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(pendingExpenses.map((e) => e.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
+
+  const handleBatchApprove = async () => {
+    if (selectedIds.length === 0) return;
+
+    setProcessing(true);
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({
+        status: 'valido',
+        validado_por: user?.id,
+        validado_em: now,
+      })
+      .in('id', selectedIds);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Aprovação em lote concluída',
+        description: `${selectedIds.length} despesa(s) foram aprovadas com sucesso.`,
+      });
+      setSelectedIds([]);
+      fetchExpenses();
+    }
+    setProcessing(false);
+    setShowApproveDialog(false);
+  };
+
+  const handleBatchReject = async () => {
+    if (selectedIds.length === 0 || !batchRejectionReason.trim()) return;
+
+    setProcessing(true);
+    const now = new Date().toISOString();
+
+    const { error } = await supabase
+      .from('lancamentos')
+      .update({
+        status: 'invalido',
+        motivo_invalidacao: batchRejectionReason,
+        validado_por: user?.id,
+        validado_em: now,
+      })
+      .in('id', selectedIds);
+
+    if (error) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } else {
+      toast({
+        title: 'Rejeição em lote concluída',
+        description: `${selectedIds.length} despesa(s) foram rejeitadas.`,
+      });
+      setSelectedIds([]);
+      setBatchRejectionReason('');
+      fetchExpenses();
+    }
+    setProcessing(false);
+    setShowRejectDialog(false);
+  };
+
+  const selectedTotal = useMemo(() => 
+    pendingExpenses.filter(e => selectedIds.includes(e.id)).reduce((sum, e) => sum + e.valorLancado, 0),
+    [pendingExpenses, selectedIds]
   );
 
+  // Filtered expenses with status filter
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((exp) => {
+      const matchesSearch = exp.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase());
+      let matchesStatus = true;
+      
+      switch (statusFilter) {
+        case 'pendentes':
+          matchesStatus = exp.status === 'enviado' || exp.status === 'em_analise';
+          break;
+        case 'rascunho':
+          matchesStatus = exp.status === 'rascunho';
+          break;
+        case 'valido':
+          matchesStatus = exp.status === 'valido';
+          break;
+        case 'invalido':
+          matchesStatus = exp.status === 'invalido';
+          break;
+        default:
+          matchesStatus = true;
+      }
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [expenses, searchTerm, statusFilter]);
+
   const columns = [
+    // Checkbox column for RH batch selection (only for pending items)
+    ...(isRH && pendingExpenses.length > 0 ? [{
+      key: 'select',
+      header: (
+        <Checkbox
+          checked={selectedIds.length === pendingExpenses.length && pendingExpenses.length > 0}
+          onCheckedChange={(checked) => handleSelectAll(!!checked)}
+          aria-label="Selecionar todos"
+        />
+      ),
+      className: 'w-[40px]',
+      render: (item: Expense) => {
+        const isPending = item.status === 'enviado' || item.status === 'em_analise';
+        if (!isPending) return null;
+        return (
+          <Checkbox
+            checked={selectedIds.includes(item.id)}
+            onCheckedChange={() => handleToggleSelect(item.id)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`Selecionar ${item.tipoDespesaNome}`}
+          />
+        );
+      },
+    }] : []),
     { key: 'createdAt', header: 'Data', hideOnMobile: true, render: (item: Expense) => formatDate(item.createdAt) },
     { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
     { key: 'origem', header: 'Origem', hideOnMobile: true, render: (item: Expense) => ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[item.origem] || item.origem) },
@@ -462,8 +618,8 @@ const ColaboradorLancamentos = () => {
           </div>
         )}
 
-        {/* Search */}
-        <div className="flex">
+        {/* Search and Status Filter */}
+        <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 sm:max-w-md">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input 
@@ -473,7 +629,52 @@ const ColaboradorLancamentos = () => {
               className="pl-9" 
             />
           </div>
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <SelectTrigger className="w-full sm:w-[180px]">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filtrar status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="pendentes">Pendentes</SelectItem>
+              <SelectItem value="rascunho">Rascunhos</SelectItem>
+              <SelectItem value="valido">Válidos</SelectItem>
+              <SelectItem value="invalido">Inválidos</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
+
+        {/* Batch Approval Controls - RH only */}
+        {isRH && selectedIds.length > 0 && (
+          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
+            <div className="text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{selectedIds.length}</span> selecionado(s)
+              {' • '}
+              Total: <span className="font-mono font-medium text-foreground">{formatCurrency(selectedTotal)}</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => setShowRejectDialog(true)}
+                disabled={processing}
+              >
+                <XCircle className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Rejeitar</span>
+              </Button>
+              <Button
+                size="sm"
+                className="bg-success hover:bg-success/90"
+                onClick={() => setShowApproveDialog(true)}
+                disabled={processing}
+              >
+                <CheckCircle className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">Aprovar</span>
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Expenses Table */}
         <DataTable 
@@ -482,6 +683,74 @@ const ColaboradorLancamentos = () => {
           emptyMessage="Nenhum lançamento encontrado neste período" 
         />
       </div>
+
+      {/* Approve Confirmation Dialog */}
+      <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-success" />
+              Confirmar Aprovação em Lote
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Você está prestes a aprovar <strong>{selectedIds.length} despesa(s)</strong> totalizando:</p>
+              <p className="text-2xl font-bold text-success">{formatCurrency(selectedTotal)}</p>
+              <p className="text-sm">Esta ação não pode ser desfeita.</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={processing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchApprove}
+              disabled={processing}
+              className="bg-success hover:bg-success/90"
+            >
+              {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Aprovação
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reject Dialog */}
+      <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Rejeitar Despesas em Lote
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-4 mt-2">
+                <p>
+                  Você está prestes a rejeitar <strong>{selectedIds.length} despesa(s)</strong>.
+                  Informe o motivo da rejeição que será aplicado a todas:
+                </p>
+                <div className="space-y-2">
+                  <Label>Motivo da Rejeição</Label>
+                  <Textarea
+                    value={batchRejectionReason}
+                    onChange={(e) => setBatchRejectionReason(e.target.value)}
+                    placeholder="Descreva o motivo da rejeição em lote..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={processing}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchReject}
+              disabled={processing || !batchRejectionReason.trim()}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Rejeição
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageFormLayout>
   );
 };
