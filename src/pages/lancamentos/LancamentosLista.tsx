@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Eye, Loader2, Users, Calendar } from 'lucide-react';
+import { Search, Eye, Loader2, Users, Calendar, ArrowUpDown, ArrowUp, ArrowDown, AlertCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -17,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
+import { cn } from '@/lib/utils';
 
 interface CalendarPeriod {
   id: string;
@@ -39,6 +41,9 @@ interface ColaboradorResumo {
   qtdValidos: number;
 }
 
+type SortField = 'nome' | 'departamento' | 'totalConsiderado' | 'qtdLancamentos';
+type SortDirection = 'asc' | 'desc';
+
 const LancamentosLista = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -51,6 +56,8 @@ const LancamentosLista = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
+  const [sortField, setSortField] = useState<SortField>('nome');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
@@ -71,6 +78,26 @@ const LancamentosLista = () => {
     
     // Fall back to most recent open period
     return periodsData.find((p) => p.status === 'aberto') || periodsData[0];
+  };
+
+  // Toggle sort
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Sort icon component
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
+    }
+    return sortDirection === 'asc' 
+      ? <ArrowUp className="ml-1 h-3 w-3" /> 
+      : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
   // Redirect COLABORADOR users to their own expenses page
@@ -193,28 +220,102 @@ const LancamentosLista = () => {
     setLoading(false);
   };
 
-  const filteredColaboradores = useMemo(() => {
-    return colaboradores.filter(colab => {
+  const filteredAndSortedColaboradores = useMemo(() => {
+    // First filter
+    let result = colaboradores.filter(colab => {
       const matchesDept = selectedDepartamento === 'todos' || colab.departamento === selectedDepartamento;
       const matchesSearch = colab.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            colab.matricula.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesDept && matchesSearch;
     });
-  }, [colaboradores, selectedDepartamento, searchTerm]);
+
+    // Then sort
+    result = [...result].sort((a, b) => {
+      let comparison = 0;
+      
+      switch (sortField) {
+        case 'nome':
+          comparison = a.nome.localeCompare(b.nome);
+          break;
+        case 'departamento':
+          comparison = a.departamento.localeCompare(b.departamento);
+          break;
+        case 'totalConsiderado':
+          comparison = a.totalConsiderado - b.totalConsiderado;
+          break;
+        case 'qtdLancamentos':
+          comparison = a.qtdLancamentos - b.qtdLancamentos;
+          break;
+      }
+      
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [colaboradores, selectedDepartamento, searchTerm, sortField, sortDirection]);
 
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
 
   const columns = [
     { key: 'matricula', header: 'Matrícula', hideOnMobile: true },
-    { key: 'nome', header: 'Colaborador' },
-    { key: 'departamento', header: 'Departamento', hideOnMobile: true },
+    { 
+      key: 'nome', 
+      header: (
+        <button 
+          onClick={() => handleSort('nome')} 
+          className="flex items-center hover:text-foreground transition-colors"
+        >
+          Colaborador
+          <SortIcon field="nome" />
+        </button>
+      ),
+      render: (item: ColaboradorResumo) => (
+        <div className="flex items-center gap-2">
+          <span className={cn(item.qtdLancamentos === 0 && "text-muted-foreground")}>
+            {item.nome}
+          </span>
+          {item.qtdLancamentos === 0 && (
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 border-warning/50 text-warning bg-warning/10">
+              <AlertCircle className="h-3 w-3 mr-1" />
+              Sem lançamentos
+            </Badge>
+          )}
+        </div>
+      )
+    },
+    { 
+      key: 'departamento', 
+      header: (
+        <button 
+          onClick={() => handleSort('departamento')} 
+          className="flex items-center hover:text-foreground transition-colors"
+        >
+          Departamento
+          <SortIcon field="departamento" />
+        </button>
+      ),
+      hideOnMobile: true 
+    },
     { 
       key: 'qtdLancamentos', 
-      header: 'Lançamentos', 
+      header: (
+        <button 
+          onClick={() => handleSort('qtdLancamentos')} 
+          className="flex items-center justify-center w-full hover:text-foreground transition-colors"
+        >
+          Lançamentos
+          <SortIcon field="qtdLancamentos" />
+        </button>
+      ),
       className: 'text-center',
       render: (item: ColaboradorResumo) => (
         <div className="text-center">
-          <span className="font-medium">{item.qtdLancamentos}</span>
+          <span className={cn(
+            "font-medium",
+            item.qtdLancamentos === 0 && "text-muted-foreground"
+          )}>
+            {item.qtdLancamentos}
+          </span>
           {item.qtdPendentes > 0 && (
             <span className="ml-1 text-xs text-warning">({item.qtdPendentes} pend.)</span>
           )}
@@ -223,12 +324,25 @@ const LancamentosLista = () => {
     },
     { 
       key: 'totalConsiderado', 
-      header: 'Utilizado', 
+      header: (
+        <button 
+          onClick={() => handleSort('totalConsiderado')} 
+          className="flex items-center justify-end w-full hover:text-foreground transition-colors"
+        >
+          Utilizado
+          <SortIcon field="totalConsiderado" />
+        </button>
+      ),
       className: 'text-right font-mono',
       hideOnMobile: true,
       render: (item: ColaboradorResumo) => (
         <div className="text-right">
-          <div className="font-medium">{formatCurrency(item.totalConsiderado)}</div>
+          <div className={cn(
+            "font-medium",
+            item.qtdLancamentos === 0 && "text-muted-foreground"
+          )}>
+            {formatCurrency(item.totalConsiderado)}
+          </div>
           <div className="text-xs text-muted-foreground">
             de {formatCurrency(item.cestaBeneficiosTeto)}
           </div>
@@ -253,9 +367,10 @@ const LancamentosLista = () => {
   ];
 
   // Summary stats
-  const totalColaboradores = filteredColaboradores.length;
-  const totalComLancamentos = filteredColaboradores.filter(c => c.qtdLancamentos > 0).length;
-  const totalValorConsiderado = filteredColaboradores.reduce((sum, c) => sum + c.totalConsiderado, 0);
+  const totalColaboradores = filteredAndSortedColaboradores.length;
+  const totalComLancamentos = filteredAndSortedColaboradores.filter(c => c.qtdLancamentos > 0).length;
+  const totalSemLancamentos = totalColaboradores - totalComLancamentos;
+  const totalValorConsiderado = filteredAndSortedColaboradores.reduce((sum, c) => sum + c.totalConsiderado, 0);
 
   if (loading && periods.length === 0) {
     return (
@@ -325,7 +440,7 @@ const LancamentosLista = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -340,6 +455,25 @@ const LancamentosLista = () => {
           </CardContent>
         </Card>
 
+        <Card className={totalSemLancamentos > 0 ? 'border-warning/50' : ''}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+              Sem Lançamentos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className={cn(
+              "text-xl sm:text-2xl font-bold",
+              totalSemLancamentos > 0 && "text-warning"
+            )}>
+              {totalSemLancamentos}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              colaboradores
+            </p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -348,10 +482,10 @@ const LancamentosLista = () => {
           </CardHeader>
           <CardContent>
             <p className="text-xl sm:text-2xl font-bold">
-              {filteredColaboradores.reduce((sum, c) => sum + c.qtdLancamentos, 0)}
+              {filteredAndSortedColaboradores.reduce((sum, c) => sum + c.qtdLancamentos, 0)}
             </p>
             <p className="text-xs text-muted-foreground">
-              {filteredColaboradores.reduce((sum, c) => sum + c.qtdValidos, 0)} válidos
+              {filteredAndSortedColaboradores.reduce((sum, c) => sum + c.qtdValidos, 0)} válidos
             </p>
           </CardContent>
         </Card>
@@ -359,14 +493,14 @@ const LancamentosLista = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Valor Total Considerado
+              Valor Considerado
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-xl sm:text-2xl font-bold font-mono">
               {formatCurrency(totalValorConsiderado)}
             </p>
-            <p className="text-xs text-muted-foreground">no período selecionado</p>
+            <p className="text-xs text-muted-foreground">no período</p>
           </CardContent>
         </Card>
       </div>
@@ -377,7 +511,7 @@ const LancamentosLista = () => {
         </div>
       ) : (
         <DataTable 
-          data={filteredColaboradores} 
+          data={filteredAndSortedColaboradores} 
           columns={columns} 
           emptyMessage="Nenhum colaborador encontrado" 
         />

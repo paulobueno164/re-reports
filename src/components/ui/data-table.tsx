@@ -11,7 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 
 interface Column<T> {
   key: keyof T | string;
-  header: string;
+  header: React.ReactNode;
   className?: string;
   hideOnMobile?: boolean;
   render?: (item: T) => React.ReactNode;
