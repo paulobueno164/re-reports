@@ -329,12 +329,12 @@ const Relatorios = () => {
 
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Resumo Geral</h3>
-                  <div className="rounded-lg border overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead><tr className="bg-muted/50"><th className="text-left px-4 py-2 font-medium">Componente</th><th className="text-right px-4 py-2 font-medium">Parametrizado</th><th className="text-right px-4 py-2 font-medium">Utilizado</th><th className="text-right px-4 py-2 font-medium">%</th></tr></thead>
+                  <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                    <table className="w-full text-sm min-w-[400px]">
+                      <thead><tr className="bg-muted/50"><th className="text-left px-3 sm:px-4 py-2 font-medium">Componente</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">Parametrizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium">Utilizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">%</th></tr></thead>
                       <tbody>
-                        {previewData.resumo.map((item: any, i: number) => <tr key={i} className="border-t"><td className="px-4 py-2">{item.componente}</td><td className="px-4 py-2 text-right font-mono">{formatCurrency(item.valorParametrizado)}</td><td className="px-4 py-2 text-right font-mono">{formatCurrency(item.valorUtilizado)}</td><td className="px-4 py-2 text-right">{item.percentual > 0 ? `${item.percentual}%` : '-'}</td></tr>)}
-                        <tr className="border-t bg-primary/5 font-bold"><td className="px-4 py-2">Rendimento Total</td><td className="px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-4 py-2 text-right">100%</td></tr>
+                        {previewData.resumo.map((item: any, i: number) => <tr key={i} className="border-t"><td className="px-3 sm:px-4 py-2">{item.componente}</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(item.valorParametrizado)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(item.valorUtilizado)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">{item.percentual > 0 ? `${item.percentual}%` : '-'}</td></tr>)}
+                        <tr className="border-t bg-primary/5 font-bold"><td className="px-3 sm:px-4 py-2">Rendimento Total</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">100%</td></tr>
                       </tbody>
                     </table>
                   </div>
@@ -360,23 +360,23 @@ const Relatorios = () => {
                     <Separator />
                     <div>
                       <h3 className="text-sm font-semibold mb-3">Lançamentos do Período</h3>
-                      <div className="rounded-lg border overflow-hidden">
-                        <table className="w-full text-sm">
+                      <div className="rounded-lg border overflow-hidden overflow-x-auto">
+                        <table className="w-full text-sm min-w-[400px]">
                           <thead>
                             <tr className="bg-muted/50">
-                              <th className="text-left px-4 py-2 font-medium">Tipo</th>
-                              <th className="text-left px-4 py-2 font-medium">Origem</th>
-                              <th className="text-right px-4 py-2 font-medium">Valor</th>
-                              <th className="text-center px-4 py-2 font-medium">Status</th>
+                              <th className="text-left px-3 sm:px-4 py-2 font-medium">Tipo</th>
+                              <th className="text-left px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">Origem</th>
+                              <th className="text-right px-3 sm:px-4 py-2 font-medium">Valor</th>
+                              <th className="text-center px-3 sm:px-4 py-2 font-medium">Status</th>
                             </tr>
                           </thead>
                           <tbody>
                             {previewData.despesas.map((d: any, i: number) => (
                               <tr key={i} className="border-t">
-                                <td className="px-4 py-2">{d.tipo}</td>
-                                <td className="px-4 py-2 capitalize">{d.origem}</td>
-                                <td className="px-4 py-2 text-right font-mono">{formatCurrency(d.valor)}</td>
-                                <td className="px-4 py-2 text-center">
+                                <td className="px-3 sm:px-4 py-2 truncate max-w-[120px] sm:max-w-none">{d.tipo}</td>
+                                <td className="px-3 sm:px-4 py-2 capitalize hidden sm:table-cell">{d.origem}</td>
+                                <td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(d.valor)}</td>
+                                <td className="px-3 sm:px-4 py-2 text-center">
                                   <Badge variant={
                                     d.status === 'valido' ? 'default' : 
                                     d.status === 'invalido' ? 'destructive' : 

@@ -1,9 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Search, Shield, ShieldCheck, ShieldAlert, Loader2, UserCog } from 'lucide-react';
+import { Search, Shield, ShieldCheck, ShieldAlert, Loader2, UserCog, MoreVertical } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Dialog,
   DialogContent,
@@ -188,12 +194,13 @@ const GerenciarUsuarios = () => {
       key: 'nome', 
       header: 'Nome',
       render: (item: UserWithRoles) => (
-        <div className="font-medium">{item.nome}</div>
+        <div className="font-medium truncate max-w-[120px] sm:max-w-none">{item.nome}</div>
       )
     },
     { 
       key: 'email', 
       header: 'E-mail',
+      hideOnMobile: true,
       render: (item: UserWithRoles) => (
         <div className="text-muted-foreground">{item.email}</div>
       )
@@ -227,14 +234,31 @@ const GerenciarUsuarios = () => {
     },
     {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       className: 'text-right',
       render: (item: UserWithRoles) => (
-        <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={() => handleEditRoles(item)}>
+        <div className="flex justify-end gap-1">
+          {/* Desktop */}
+          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => handleEditRoles(item)}>
             <UserCog className="h-4 w-4 mr-2" />
             Gerenciar Roles
           </Button>
+          {/* Mobile */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleEditRoles(item)}>
+                  <UserCog className="mr-2 h-4 w-4" />
+                  Gerenciar Roles
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       ),
     },

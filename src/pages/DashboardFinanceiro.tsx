@@ -221,7 +221,7 @@ const DashboardFinanceiro = () => {
       header: 'Status',
       render: (item: PendingClosing) => (
         <Badge variant={item.status === 'pronto' ? 'default' : 'secondary'}>
-          {item.status === 'pronto' ? 'Pronto para Fechar' : 'Pendente Validação'}
+          {item.status === 'pronto' ? 'Pronto' : 'Pendente'}
         </Badge>
       ),
     },
@@ -229,10 +229,11 @@ const DashboardFinanceiro = () => {
       key: 'totalEventos',
       header: 'Eventos',
       className: 'text-right',
+      hideOnMobile: true,
     },
     {
       key: 'valorTotal',
-      header: 'Valor Total',
+      header: 'Valor',
       className: 'text-right font-mono',
       render: (item: PendingClosing) => formatCurrency(item.valorTotal),
     },
@@ -245,15 +246,16 @@ const DashboardFinanceiro = () => {
       render: (item: Export) => (
         <div className="flex items-center gap-2">
           <FileSpreadsheet className="h-4 w-4 text-success" />
-          <span className="text-sm font-mono truncate max-w-48">{item.nome_arquivo}</span>
+          <span className="text-sm font-mono truncate max-w-[100px] sm:max-w-48">{item.nome_arquivo}</span>
         </div>
       )
     },
-    { key: 'periodo', header: 'Período' },
+    { key: 'periodo', header: 'Período', hideOnMobile: true },
     { 
       key: 'qtd_registros', 
-      header: 'Registros',
+      header: 'Reg.',
       className: 'text-right',
+      hideOnMobile: true,
     },
     {
       key: 'data_exportacao',
