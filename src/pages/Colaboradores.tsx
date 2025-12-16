@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, Download, Loader2, FileText, Link, UserCheck, UserX } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Download, Loader2, FileText, Link, UserCheck, UserX, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -230,15 +236,42 @@ const Colaboradores = () => {
       className: 'text-right',
       render: (item: Colaborador) => (
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(item)}>
-            <Eye className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex" onClick={() => handleEdit(item)}>
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex" onClick={() => handleDelete(item)}>
-            <Trash2 className="h-4 w-4 text-destructive" />
-          </Button>
+          {/* Desktop: botões individuais */}
+          <div className="hidden sm:flex gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(item)}>
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(item)}>
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+          {/* Mobile: dropdown menu */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleView(item)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleEdit(item)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  Editar
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleDelete(item)} className="text-destructive">
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Excluir
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       ),
     },
