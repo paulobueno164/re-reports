@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, MoreVertical, Calendar, Filter, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, MoreVertical, Calendar, Filter, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, validarPeriodoLancamento, verificarBloqueioAposLimite } from '@/lib/expense-validation';
+import { exportColaboradorExpenses } from '@/lib/excel-export';
 
 interface Expense {
   id: string;
@@ -118,6 +119,52 @@ const ColaboradorLancamentos = () => {
   
   // Count pending validation items
   const pendingValidation = pendingExpenses.length;
+
+  // Status counts
+  const statusCounts = useMemo(() => ({
+    rascunho: expenses.filter(e => e.status === 'rascunho').length,
+    enviado: expenses.filter(e => e.status === 'enviado').length,
+    em_analise: expenses.filter(e => e.status === 'em_analise').length,
+    valido: expenses.filter(e => e.status === 'valido').length,
+    invalido: expenses.filter(e => e.status === 'invalido').length,
+  }), [expenses]);
+
+  // Export function
+  const handleExportExcel = () => {
+    if (!colaborador || !selectedPeriod || expenses.length === 0) {
+      toast({ title: 'Nenhum dado para exportar', variant: 'destructive' });
+      return;
+    }
+
+    const origemLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
+    
+    exportColaboradorExpenses({
+      colaborador: {
+        nome: colaborador.nome,
+        matricula: colaborador.matricula,
+        departamento: colaborador.departamento,
+      },
+      periodo: selectedPeriod.periodo,
+      expenses: expenses.map(e => ({
+        data: formatDate(e.createdAt),
+        tipoDespesa: e.tipoDespesaNome,
+        origem: origemLabels[e.origem] || e.origem,
+        valorLancado: e.valorLancado,
+        valorConsiderado: e.valorConsiderado,
+        valorNaoConsiderado: e.valorNaoConsiderado,
+        status: e.status,
+        descricao: e.descricaoFatoGerador,
+      })),
+      totais: {
+        total: expenses.reduce((sum, e) => sum + e.valorLancado, 0),
+        totalConsiderado: totalUsado,
+        cestaTeto: colaborador.cestaBeneficiosTeto,
+      },
+      statusCounts,
+    });
+
+    toast({ title: 'Exportação concluída', description: 'Arquivo Excel gerado com sucesso.' });
+  };
 
   // Get current and next period for validation
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
@@ -557,64 +604,82 @@ const ColaboradorLancamentos = () => {
 
         {/* Summary Cards */}
         {colaborador && (
-          <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRH ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
-            <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs sm:text-sm">
-                    <span>Utilizado</span>
-                    <span className="font-mono font-medium">{formatCurrency(totalUsado)}</span>
-                  </div>
-                  <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
-                    <span>Teto: {formatCurrency(colaborador.cestaBeneficiosTeto)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Lançamentos no Período</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-xl sm:text-2xl font-bold">{expenses.length}</p>
-                <p className="text-xs text-muted-foreground">{expenses.filter(e => e.status === 'valido').length} válidos</p>
-              </CardContent>
-            </Card>
-
-            {/* Pending Validation Card - RH only */}
-            {isRH && (
-              <Card className={pendingValidation > 0 ? 'border-warning/50' : ''}>
+          <div className="space-y-4">
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRH ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
+              <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className={`text-xl sm:text-2xl font-bold ${pendingValidation > 0 ? 'text-warning' : ''}`}>
-                    {pendingValidation}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {expenses.filter(e => e.status === 'em_analise').length} em análise
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs sm:text-sm">
+                      <span>Utilizado</span>
+                      <span className="font-mono font-medium">{formatCurrency(totalUsado)}</span>
+                    </div>
+                    <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
+                      <span>Teto: {formatCurrency(colaborador.cestaBeneficiosTeto)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Lançamentos no Período</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-xl sm:text-2xl font-bold">{expenses.length}</p>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
+                    {statusCounts.rascunho > 0 && <span>{statusCounts.rascunho} rascunho</span>}
+                    {statusCounts.enviado > 0 && <span className="text-warning">{statusCounts.enviado} enviado</span>}
+                    {statusCounts.em_analise > 0 && <span className="text-warning">{statusCounts.em_analise} análise</span>}
+                    {statusCounts.valido > 0 && <span className="text-success">{statusCounts.valido} válido</span>}
+                    {statusCounts.invalido > 0 && <span className="text-destructive">{statusCounts.invalido} inválido</span>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pending Validation Card - RH only */}
+              {isRH && (
+                <Card className={pendingValidation > 0 ? 'border-warning/50' : ''}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className={`text-xl sm:text-2xl font-bold ${pendingValidation > 0 ? 'text-warning' : ''}`}>
+                      {pendingValidation}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {statusCounts.enviado} enviado • {statusCounts.em_analise} em análise
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card className={isRH ? '' : 'sm:col-span-2 md:col-span-1'}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm sm:text-lg font-semibold">{selectedPeriod?.periodo}</p>
+                  <p className={`text-xs ${selectedPeriod?.status === 'aberto' ? 'text-success' : 'text-muted-foreground'}`}>
+                    {selectedPeriod?.status === 'aberto' ? 'Período aberto' : 'Período fechado'}
                   </p>
                 </CardContent>
               </Card>
-            )}
+            </div>
 
-            <Card className={isRH ? '' : 'sm:col-span-2 md:col-span-1'}>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm sm:text-lg font-semibold">{selectedPeriod?.periodo}</p>
-                <p className={`text-xs ${selectedPeriod?.status === 'aberto' ? 'text-success' : 'text-muted-foreground'}`}>
-                  {selectedPeriod?.status === 'aberto' ? 'Período aberto' : 'Período fechado'}
-                </p>
-              </CardContent>
-            </Card>
+            {/* Export Button */}
+            {expenses.length > 0 && (
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" onClick={handleExportExcel}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Exportar Excel
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
