@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X, Lock, Paperclip, History } from 'lucide-react';
+import { Plus, Search, Upload, Eye, Edit, Trash2, AlertCircle, Loader2, FileText, Image, Download, X, Lock, Paperclip, History, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { AttachmentList } from '@/components/attachments/AttachmentList';
@@ -386,43 +392,74 @@ const Lancamentos = () => {
       className: 'text-right w-[100px]',
       render: (item: Expense) => (
         <div className="flex justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleView(item);
-            }}
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
-          {item.status === 'rascunho' && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 hidden sm:inline-flex"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleEdit(item);
-                }}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 hidden sm:inline-flex"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDelete(item);
-                }}
-              >
-                <Trash2 className="h-4 w-4 text-destructive" />
-              </Button>
-            </>
-          )}
+          {/* Desktop: botões individuais */}
+          <div className="hidden sm:flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleView(item);
+              }}
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            {item.status === 'rascunho' && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEdit(item);
+                  }}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(item);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4 text-destructive" />
+                </Button>
+              </>
+            )}
+          </div>
+          {/* Mobile: dropdown menu */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleView(item)}>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar
+                </DropdownMenuItem>
+                {item.status === 'rascunho' && (
+                  <>
+                    <DropdownMenuItem onClick={() => handleEdit(item)}>
+                      <Edit className="mr-2 h-4 w-4" />
+                      Editar
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleDelete(item)} className="text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Excluir
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       ),
     },
