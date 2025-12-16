@@ -107,25 +107,27 @@ const TiposDespesas = () => {
 
   const columns = [
     { key: 'nome', header: 'Tipo de Despesa' },
-    { key: 'grupo', header: 'Grupo' },
+    { key: 'grupo', header: 'Grupo', hideOnMobile: true },
     {
       key: 'classificacao',
-      header: 'Classificação',
+      header: 'Classe',
       render: (item: ExpenseType) => (
         <Badge variant={item.classificacao === 'fixo' ? 'secondary' : 'default'}>
-          {item.classificacao === 'fixo' ? 'Fixo' : 'Variável'}
+          {item.classificacao === 'fixo' ? 'Fixo' : 'Var'}
         </Badge>
       ),
     },
     {
       key: 'valorPadraoTeto',
-      header: 'Valor Padrão Teto',
+      header: 'Teto',
       className: 'text-right font-mono',
+      hideOnMobile: true,
       render: (item: ExpenseType) => formatCurrency(item.valorPadraoTeto),
     },
     {
       key: 'origemPermitida',
-      header: 'Origem Permitida',
+      header: 'Origem',
+      hideOnMobile: true,
       render: (item: ExpenseType) => (
         <div className="flex gap-1 flex-wrap">
           {item.origemPermitida.map((origin) => (
@@ -148,14 +150,14 @@ const TiposDespesas = () => {
     },
     {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       className: 'text-right',
       render: (item: ExpenseType) => (
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(item)}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex" onClick={() => handleDelete(item)}>
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -272,39 +274,41 @@ const TiposDespesas = () => {
       </PageHeader>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome ou grupo..."
+            placeholder="Buscar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
-        <Select value={filterGrupo} onValueChange={setFilterGrupo}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Grupo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos</SelectItem>
-            {expenseGroups.map((group) => (
-              <SelectItem key={group} value={group}>
-                {group}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Classificação" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todas</SelectItem>
-            <SelectItem value="fixo">Fixo</SelectItem>
-            <SelectItem value="variavel">Variável</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-2">
+          <Select value={filterGrupo} onValueChange={setFilterGrupo}>
+            <SelectTrigger className="w-full sm:w-36">
+              <SelectValue placeholder="Grupo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              {expenseGroups.map((group) => (
+                <SelectItem key={group} value={group}>
+                  {group}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
+            <SelectTrigger className="w-full sm:w-32">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="fixo">Fixo</SelectItem>
+              <SelectItem value="variavel">Variável</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Table */}

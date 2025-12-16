@@ -78,25 +78,27 @@ const Calendario = () => {
   const currentPeriod = periods.find((p) => p.status === 'aberto');
 
   const columns = [
-    { key: 'periodo', header: 'Período (MM/AAAA)', className: 'font-medium' },
+    { key: 'periodo', header: 'Período', className: 'font-medium' },
     {
       key: 'dataInicio',
-      header: 'Início Acúmulo',
+      header: 'Início',
+      hideOnMobile: true,
       render: (item: CalendarPeriod) => formatDate(item.dataInicio),
     },
     {
       key: 'dataFinal',
-      header: 'Fim Acúmulo',
+      header: 'Fim',
+      hideOnMobile: true,
       render: (item: CalendarPeriod) => formatDate(item.dataFinal),
     },
     {
       key: 'abreLancamento',
-      header: 'Abre Lançamento',
+      header: 'Abre',
       render: (item: CalendarPeriod) => formatDate(item.abreLancamento),
     },
     {
       key: 'fechaLancamento',
-      header: 'Fecha Lançamento',
+      header: 'Fecha',
       render: (item: CalendarPeriod) => formatDate(item.fechaLancamento),
     },
     {
@@ -106,13 +108,14 @@ const Calendario = () => {
     },
     {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       className: 'text-right',
       render: (item: CalendarPeriod) => (
         <div className="flex justify-end gap-1">
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8"
             onClick={() => handleEdit(item)}
             disabled={item.status === 'fechado'}
           >
@@ -121,6 +124,7 @@ const Calendario = () => {
           <Button
             variant="ghost"
             size="icon"
+            className="h-8 w-8 hidden sm:inline-flex"
             onClick={() => handleDelete(item)}
             disabled={item.status === 'fechado'}
           >
@@ -233,7 +237,7 @@ const Calendario = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Período</p>
                 <p className="text-lg font-semibold">{currentPeriod.periodo}</p>

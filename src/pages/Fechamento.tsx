@@ -144,18 +144,19 @@ const Fechamento = () => {
     { key: 'periodo', header: 'Período', className: 'font-medium' },
     {
       key: 'dataProcessamento',
-      header: 'Data Processamento',
+      header: 'Data',
+      hideOnMobile: true,
       render: (item: ClosingLog) =>
         formatDate(item.dataProcessamento) +
         ' ' +
         item.dataProcessamento.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
     },
-    { key: 'usuario', header: 'Usuário' },
-    { key: 'totalColaboradores', header: 'Colaboradores', className: 'text-center' },
-    { key: 'totalEventos', header: 'Eventos', className: 'text-center' },
+    { key: 'usuario', header: 'Usuário', hideOnMobile: true },
+    { key: 'totalColaboradores', header: 'Colab.', className: 'text-center', hideOnMobile: true },
+    { key: 'totalEventos', header: 'Eventos', className: 'text-center', hideOnMobile: true },
     {
       key: 'valorTotal',
-      header: 'Valor Total',
+      header: 'Valor',
       className: 'text-right font-mono',
       render: (item: ClosingLog) => formatCurrency(item.valorTotal),
     },
@@ -168,23 +169,24 @@ const Fechamento = () => {
             item.status === 'sucesso' ? 'status-valid' : 'status-invalid'
           }`}
         >
-          {item.status === 'sucesso' ? 'Sucesso' : 'Erro'}
+          {item.status === 'sucesso' ? 'OK' : 'Erro'}
         </span>
       ),
     },
     {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       className: 'text-right',
       render: (item: ClosingLog) => (
         <Button
           variant="outline"
           size="sm"
+          className="h-8 px-2 sm:px-3"
           onClick={() => handleExport(item)}
           disabled={!canExport}
         >
-          <Download className="mr-2 h-4 w-4" />
-          Exportar
+          <Download className="h-4 w-4 sm:mr-2" />
+          <span className="hidden sm:inline">Exportar</span>
         </Button>
       ),
     },
@@ -458,7 +460,7 @@ const Fechamento = () => {
       </PageHeader>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">

@@ -51,15 +51,15 @@ export function DataTable<T extends { id: string | number }>({
   return (
     <div className={cn('rounded-lg border border-border bg-card overflow-hidden', className)}>
       {/* Scroll container for horizontal overflow on mobile */}
-      <div className="overflow-x-auto">
-        <Table>
+      <div className="overflow-x-auto -mx-px">
+        <Table className="min-w-full">
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               {visibleColumns.map((column) => (
                 <TableHead
                   key={String(column.key)}
                   className={cn(
-                    'font-medium text-muted-foreground whitespace-nowrap',
+                    'font-medium text-muted-foreground whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-3',
                     column.className
                   )}
                 >
@@ -73,7 +73,7 @@ export function DataTable<T extends { id: string | number }>({
               <TableRow>
                 <TableCell
                   colSpan={visibleColumns.length}
-                  className="h-24 text-center text-muted-foreground"
+                  className="h-20 sm:h-24 text-center text-muted-foreground text-sm"
                 >
                   {emptyMessage}
                 </TableCell>
@@ -91,7 +91,7 @@ export function DataTable<T extends { id: string | number }>({
                   {visibleColumns.map((column) => (
                     <TableCell 
                       key={String(column.key)} 
-                      className={cn('whitespace-nowrap', column.className)}
+                      className={cn('whitespace-nowrap text-xs sm:text-sm px-2 sm:px-4 py-2 sm:py-3', column.className)}
                     >
                       {column.render
                         ? column.render(item)

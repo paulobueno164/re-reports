@@ -279,9 +279,9 @@ const DashboardRH = () => {
         title="Dashboard RH"
         description={`Período: ${currentPeriodName || 'N/A'}${selectedDepartment !== 'todos' ? ` • ${selectedDepartment}` : ''}`}
       >
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col gap-2">
           <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Selecione o período" />
             </SelectTrigger>
             <SelectContent>
@@ -293,11 +293,11 @@ const DashboardRH = () => {
             </SelectContent>
           </Select>
           <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Departamento" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todos">Todos os Departamentos</SelectItem>
+              <SelectItem value="todos">Todos</SelectItem>
               {departments.map((dept) => (
                 <SelectItem key={dept} value={dept}>
                   {dept}
@@ -315,7 +315,7 @@ const DashboardRH = () => {
       ) : (
         <>
           {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             <StatCard
               title="Colaboradores Elegíveis"
               value={metrics.totalColaboradores}
@@ -356,7 +356,7 @@ const DashboardRH = () => {
           </div>
 
           {/* Validation KPI Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Card className="bg-warning/5 border-warning/20">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">

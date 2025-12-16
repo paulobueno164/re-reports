@@ -176,7 +176,7 @@ const Colaboradores = () => {
   });
 
   const columns = [
-    { key: 'matricula', header: 'Matrícula', className: 'font-mono' },
+    { key: 'matricula', header: 'Matrícula', className: 'font-mono', hideOnMobile: true },
     { 
       key: 'nome', 
       header: 'Nome',
@@ -184,7 +184,7 @@ const Colaboradores = () => {
         const inconsistency = hasInconsistency(item.id);
         return (
           <span className="inline-flex items-center gap-1">
-            {item.nome}
+            <span className="truncate max-w-[120px] sm:max-w-none">{item.nome}</span>
             {inconsistency && (
               <NameInconsistencyAlert 
                 colaboradorNome={inconsistency.colaboradorNome} 
@@ -195,16 +195,18 @@ const Colaboradores = () => {
         );
       },
     },
-    { key: 'departamento', header: 'Departamento' },
+    { key: 'departamento', header: 'Depto', hideOnMobile: true },
     {
       key: 'cestaBeneficiosTeto',
       header: 'Teto Cesta',
       className: 'text-right font-mono',
+      hideOnMobile: true,
       render: (item: Colaborador) => formatCurrency(item.cestaBeneficiosTeto),
     },
     {
       key: 'temPida',
       header: 'PI/DA',
+      hideOnMobile: true,
       render: (item: Colaborador) =>
         item.temPida ? (
           <span className="text-success font-medium">Sim</span>
@@ -224,17 +226,17 @@ const Colaboradores = () => {
     },
     {
       key: 'actions',
-      header: 'Ações',
+      header: '',
       className: 'text-right',
       render: (item: Colaborador) => (
         <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" onClick={() => handleView(item)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleView(item)}>
             <Eye className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex" onClick={() => handleEdit(item)}>
             <Edit className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => handleDelete(item)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hidden sm:inline-flex" onClick={() => handleDelete(item)}>
             <Trash2 className="h-4 w-4 text-destructive" />
           </Button>
         </div>
@@ -412,18 +414,18 @@ const Colaboradores = () => {
       </PageHeader>
 
       {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nome, matrícula ou departamento..."
+            placeholder="Buscar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
           />
         </div>
         <Select value={filterDepartamento} onValueChange={setFilterDepartamento}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className="w-full sm:w-48">
             <SelectValue placeholder="Departamento" />
           </SelectTrigger>
           <SelectContent>
@@ -442,7 +444,7 @@ const Colaboradores = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>
               {isViewMode ? 'Visualizar Colaborador' : selectedEmployee ? 'Editar Colaborador' : 'Novo Colaborador'}
@@ -464,7 +466,7 @@ const Colaboradores = () => {
             <TabsContent value="dados" className="space-y-6">
               <div className="space-y-4">
                 <h3 className="text-sm font-semibold text-foreground">Dados Básicos</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
                     <Label>Matrícula</Label>
                     <Input
