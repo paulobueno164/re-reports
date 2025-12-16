@@ -120,16 +120,15 @@ const HistoricoAuditoria = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <PageHeader
-          title="Histórico de Auditoria"
-          description="Rastreie todas as ações de aprovação e rejeição de despesas"
-        />
+      <PageHeader
+        title="Histórico de Auditoria"
+        description="Rastreie todas as ações de aprovação e rejeição de despesas"
+      >
         <Button onClick={handleExportExcel} className="gap-2">
           <Download className="h-4 w-4" />
-          Exportar Excel
+          <span className="hidden sm:inline">Exportar Excel</span>
         </Button>
-      </div>
+      </PageHeader>
 
       {/* Filters */}
       <Card>
@@ -140,7 +139,7 @@ const HistoricoAuditoria = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Buscar</Label>
               <div className="relative">
