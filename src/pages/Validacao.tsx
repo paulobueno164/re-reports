@@ -207,7 +207,7 @@ const Validacao = () => {
     {
       key: 'select',
       header: '',
-      className: 'w-10',
+      className: 'w-8 sm:w-10',
       render: (item: Expense) =>
         (item.status === 'enviado' || item.status === 'em_analise') ? (
           <Checkbox
@@ -220,11 +220,13 @@ const Validacao = () => {
     {
       key: 'createdAt',
       header: 'Data',
+      hideOnMobile: true,
       render: (item: Expense) => formatDate(item.createdAt),
     },
     {
       key: 'tempoEmAnalise',
       header: 'Tempo',
+      hideOnMobile: true,
       render: (item: Expense) => (
         (item.status === 'enviado' || item.status === 'em_analise') ? (
           <span className={getTempoColor(item.horasEmAnalise || 0)}>
@@ -241,7 +243,7 @@ const Validacao = () => {
         const displayName = getDisplayName(item.colaboradorId, item.colaboradorNome, true);
         return (
           <span className="inline-flex items-center gap-1">
-            {displayName}
+            <span className="truncate max-w-[100px] sm:max-w-none">{displayName}</span>
             {inconsistency && (
               <NameInconsistencyAlert 
                 colaboradorNome={inconsistency.colaboradorNome} 
@@ -252,10 +254,11 @@ const Validacao = () => {
         );
       },
     },
-    { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
+    { key: 'tipoDespesaNome', header: 'Tipo', hideOnMobile: true },
     {
       key: 'origem',
       header: 'Origem',
+      hideOnMobile: true,
       render: (item: Expense) => originLabels[item.origem] || item.origem,
     },
     {
@@ -428,7 +431,7 @@ const Validacao = () => {
       />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="bg-warning/5 border-warning/20 cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => setFilterStatus('enviado')}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">

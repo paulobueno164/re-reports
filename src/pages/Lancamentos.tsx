@@ -730,16 +730,16 @@ const Lancamentos = () => {
 
       {/* Summary Cards */}
       {colaborador && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
           <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 Cesta de Benefícios
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span>Utilizado</span>
                   <span className="font-mono font-medium">{formatCurrency(totalUsado)}</span>
                 </div>
@@ -759,31 +759,31 @@ const Lancamentos = () => {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 Lançamentos no Período
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold">{expenses.filter(e => e.periodoId === currentPeriod?.id).length}</p>
+              <p className="text-xl sm:text-2xl font-bold">{expenses.filter(e => e.periodoId === currentPeriod?.id).length}</p>
               <p className="text-xs text-muted-foreground">
                 {expenses.filter(e => e.status === 'valido').length} válidos
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="sm:col-span-2 md:col-span-1">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 Janela de Lançamento
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-lg font-semibold">
+              <p className="text-sm sm:text-lg font-semibold">
                 {currentPeriod && formatDate(currentPeriod.abreLancamento)} -{' '}
                 {currentPeriod && formatDate(currentPeriod.fechaLancamento)}
               </p>
               <p className={`text-xs ${periodoValidation?.permitido ? 'text-success' : 'text-destructive'}`}>
-                {periodoValidation?.permitido ? 'Período aberto para lançamentos' : 'Período fechado'}
+                {periodoValidation?.permitido ? 'Período aberto' : 'Período fechado'}
               </p>
             </CardContent>
           </Card>
@@ -791,8 +791,8 @@ const Lancamentos = () => {
       )}
 
       {/* Search */}
-      <div className="flex gap-4">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex">
+        <div className="relative flex-1 sm:max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Buscar..."
@@ -812,7 +812,7 @@ const Lancamentos = () => {
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>
               {isViewMode ? 'Visualizar Lançamento' : selectedExpense ? 'Editar Lançamento' : 'Novo Lançamento'}
