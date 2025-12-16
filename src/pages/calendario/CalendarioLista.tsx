@@ -1,20 +1,20 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, CalendarDays, Loader2, MoreVertical } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Edit, Trash2, CalendarDays, Loader2, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { PageHeader } from '@/components/ui/page-header';
-import { DataTable } from '@/components/ui/data-table';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { formatDate } from '@/lib/expense-validation';
+} from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/ui/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDate } from "@/lib/expense-validation";
 
 interface CalendarPeriod {
   id: string;
@@ -23,7 +23,7 @@ interface CalendarPeriod {
   dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
-  status: 'aberto' | 'fechado';
+  status: "aberto" | "fechado";
 }
 
 const CalendarioLista = () => {
@@ -39,12 +39,12 @@ const CalendarioLista = () => {
   const fetchPeriods = async () => {
     setLoading(true);
     const { data, error } = await supabase
-      .from('calendario_periodos')
-      .select('*')
-      .order('periodo', { ascending: false });
+      .from("calendario_periodos")
+      .select("*")
+      .order("periodo", { ascending: false });
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else if (data) {
       setPeriods(
         data.map((p) => ({
@@ -54,61 +54,61 @@ const CalendarioLista = () => {
           dataFinal: new Date(p.data_final),
           abreLancamento: new Date(p.abre_lancamento),
           fechaLancamento: new Date(p.fecha_lancamento),
-          status: p.status as 'aberto' | 'fechado',
-        }))
+          status: p.status as "aberto" | "fechado",
+        })),
       );
     }
     setLoading(false);
   };
 
-  const currentPeriod = periods.find((p) => p.status === 'aberto');
+  const currentPeriod = periods.find((p) => p.status === "aberto");
 
   const handleDelete = async (period: CalendarPeriod) => {
     if (!confirm(`Deseja realmente excluir o período ${period.periodo}?`)) return;
 
-    const { error } = await supabase.from('calendario_periodos').delete().eq('id', period.id);
+    const { error } = await supabase.from("calendario_periodos").delete().eq("id", period.id);
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: 'Período excluído', description: `Período ${period.periodo} foi removido.` });
+      toast({ title: "Período excluído", description: `Período ${period.periodo} foi removido.` });
       fetchPeriods();
     }
   };
 
   const columns = [
-    { key: 'periodo', header: 'Período', className: 'font-medium' },
+    { key: "periodo", header: "Período", className: "font-medium" },
     {
-      key: 'dataInicio',
-      header: 'Início',
+      key: "dataInicio",
+      header: "Início",
       hideOnMobile: true,
       render: (item: CalendarPeriod) => formatDate(item.dataInicio),
     },
     {
-      key: 'dataFinal',
-      header: 'Fim',
+      key: "dataFinal",
+      header: "Fim",
       hideOnMobile: true,
       render: (item: CalendarPeriod) => formatDate(item.dataFinal),
     },
     {
-      key: 'abreLancamento',
-      header: 'Abre',
+      key: "abreLancamento",
+      header: "Abre",
       render: (item: CalendarPeriod) => formatDate(item.abreLancamento),
     },
     {
-      key: 'fechaLancamento',
-      header: 'Fecha',
+      key: "fechaLancamento",
+      header: "Fecha",
       render: (item: CalendarPeriod) => formatDate(item.fechaLancamento),
     },
     {
-      key: 'status',
-      header: 'Status',
+      key: "status",
+      header: "Status",
       render: (item: CalendarPeriod) => <StatusBadge status={item.status} />,
     },
     {
-      key: 'actions',
-      header: '',
-      className: 'text-right',
+      key: "actions",
+      header: "",
+      className: "text-right",
       render: (item: CalendarPeriod) => (
         <div className="flex justify-end gap-1">
           <div className="hidden sm:flex gap-1">
@@ -117,7 +117,7 @@ const CalendarioLista = () => {
               size="icon"
               className="h-8 w-8"
               onClick={() => navigate(`/calendario/${item.id}/editar`)}
-              disabled={item.status === 'fechado'}
+              disabled={item.status === "fechado"}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -126,7 +126,7 @@ const CalendarioLista = () => {
               size="icon"
               className="h-8 w-8"
               onClick={() => handleDelete(item)}
-              disabled={item.status === 'fechado'}
+              disabled={item.status === "fechado"}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -139,17 +139,17 @@ const CalendarioLista = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate(`/calendario/${item.id}/editar`)}
-                  disabled={item.status === 'fechado'}
+                  disabled={item.status === "fechado"}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
                 </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={() => handleDelete(item)} 
+                <DropdownMenuItem
+                  onClick={() => handleDelete(item)}
                   className="text-destructive"
-                  disabled={item.status === 'fechado'}
+                  disabled={item.status === "fechado"}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Excluir
@@ -176,7 +176,7 @@ const CalendarioLista = () => {
         title="Calendário de Períodos"
         description="Defina os períodos mensais e as janelas de lançamento para colaboradores"
       >
-        <Button onClick={() => navigate('/calendario/novo')}>
+        <Button onClick={() => navigate("/calendario/novo")}>
           <Plus className="mr-2 h-4 w-4" />
           Novo Período
         </Button>
@@ -223,27 +223,6 @@ const CalendarioLista = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* Rules Card */}
-      <Card className="bg-muted/30">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">Regras do Calendário</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground space-y-1">
-          <p>
-            • <strong>Período de Acúmulo:</strong> Dia 21 do mês anterior ao dia 20 do mês atual
-          </p>
-          <p>
-            • <strong>Janela de Lançamento:</strong> Dias 10/11 até o dia 20 do mês de referência
-          </p>
-          <p>
-            • <strong>Lançamento fora do período:</strong> Automaticamente direcionado ao próximo mês
-          </p>
-          <p>
-            • <strong>Não é permitido:</strong> Lançar para dois meses à frente
-          </p>
-        </CardContent>
-      </Card>
 
       {/* Table */}
       <DataTable data={periods} columns={columns} emptyMessage="Nenhum período cadastrado" />
