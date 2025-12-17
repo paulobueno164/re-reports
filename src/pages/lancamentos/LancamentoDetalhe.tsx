@@ -261,7 +261,7 @@ const LancamentoDetalhe = () => {
                   Iniciar Análise
                 </Button>
               )}
-              <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason.trim() || processing}>
+              <Button variant="destructive" onClick={handleReject} disabled={processing}>
                 {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <XCircle className="mr-2 h-4 w-4" />
                 Rejeitar
