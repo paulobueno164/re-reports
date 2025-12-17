@@ -529,7 +529,7 @@ const ColaboradorLancamentos = () => {
       description={`${colaborador?.matricula} • ${colaborador?.departamento}`}
       backTo="/lancamentos"
       extraActions={
-        canEdit && selectedPeriod?.status === 'aberto' ? (
+        canEdit && selectedPeriod?.status === 'aberto' && !isRHorFinanceiro ? (
           <Button onClick={handleNew} disabled={!canCreateNew} size="sm">
             {!canCreateNew && bloqueadoPorUltimoLancamento ? <Lock className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
             <span className="hidden sm:inline">Novo Lançamento</span>
