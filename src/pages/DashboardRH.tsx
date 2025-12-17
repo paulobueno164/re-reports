@@ -305,9 +305,6 @@ const DashboardRH = () => {
               </SelectContent>
             </Select>
           </div>
-          <Button asChild>
-            <Link to="/lancamentos">Novo Lançamento</Link>
-          </Button>
         </div>
       </PageHeader>
 
