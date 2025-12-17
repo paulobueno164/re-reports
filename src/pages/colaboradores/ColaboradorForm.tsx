@@ -76,7 +76,7 @@ const ColaboradorForm = () => {
     valeRefeicao: 0,
     ajudaCusto: 0,
     mobilidade: 0,
-    transporte: 0,
+    cestaBeneficiosTeto: 0,
     temPida: false,
     pidaTeto: 0,
     ativo: true,
@@ -110,20 +110,21 @@ const ColaboradorForm = () => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/colaboradores');
     } else if (data) {
+      const colaboradorData = data as any;
       setFormData({
-        matricula: data.matricula,
-        nome: data.nome,
-        email: data.email,
-        departamento: data.departamento,
-        salarioBase: Number(data.salario_base),
-        valeAlimentacao: Number(data.vale_alimentacao),
-        valeRefeicao: Number(data.vale_refeicao),
-        ajudaCusto: Number(data.ajuda_custo),
-        mobilidade: Number(data.mobilidade),
-        transporte: Number(data.transporte),
-        temPida: data.tem_pida,
-        pidaTeto: Number(data.pida_teto),
-        ativo: data.ativo,
+        matricula: colaboradorData.matricula,
+        nome: colaboradorData.nome,
+        email: colaboradorData.email,
+        departamento: colaboradorData.departamento,
+        salarioBase: Number(colaboradorData.salario_base),
+        valeAlimentacao: Number(colaboradorData.vale_alimentacao),
+        valeRefeicao: Number(colaboradorData.vale_refeicao),
+        ajudaCusto: Number(colaboradorData.ajuda_custo),
+        mobilidade: Number(colaboradorData.mobilidade),
+        cestaBeneficiosTeto: Number(colaboradorData.cesta_beneficios_teto || 0),
+        temPida: colaboradorData.tem_pida,
+        pidaTeto: Number(colaboradorData.pida_teto),
+        ativo: colaboradorData.ativo,
       });
       if (data.user_id) {
         setLinkedUserId(data.user_id);
@@ -274,7 +275,7 @@ const ColaboradorForm = () => {
       vale_refeicao: formData.valeRefeicao,
       ajuda_custo: formData.ajudaCusto,
       mobilidade: formData.mobilidade,
-      transporte: formData.transporte,
+      cesta_beneficios_teto: formData.cestaBeneficiosTeto,
       tem_pida: formData.temPida,
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
@@ -334,7 +335,7 @@ const ColaboradorForm = () => {
       formData.valeRefeicao +
       formData.ajudaCusto +
       formData.mobilidade +
-      formData.transporte +
+      formData.cestaBeneficiosTeto +
       formData.pidaTeto
     );
   };
@@ -546,11 +547,11 @@ const ColaboradorForm = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Transporte (R$)</Label>
+                  <Label>Cesta de Benefícios - Teto (R$)</Label>
                   <Input
                     type="number"
-                    value={formData.transporte}
-                    onChange={(e) => setFormData({ ...formData, transporte: parseFloat(e.target.value) || 0 })}
+                    value={formData.cestaBeneficiosTeto}
+                    onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
               </div>
@@ -595,7 +596,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -619,7 +620,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -647,7 +648,7 @@ const ColaboradorForm = () => {
                     { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                     { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                     { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                    { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
+                    { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                     ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                   ].map((item) => (
                     <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
