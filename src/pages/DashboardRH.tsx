@@ -1,46 +1,58 @@
 import { useState, useEffect } from 'react';
-import { Users, CheckCircle, XCircle, Clock, TrendingUp, AlertTriangle, Activity, BarChart3, Loader2, Wallet } from 'lucide-react';
+import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency, formatDate } from '@/lib/expense-validation';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from 'recharts';
-import { StatCard } from '@/components/ui/stat-card';
+import { formatCurrency } from '@/lib/expense-validation';
+import { Link } from 'react-router-dom';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+  LineChart,
+  Line,
+} from 'recharts';
 
 interface Period {
   id: string;
   periodo: string;
   status: string;
   data_inicio: string;
+  fecha_lancamento: string;
 }
 
-interface ValidationMetrics {
-  totalPending: number;
-  totalApprovedToday: number;
-  totalRejectedToday: number;
-  totalApprovedMonth: number;
-  totalRejectedMonth: number;
-  avgValidationTime: number;
-  approvalRate: number;
-  pendingValue: number;
-  approvedValue: number;
-  rejectedValue: number;
+interface DashboardData {
   totalColaboradores: number;
-  utilizationData: { used: number; available: number; total: number; percentage: number };
+  totalLancamentosMes: number;
+  valorTotalMes: number;
+  pendentesValidacao: number;
+  diasRestantes: number;
+  expensesByCategory: { name: string; value: number }[];
+  expensesByStatus: { name: string; value: number; color: string }[];
+  expensesByMonth: { month: string; value: number }[];
+  topColaboradores: { name: string; value: number }[];
+  utilizationPercentage: number;
 }
 
-interface DepartmentMetrics {
-  departamento: string;
-  totalLancamentos: number;
-  aprovados: number;
-  rejeitados: number;
-  pendentes: number;
-  valorTotal: number;
-}
+const STATUS_COLORS: Record<string, string> = {
+  rascunho: '#94a3b8',
+  enviado: '#f59e0b',
+  em_analise: '#3b82f6',
+  valido: '#10b981',
+  invalido: '#ef4444',
+};
 
 const DashboardRH = () => {
   const [loading, setLoading] = useState(true);
@@ -49,31 +61,24 @@ const DashboardRH = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('todos');
   const [currentPeriodName, setCurrentPeriodName] = useState<string>('');
-  const [metrics, setMetrics] = useState<ValidationMetrics>({
-    totalPending: 0,
-    totalApprovedToday: 0,
-    totalRejectedToday: 0,
-    totalApprovedMonth: 0,
-    totalRejectedMonth: 0,
-    avgValidationTime: 0,
-    approvalRate: 0,
-    pendingValue: 0,
-    approvedValue: 0,
-    rejectedValue: 0,
+  const [data, setData] = useState<DashboardData>({
     totalColaboradores: 0,
-    utilizationData: { used: 0, available: 0, total: 0, percentage: 0 },
+    totalLancamentosMes: 0,
+    valorTotalMes: 0,
+    pendentesValidacao: 0,
+    diasRestantes: 0,
+    expensesByCategory: [],
+    expensesByStatus: [],
+    expensesByMonth: [],
+    topColaboradores: [],
+    utilizationPercentage: 0,
   });
-  const [departmentMetrics, setDepartmentMetrics] = useState<DepartmentMetrics[]>([]);
-  const [recentActivity, setRecentActivity] = useState<any[]>([]);
-  const [dailyTrend, setDailyTrend] = useState<any[]>([]);
 
-  // Fetch periods and departments on mount
   useEffect(() => {
     const fetchInitialData = async () => {
-      // Fetch periods
       const { data: allPeriods } = await supabase
         .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio')
+        .select('id, periodo, status, data_inicio, fecha_lancamento')
         .order('data_inicio', { ascending: false });
 
       if (allPeriods && allPeriods.length > 0) {
@@ -93,7 +98,6 @@ const DashboardRH = () => {
         setCurrentPeriodName(closestPeriod.periodo);
       }
 
-      // Fetch departments
       const { data: colaboradores } = await supabase
         .from('colaboradores_elegiveis')
         .select('departamento')
@@ -109,155 +113,152 @@ const DashboardRH = () => {
 
   useEffect(() => {
     if (selectedPeriodId) {
-      fetchMetrics();
+      fetchDashboardData();
     }
   }, [selectedPeriodId, selectedDepartment]);
 
-  const fetchMetrics = async () => {
+  const fetchDashboardData = async () => {
     if (!selectedPeriodId) return;
     setLoading(true);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Update current period name
-    const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
-    if (selectedPeriod) {
-      setCurrentPeriodName(selectedPeriod.periodo);
-    }
-
-    // Fetch total colaboradores (filtered by department)
-    let colaboradoresQuery = supabase
-      .from('colaboradores_elegiveis')
-      .select('*', { count: 'exact', head: true })
-      .eq('ativo', true);
-    
-    if (selectedDepartment !== 'todos') {
-      colaboradoresQuery = colaboradoresQuery.eq('departamento', selectedDepartment);
-    }
-    
-    const { count: totalColaboradores } = await colaboradoresQuery;
-
-    // Fetch colaboradores for cesta calculation (filtered by department)
-    let colaboradoresCestaQuery = supabase
-      .from('colaboradores_elegiveis')
-      .select('id, cesta_beneficios_teto, departamento')
-      .eq('ativo', true);
-    
-    if (selectedDepartment !== 'todos') {
-      colaboradoresCestaQuery = colaboradoresCestaQuery.eq('departamento', selectedDepartment);
-    }
-    
-    const { data: colaboradores } = await colaboradoresCestaQuery;
-
-    // Fetch lancamentos for the selected period
-    const { data: allLancamentos } = await supabase
-      .from('lancamentos')
-      .select('id, status, valor_lancado, valor_considerado, created_at, validado_em, colaborador_id, periodo_id, colaboradores_elegiveis(departamento)')
-      .eq('periodo_id', selectedPeriodId);
-
-    // Filter by department if needed
-    const lancamentos = selectedDepartment === 'todos'
-      ? allLancamentos
-      : allLancamentos?.filter((l: any) => l.colaboradores_elegiveis?.departamento === selectedDepartment);
-
-    let utilizationData = { used: 0, available: 0, total: 0, percentage: 0 };
-
-    if (lancamentos && colaboradores) {
-      const pending = lancamentos.filter((l) => l.status === 'enviado' || l.status === 'em_analise');
-      const approvedToday = lancamentos.filter((l) => l.status === 'valido' && l.validado_em && new Date(l.validado_em) >= today);
-      const rejectedToday = lancamentos.filter((l) => l.status === 'invalido' && l.validado_em && new Date(l.validado_em) >= today);
-      const approvedMonth = lancamentos.filter((l) => l.status === 'valido' && l.validado_em && new Date(l.validado_em) >= monthStart);
-      const rejectedMonth = lancamentos.filter((l) => l.status === 'invalido' && l.validado_em && new Date(l.validado_em) >= monthStart);
-
-      const totalValidatedMonth = approvedMonth.length + rejectedMonth.length;
-      const approvalRate = totalValidatedMonth > 0 ? Math.round((approvedMonth.length / totalValidatedMonth) * 100) : 0;
-
-      // Calculate average validation time
-      const validatedWithTime = lancamentos.filter((l) => l.validado_em && l.created_at);
-      let avgTime = 0;
-      if (validatedWithTime.length > 0) {
-        const totalMinutes = validatedWithTime.reduce((acc, l) => {
-          const created = new Date(l.created_at);
-          const validated = new Date(l.validado_em!);
-          return acc + (validated.getTime() - created.getTime()) / 60000;
-        }, 0);
-        avgTime = Math.round(totalMinutes / validatedWithTime.length);
+    try {
+      const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
+      if (selectedPeriod) {
+        setCurrentPeriodName(selectedPeriod.periodo);
       }
 
-      // Cesta utilization (filtered colaboradores)
-      const totalCestaTeto = colaboradores.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0);
-      const totalUtilizado = lancamentos.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0);
-      utilizationData = {
-        used: totalUtilizado,
-        available: Math.max(0, totalCestaTeto - totalUtilizado),
-        total: totalCestaTeto,
-        percentage: totalCestaTeto > 0 ? Math.round((totalUtilizado / totalCestaTeto) * 100) : 0,
+      const diasRestantes = selectedPeriod
+        ? Math.max(0, Math.ceil((new Date(selectedPeriod.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 0;
+
+      // Fetch colaboradores
+      let colaboradoresQuery = supabase
+        .from('colaboradores_elegiveis')
+        .select('id, cesta_beneficios_teto, departamento')
+        .eq('ativo', true);
+      
+      if (selectedDepartment !== 'todos') {
+        colaboradoresQuery = colaboradoresQuery.eq('departamento', selectedDepartment);
+      }
+      
+      const { data: colaboradores } = await colaboradoresQuery;
+      const totalColaboradores = colaboradores?.length || 0;
+
+      // Fetch lancamentos
+      const { data: allLancamentos } = await supabase
+        .from('lancamentos')
+        .select(`
+          id,
+          valor_lancado,
+          valor_considerado,
+          status,
+          created_at,
+          colaborador_id,
+          colaboradores_elegiveis (id, nome, departamento),
+          tipos_despesas (id, nome, grupo)
+        `)
+        .eq('periodo_id', selectedPeriodId);
+
+      const lancamentos = selectedDepartment === 'todos'
+        ? allLancamentos
+        : allLancamentos?.filter((l: any) => l.colaboradores_elegiveis?.departamento === selectedDepartment);
+
+      // Fetch ALL pending lancamentos
+      const { data: allPendingRaw } = await supabase
+        .from('lancamentos')
+        .select('id, status, colaborador_id, colaboradores_elegiveis (departamento)')
+        .in('status', ['enviado', 'em_analise']);
+
+      const pendingLancamentos = selectedDepartment === 'todos'
+        ? allPendingRaw
+        : allPendingRaw?.filter((l: any) => l.colaboradores_elegiveis?.departamento === selectedDepartment);
+
+      const totalLancamentosMes = lancamentos?.length || 0;
+      const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
+      const pendentesValidacao = pendingLancamentos?.length || 0;
+
+      // Expenses by category
+      const categoryMap = new Map<string, number>();
+      lancamentos?.forEach((l: any) => {
+        const grupo = l.tipos_despesas?.grupo || 'Outros';
+        categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
+      });
+      const expensesByCategory = Array.from(categoryMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+      // Expenses by status
+      const statusMap = new Map<string, number>();
+      lancamentos?.forEach((l: any) => {
+        statusMap.set(l.status, (statusMap.get(l.status) || 0) + 1);
+      });
+      const statusLabels: Record<string, string> = {
+        rascunho: 'Rascunho',
+        enviado: 'Enviado',
+        em_analise: 'Em Análise',
+        valido: 'Válido',
+        invalido: 'Inválido',
       };
+      const expensesByStatus = Array.from(statusMap.entries()).map(([status, value]) => ({
+        name: statusLabels[status] || status,
+        value,
+        color: STATUS_COLORS[status] || '#94a3b8',
+      }));
 
-      setMetrics({
-        totalPending: pending.length,
-        totalApprovedToday: approvedToday.length,
-        totalRejectedToday: rejectedToday.length,
-        totalApprovedMonth: approvedMonth.length,
-        totalRejectedMonth: rejectedMonth.length,
-        avgValidationTime: avgTime,
-        approvalRate,
-        pendingValue: pending.reduce((acc, l) => acc + Number(l.valor_lancado), 0),
-        approvedValue: approvedMonth.reduce((acc, l) => acc + Number(l.valor_considerado), 0),
-        rejectedValue: rejectedMonth.reduce((acc, l) => acc + Number(l.valor_lancado), 0),
-        totalColaboradores: totalColaboradores || 0,
-        utilizationData,
+      // Top colaboradores
+      const colaboradorMap = new Map<string, number>();
+      lancamentos?.forEach((l: any) => {
+        const nome = l.colaboradores_elegiveis?.nome || 'Desconhecido';
+        colaboradorMap.set(nome, (colaboradorMap.get(nome) || 0) + Number(l.valor_considerado));
       });
+      const topColaboradores = Array.from(colaboradorMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
 
-      // Department metrics
-      const deptMap: Record<string, DepartmentMetrics> = {};
-      lancamentos.forEach((l: any) => {
-        const dept = l.colaboradores_elegiveis?.departamento || 'Não definido';
-        if (!deptMap[dept]) {
-          deptMap[dept] = { departamento: dept, totalLancamentos: 0, aprovados: 0, rejeitados: 0, pendentes: 0, valorTotal: 0 };
-        }
-        deptMap[dept].totalLancamentos++;
-        deptMap[dept].valorTotal += Number(l.valor_lancado);
-        if (l.status === 'valido') deptMap[dept].aprovados++;
-        else if (l.status === 'invalido') deptMap[dept].rejeitados++;
-        else if (l.status === 'enviado' || l.status === 'em_analise') deptMap[dept].pendentes++;
-      });
-      setDepartmentMetrics(Object.values(deptMap));
+      // Utilization
+      const totalCestaTeto = colaboradores?.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0) || 0;
+      const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
+      const utilizationPercentage = totalCestaTeto > 0 ? Math.round((totalUtilizado / totalCestaTeto) * 100) : 0;
 
-      // Daily trend (last 7 days)
-      const days: Record<string, { date: string; aprovados: number; rejeitados: number }> = {};
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split('T')[0];
-        days[key] = { date: d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit' }), aprovados: 0, rejeitados: 0 };
-      }
-      lancamentos.forEach((l) => {
-        if (l.validado_em) {
-          const key = l.validado_em.split('T')[0];
-          if (days[key]) {
-            if (l.status === 'valido') days[key].aprovados++;
-            else if (l.status === 'invalido') days[key].rejeitados++;
-          }
-        }
+      // Expenses by month (last 6 months)
+      const { data: allLancamentosMonths } = await supabase
+        .from('lancamentos')
+        .select('valor_considerado, created_at')
+        .gte('created_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString());
+
+      const monthMap = new Map<string, number>();
+      allLancamentosMonths?.forEach((l: any) => {
+        const date = new Date(l.created_at);
+        const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
+        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
       });
-      setDailyTrend(Object.values(days));
+      const expensesByMonth = Array.from(monthMap.entries())
+        .map(([month, value]) => ({ month, value }))
+        .sort((a, b) => {
+          const [am, ay] = a.month.split('/').map(Number);
+          const [bm, by] = b.month.split('/').map(Number);
+          return ay === by ? am - bm : ay - by;
+        });
+
+      setData({
+        totalColaboradores,
+        totalLancamentosMes,
+        valorTotalMes,
+        pendentesValidacao,
+        diasRestantes,
+        expensesByCategory,
+        expensesByStatus,
+        expensesByMonth,
+        topColaboradores,
+        utilizationPercentage,
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
-
-    // Fetch recent audit activity
-    const { data: auditLogs } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('entity_type', 'lancamento')
-      .order('created_at', { ascending: false })
-      .limit(10);
-
-    if (auditLogs) {
-      setRecentActivity(auditLogs);
-    }
-
-    setLoading(false);
   };
 
   if (loading && !selectedPeriodId) {
@@ -268,17 +269,11 @@ const DashboardRH = () => {
     );
   }
 
-  const statusData = [
-    { name: 'Aprovados', value: metrics.totalApprovedMonth, color: 'hsl(var(--success))' },
-    { name: 'Rejeitados', value: metrics.totalRejectedMonth, color: 'hsl(var(--destructive))' },
-    { name: 'Pendentes', value: metrics.totalPending, color: 'hsl(var(--warning))' },
-  ];
-
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Dashboard RH"
-        description={`Período: ${currentPeriodName || 'N/A'}${selectedDepartment !== 'todos' ? ` • ${selectedDepartment}` : ''}`}
+        title="Dashboard"
+        description={`Período: ${currentPeriodName || 'N/A'}`}
       >
         <div className="flex flex-row gap-4 items-end flex-wrap">
           <div className="space-y-1.5">
@@ -303,7 +298,7 @@ const DashboardRH = () => {
                 <SelectValue placeholder="Departamento" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="todos">Todos os Departamentos</SelectItem>
                 {departments.map((dept) => (
                   <SelectItem key={dept} value={dept}>
                     {dept}
@@ -312,6 +307,9 @@ const DashboardRH = () => {
               </SelectContent>
             </Select>
           </div>
+          <Button asChild>
+            <Link to="/lancamentos">Novo Lançamento</Link>
+          </Button>
         </div>
       </PageHeader>
 
@@ -321,211 +319,256 @@ const DashboardRH = () => {
         </div>
       ) : (
         <>
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            <StatCard
-              title="Colaboradores Elegíveis"
-              value={metrics.totalColaboradores}
-              description="Cadastrados no sistema"
-              icon={Users}
-              href="/colaboradores"
-            />
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-primary" />
-                  Utilização Cesta de Benefícios
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{metrics.utilizationData.percentage}%</p>
-                <Progress value={metrics.utilizationData.percentage} className="h-2 mt-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {formatCurrency(metrics.utilizationData.used)} de {formatCurrency(metrics.utilizationData.total)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-primary" />
-                  Taxa de Aprovação
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{metrics.approvalRate}%</p>
-                <Progress value={metrics.approvalRate} className="h-2 mt-2" />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {metrics.totalApprovedMonth} aprovados / {metrics.totalApprovedMonth + metrics.totalRejectedMonth} validados
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Validation KPI Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <Card className="bg-warning/5 border-warning/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-warning" />
-                  Pendentes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-warning">{metrics.totalPending}</p>
-                <p className="text-xs text-muted-foreground">{formatCurrency(metrics.pendingValue)} em valor</p>
+          {/* Stats Cards Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Card 1 - Colaboradores */}
+            <Card className="bg-card border">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Colaboradores Elegíveis</p>
+                    <p className="text-3xl font-bold mt-1">{data.totalColaboradores}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Cadastrados no sistema</p>
+                  </div>
+                  <div className="p-2.5 bg-muted rounded-lg">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-success/5 border-success/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4 text-success" />
-                  Aprovados Hoje
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-success">{metrics.totalApprovedToday}</p>
-                <p className="text-xs text-muted-foreground">{metrics.totalApprovedMonth} no mês</p>
+            {/* Card 2 - Lançamentos (Primary Gradient) */}
+            <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-primary-foreground/80">Lançamentos no Mês</p>
+                    <p className="text-3xl font-bold mt-1">{data.totalLancamentosMes}</p>
+                    <p className="text-xs text-primary-foreground/80 mt-1">{formatCurrency(data.valorTotalMes)}</p>
+                  </div>
+                  <div className="p-2.5 bg-primary-foreground/20 rounded-lg">
+                    <Receipt className="h-5 w-5 text-primary-foreground" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-destructive/5 border-destructive/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <XCircle className="h-4 w-4 text-destructive" />
-                  Rejeitados Hoje
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold text-destructive">{metrics.totalRejectedToday}</p>
-                <p className="text-xs text-muted-foreground">{metrics.totalRejectedMonth} no mês</p>
+            {/* Card 3 - Pendentes */}
+            <Card className="bg-card border">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Pendentes de Validação</p>
+                    <p className="text-3xl font-bold mt-1">{data.pendentesValidacao}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Aguardando análise do RH</p>
+                  </div>
+                  <div className="p-2.5 bg-warning/10 rounded-lg">
+                    <AlertTriangle className="h-5 w-5 text-warning" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-primary" />
-                  Valor Aprovado (Mês)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{formatCurrency(metrics.approvedValue)}</p>
-                <p className="text-xs text-muted-foreground">{formatCurrency(metrics.rejectedValue)} rejeitados</p>
+            {/* Card 4 - Dias Restantes */}
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-300">Dias Restantes</p>
+                    <p className="text-3xl font-bold mt-1">{data.diasRestantes}</p>
+                    <p className="text-xs text-slate-400 mt-1">Para fechamento do período</p>
+                  </div>
+                  <div className="p-2.5 bg-white/10 rounded-lg">
+                    <Clock className="h-5 w-5 text-white" />
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Daily Trend */}
+            {/* Expenses by Category */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Tendência Diária (7 dias)
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Despesas por Categoria</CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={{ aprovados: { label: 'Aprovados', color: 'hsl(var(--success))' }, rejeitados: { label: 'Rejeitados', color: 'hsl(var(--destructive))' } }} className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={dailyTrend}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="date" className="text-xs" />
-                      <YAxis className="text-xs" />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Legend />
-                      <Line type="monotone" dataKey="aprovados" stroke="hsl(var(--success))" strokeWidth={2} dot={{ fill: 'hsl(var(--success))' }} />
-                      <Line type="monotone" dataKey="rejeitados" stroke="hsl(var(--destructive))" strokeWidth={2} dot={{ fill: 'hsl(var(--destructive))' }} />
-                    </LineChart>
+                {data.expensesByCategory.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={data.expensesByCategory} layout="vertical" margin={{ left: 0, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
+                      <XAxis 
+                        type="number" 
+                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        type="category" 
+                        dataKey="name" 
+                        width={100} 
+                        tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [formatCurrency(value), 'Valor']}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    </BarChart>
                   </ResponsiveContainer>
-                </ChartContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
               </CardContent>
             </Card>
 
             {/* Status Distribution */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Distribuição por Status (Mês)
-                </CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Distribuição por Status</CardTitle>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={{}} className="h-64">
-                  <ResponsiveContainer width="100%" height="100%">
+                {data.expensesByStatus.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
-                      <Pie data={statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
-                        {statusData.map((entry, index) => (
+                      <Pie
+                        data={data.expensesByStatus}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={60}
+                        outerRadius={90}
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                        labelLine={false}
+                      >
+                        {data.expensesByStatus.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Tooltip
+                        formatter={(value: number, name: string) => [value, name]}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
                     </PieChart>
                   </ResponsiveContainer>
-                </ChartContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Department Metrics */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Métricas por Departamento
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={{ aprovados: { label: 'Aprovados', color: 'hsl(var(--success))' }, rejeitados: { label: 'Rejeitados', color: 'hsl(var(--destructive))' }, pendentes: { label: 'Pendentes', color: 'hsl(var(--warning))' } }} className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={departmentMetrics} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" className="text-xs" />
-                    <YAxis type="category" dataKey="departamento" className="text-xs" width={120} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend />
-                    <Bar dataKey="aprovados" stackId="a" fill="hsl(var(--success))" />
-                    <Bar dataKey="rejeitados" stackId="a" fill="hsl(var(--destructive))" />
-                    <Bar dataKey="pendentes" stackId="a" fill="hsl(var(--warning))" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+          {/* Bottom Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Monthly Evolution */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Evolução Mensal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.expensesByMonth.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={data.expensesByMonth} margin={{ left: 0, right: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [formatCurrency(value), 'Valor']}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Line 
+                        type="monotone" 
+                        dataKey="value" 
+                        stroke="hsl(var(--primary))" 
+                        strokeWidth={2}
+                        dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[220px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Atividade Recente
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recentActivity.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Nenhuma atividade registrada ainda</p>
-              ) : (
-                <div className="space-y-3">
-                  {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                      <div className={`p-2 rounded-full ${activity.action === 'aprovar' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-                        {activity.action === 'aprovar' ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium">{activity.user_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {activity.action === 'aprovar' ? 'Aprovou' : 'Rejeitou'}: {activity.entity_description || activity.entity_id}
-                        </p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{formatDate(new Date(activity.created_at))}</p>
+            {/* Right Column: Top Colaboradores + Utilização */}
+            <div className="space-y-6">
+              {/* Top Colaboradores */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Top Colaboradores
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.topColaboradores.length > 0 ? (
+                    <div className="space-y-3">
+                      {data.topColaboradores.map((colab, index) => (
+                        <div key={colab.name} className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground w-5">{index + 1}.</span>
+                            <span className="text-sm font-medium truncate max-w-[180px]">{colab.name}</span>
+                          </div>
+                          <span className="text-sm font-mono font-semibold">{formatCurrency(colab.value)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">Sem dados para exibir</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Utilização Geral */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Utilização Geral
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Cesta de Benefícios</span>
+                      <span className="text-sm font-semibold">{data.utilizationPercentage}%</span>
+                    </div>
+                    <Progress value={data.utilizationPercentage} className="h-2" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </>
       )}
     </div>
