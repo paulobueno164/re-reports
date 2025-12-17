@@ -51,7 +51,7 @@ interface Colaborador {
   valeRefeicao: number;
   ajudaCusto: number;
   mobilidade: number;
-  transporte: number;
+  cestaBeneficiosTeto: number;
   temPida: boolean;
   pidaTeto: number;
 }
@@ -125,7 +125,7 @@ const DashboardColaborador = () => {
       valeRefeicao: Number(colabData.vale_refeicao),
       ajudaCusto: Number(colabData.ajuda_custo),
       mobilidade: Number(colabData.mobilidade),
-      transporte: Number(colabData.transporte),
+      cestaBeneficiosTeto: Number((colabData as any).cesta_beneficios_teto || 0),
       temPida: colabData.tem_pida,
       pidaTeto: Number(colabData.pida_teto),
     });
@@ -214,8 +214,8 @@ const DashboardColaborador = () => {
     }
   };
 
-  const saldoDisponivel = 0; // Cesta removed
-  const percentualUsado = 0; // Cesta removed
+  const saldoDisponivel = colaborador ? Math.max(0, colaborador.cestaBeneficiosTeto - totalUsado) : 0;
+  const percentualUsado = colaborador && colaborador.cestaBeneficiosTeto > 0 ? Math.min(100, (totalUsado / colaborador.cestaBeneficiosTeto) * 100) : 0;
 
   const pendentesAnalise = statusCounts.enviado + statusCounts.em_analise;
 
@@ -233,7 +233,6 @@ const DashboardColaborador = () => {
     { label: 'Vale Refeição', value: colaborador.valeRefeicao },
     { label: 'Ajuda de Custo', value: colaborador.ajudaCusto },
     { label: 'Mobilidade', value: colaborador.mobilidade },
-    { label: 'Transporte', value: colaborador.transporte },
     ...(colaborador.temPida ? [{ label: 'PI/DA', value: colaborador.pidaTeto }] : []),
   ].filter(c => c.value > 0) : [];
 

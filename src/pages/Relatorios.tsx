@@ -32,7 +32,7 @@ interface Colaborador {
   vale_refeicao: number;
   ajuda_custo: number;
   mobilidade: number;
-  transporte: number;
+  cesta_beneficios_teto: number;
   tem_pida: boolean;
   pida_teto: number;
 }
@@ -126,7 +126,7 @@ const Relatorios = () => {
       supabase.from('colaboradores_elegiveis').select('*').eq('ativo', true).order('nome'),
       supabase.from('calendario_periodos').select('id, periodo, status, data_inicio, data_final').order('periodo', { ascending: false }),
     ]);
-    if (colaboradoresRes.data) setColaboradores(colaboradoresRes.data);
+    if (colaboradoresRes.data) setColaboradores(colaboradoresRes.data as any);
     if (periodosRes.data) {
       setPeriodos(periodosRes.data);
       // Auto-select current period based on today's date
@@ -169,7 +169,7 @@ const Relatorios = () => {
       { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
       { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
       { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-      { componente: 'Transporte', valorParametrizado: colaborador.transporte, valorUtilizado: colaborador.transporte, percentual: 100 },
+      { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
     ];
 
     if (colaborador.tem_pida) {
@@ -270,7 +270,7 @@ const Relatorios = () => {
         { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
         { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
         { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-        { componente: 'Transporte', valorParametrizado: colaborador.transporte, valorUtilizado: colaborador.transporte, percentual: 100 },
+        { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
       ];
       if (colaborador.tem_pida) {
         resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });

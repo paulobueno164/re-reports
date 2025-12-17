@@ -27,7 +27,6 @@ export interface EligibleEmployee {
   valeRefeicao: number;
   ajudaCusto: number;
   mobilidade: number;
-  transporte: number;
   cestaBeneficiosTeto: number;
   temPida: boolean;
   pidaTeto: number;

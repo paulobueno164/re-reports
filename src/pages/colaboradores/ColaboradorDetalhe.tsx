@@ -24,7 +24,7 @@ interface Colaborador {
   valeRefeicao: number;
   ajudaCusto: number;
   mobilidade: number;
-  transporte: number;
+  cestaBeneficiosTeto: number;
   temPida: boolean;
   pidaTeto: number;
   ativo: boolean;
@@ -56,29 +56,30 @@ const ColaboradorDetalhe = () => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/colaboradores');
     } else if (data) {
+      const colaboradorData = data as any;
       setColaborador({
-        id: data.id,
-        matricula: data.matricula,
-        nome: data.nome,
-        email: data.email,
-        departamento: data.departamento,
-        salarioBase: Number(data.salario_base),
-        valeAlimentacao: Number(data.vale_alimentacao),
-        valeRefeicao: Number(data.vale_refeicao),
-        ajudaCusto: Number(data.ajuda_custo),
-        mobilidade: Number(data.mobilidade),
-        transporte: Number(data.transporte),
-        temPida: data.tem_pida,
-        pidaTeto: Number(data.pida_teto),
-        ativo: data.ativo,
-        userId: data.user_id,
+        id: colaboradorData.id,
+        matricula: colaboradorData.matricula,
+        nome: colaboradorData.nome,
+        email: colaboradorData.email,
+        departamento: colaboradorData.departamento,
+        salarioBase: Number(colaboradorData.salario_base),
+        valeAlimentacao: Number(colaboradorData.vale_alimentacao),
+        valeRefeicao: Number(colaboradorData.vale_refeicao),
+        ajudaCusto: Number(colaboradorData.ajuda_custo),
+        mobilidade: Number(colaboradorData.mobilidade),
+        cestaBeneficiosTeto: Number(colaboradorData.cesta_beneficios_teto || 0),
+        temPida: colaboradorData.tem_pida,
+        pidaTeto: Number(colaboradorData.pida_teto),
+        ativo: colaboradorData.ativo,
+        userId: colaboradorData.user_id,
       });
 
-      if (data.user_id) {
+      if (colaboradorData.user_id) {
         const { data: profile } = await supabase
           .from('profiles')
           .select('nome')
-          .eq('id', data.user_id)
+          .eq('id', colaboradorData.user_id)
           .single();
         if (profile) {
           setLinkedUserName(profile.nome);
@@ -96,7 +97,7 @@ const ColaboradorDetalhe = () => {
       colaborador.valeRefeicao +
       colaborador.ajudaCusto +
       colaborador.mobilidade +
-      colaborador.transporte +
+      colaborador.cestaBeneficiosTeto +
       colaborador.pidaTeto
     );
   };
@@ -179,7 +180,6 @@ const ColaboradorDetalhe = () => {
                 { label: 'Vale Refeição', value: colaborador.valeRefeicao },
                 { label: 'Ajuda de Custo', value: colaborador.ajudaCusto },
                 { label: 'Mobilidade', value: colaborador.mobilidade },
-                { label: 'Transporte', value: colaborador.transporte },
               ].map((item) => (
                 <div key={item.label} className="space-y-1">
                   <p className="text-sm text-muted-foreground">{item.label}</p>
@@ -189,18 +189,23 @@ const ColaboradorDetalhe = () => {
             </div>
           </div>
 
-          {colaborador.temPida && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-foreground">PI/DA</h3>
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Benefícios Variáveis</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Cesta de Benefícios - Teto</p>
+                <p className="font-mono font-medium">{formatCurrency(colaborador.cestaBeneficiosTeto)}</p>
+              </div>
+              {colaborador.temPida && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">PI/DA - Teto</p>
                   <p className="font-mono font-medium">{formatCurrency(colaborador.pidaTeto)}</p>
                 </div>
-              </div>
-            </>
-          )}
+              )}
+            </div>
+          </div>
 
           <Separator />
 
@@ -221,7 +226,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
                           { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
+                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                           ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
@@ -245,7 +250,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
                           { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
+                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                           ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
@@ -273,7 +278,7 @@ const ColaboradorDetalhe = () => {
                   { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
                   { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                   { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                  { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
+                  { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                   ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                 ].map((item) => (
                   <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">

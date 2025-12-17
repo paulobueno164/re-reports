@@ -293,10 +293,10 @@ const ColaboradorLancamentos = () => {
         .eq('periodo_id', selectedPeriodId)
         .order('created_at', { ascending: false }),
       supabase
-        .from('colaborador_tipos_despesas')
-        .select('teto_individual')
-        .eq('colaborador_id', id)
-        .eq('ativo', true)
+        .from('colaboradores_elegiveis')
+        .select('cesta_beneficios_teto')
+        .eq('id', id)
+        .single()
     ]);
 
     if (expensesRes.error) {
@@ -304,11 +304,8 @@ const ColaboradorLancamentos = () => {
       return;
     }
 
-    // Calculate cesta teto from colaborador_tipos_despesas
-    const totalTetoCesta = (cestaRes.data || []).reduce(
-      (sum, item) => sum + (Number(item.teto_individual) || 0), 
-      0
-    );
+    // Get cesta teto from colaboradores_elegiveis
+    const totalTetoCesta = Number((cestaRes.data as any)?.cesta_beneficios_teto || 0);
     setTetoCesta(totalTetoCesta);
 
     if (expensesRes.data) {
