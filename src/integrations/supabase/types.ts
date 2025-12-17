@@ -177,6 +177,7 @@ export type Database = {
           ajuda_custo: number
           ativo: boolean
           beneficio_proporcional: boolean
+          cesta_beneficios_teto: number
           created_at: string
           departamento: string
           email: string
@@ -199,6 +200,7 @@ export type Database = {
           ajuda_custo?: number
           ativo?: boolean
           beneficio_proporcional?: boolean
+          cesta_beneficios_teto?: number
           created_at?: string
           departamento: string
           email: string
@@ -221,6 +223,7 @@ export type Database = {
           ajuda_custo?: number
           ativo?: boolean
           beneficio_proporcional?: boolean
+          cesta_beneficios_teto?: number
           created_at?: string
           departamento?: string
           email?: string
