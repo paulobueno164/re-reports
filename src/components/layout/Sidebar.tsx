@@ -37,7 +37,7 @@ const navigation: NavItem[] = [
     label: 'Dashboard',
     href: '/',
     icon: <LayoutDashboard className="w-5 h-5" />,
-    roles: ['COLABORADOR', 'FINANCEIRO'],
+    roles: ['COLABORADOR'],
   },
   {
     label: 'Dashboard RH',
