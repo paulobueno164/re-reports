@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { Edit, Loader2, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { PageFormLayout } from '@/components/ui/page-form-layout';
-import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { StatusBadge } from '@/components/ui/status-badge';
-import { AttachmentList } from '@/components/attachments/AttachmentList';
-import { AttachmentUploadSimple } from '@/components/attachments/AttachmentUploadSimple';
-import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Edit, Loader2, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { PageFormLayout } from "@/components/ui/page-form-layout";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { AttachmentList } from "@/components/attachments/AttachmentList";
+import { AttachmentUploadSimple } from "@/components/attachments/AttachmentUploadSimple";
+import { ExpenseTimeline } from "@/components/lancamentos/ExpenseTimeline";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,12 +21,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
-import { formatCurrency, formatDate } from '@/lib/expense-validation';
-import { createAuditLog } from '@/lib/audit-log';
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatCurrency, formatDate } from "@/lib/expense-validation";
+import { createAuditLog } from "@/lib/audit-log";
 
 interface Expense {
   id: string;
@@ -56,10 +56,10 @@ const LancamentoDetalhe = () => {
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
   const [sendingToAnalysis, setSendingToAnalysis] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [rejectionReason, setRejectionReason] = useState('');
+  const [rejectionReason, setRejectionReason] = useState("");
 
-  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
-  const canValidate = isRHorFinanceiro && (expense?.status === 'enviado' || expense?.status === 'em_analise');
+  const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
+  const canValidate = isRHorFinanceiro && (expense?.status === "enviado" || expense?.status === "em_analise");
 
   useEffect(() => {
     fetchExpense();
@@ -70,28 +70,30 @@ const LancamentoDetalhe = () => {
     setLoading(true);
 
     const { data, error } = await supabase
-      .from('lancamentos')
-      .select(`
+      .from("lancamentos")
+      .select(
+        `
         id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
         descricao_fato_gerador, status, motivo_invalidacao, created_at, colaborador_id,
         colaboradores_elegiveis (id, nome),
         calendario_periodos (id, periodo),
         tipos_despesas (nome)
-      `)
-      .eq('id', id)
+      `,
+      )
+      .eq("id", id)
       .single();
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-      navigate('/lancamentos');
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      navigate("/lancamentos");
     } else if (data) {
       setExpense({
         id: data.id,
         colaboradorId: (data.colaboradores_elegiveis as any)?.id || data.colaborador_id,
-        colaboradorNome: (data.colaboradores_elegiveis as any)?.nome || '',
+        colaboradorNome: (data.colaboradores_elegiveis as any)?.nome || "",
         periodoId: (data.calendario_periodos as any)?.id,
-        periodo: (data.calendario_periodos as any)?.periodo || '',
-        tipoDespesaNome: (data.tipos_despesas as any)?.nome || '',
+        periodo: (data.calendario_periodos as any)?.periodo || "",
+        tipoDespesaNome: (data.tipos_despesas as any)?.nome || "",
         origem: data.origem,
         valorLancado: Number(data.valor_lancado),
         valorConsiderado: Number(data.valor_considerado),
@@ -104,9 +106,9 @@ const LancamentoDetalhe = () => {
 
       // Count attachments
       const { count } = await supabase
-        .from('anexos')
-        .select('*', { count: 'exact', head: true })
-        .eq('lancamento_id', id);
+        .from("anexos")
+        .select("*", { count: "exact", head: true })
+        .eq("lancamento_id", id);
       setAttachmentCount(count || 0);
     }
     setLoading(false);
@@ -116,12 +118,12 @@ const LancamentoDetalhe = () => {
     if (!expense) return;
     setSendingToAnalysis(true);
     try {
-      const { error } = await supabase.from('lancamentos').update({ status: 'enviado' }).eq('id', expense.id);
+      const { error } = await supabase.from("lancamentos").update({ status: "enviado" }).eq("id", expense.id);
       if (error) throw error;
-      toast({ title: 'Sucesso', description: 'Lançamento enviado para análise.' });
+      toast({ title: "Sucesso", description: "Lançamento enviado para análise." });
       fetchExpense();
     } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } finally {
       setSendingToAnalysis(false);
     }
@@ -130,26 +132,23 @@ const LancamentoDetalhe = () => {
   const handleStartAnalysis = async () => {
     if (!expense) return;
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'em_analise' })
-      .eq('id', expense.id);
+    const { error } = await supabase.from("lancamentos").update({ status: "em_analise" }).eq("id", expense.id);
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      const { data: profile } = await supabase.from("profiles").select("nome").eq("id", user?.id).maybeSingle();
       await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'iniciar_analise',
-        entityType: 'lancamento',
+        userId: user?.id || "",
+        userName: profile?.nome || user?.email || "",
+        action: "iniciar_analise",
+        entityType: "lancamento",
         entityId: expense.id,
         entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
         oldValues: { status: expense.status },
-        newValues: { status: 'em_analise' },
+        newValues: { status: "em_analise" },
       });
-      toast({ title: 'Análise iniciada' });
+      toast({ title: "Análise iniciada" });
       fetchExpense();
     }
     setProcessing(false);
@@ -159,25 +158,25 @@ const LancamentoDetalhe = () => {
     if (!expense) return;
     setProcessing(true);
     const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'valido', validado_por: user?.id, validado_em: new Date().toISOString() })
-      .eq('id', expense.id);
+      .from("lancamentos")
+      .update({ status: "valido", validado_por: user?.id, validado_em: new Date().toISOString() })
+      .eq("id", expense.id);
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      const { data: profile } = await supabase.from("profiles").select("nome").eq("id", user?.id).maybeSingle();
       await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'aprovar',
-        entityType: 'lancamento',
+        userId: user?.id || "",
+        userName: profile?.nome || user?.email || "",
+        action: "aprovar",
+        entityType: "lancamento",
         entityId: expense.id,
         entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
         oldValues: { status: expense.status },
-        newValues: { status: 'valido' },
+        newValues: { status: "valido" },
       });
-      toast({ title: 'Despesa aprovada' });
+      toast({ title: "Despesa aprovada" });
       // Navigate back to collaborator's expenses
       navigate(`/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`);
     }
@@ -186,31 +185,40 @@ const LancamentoDetalhe = () => {
 
   const handleReject = async () => {
     if (!expense || !rejectionReason.trim()) {
-      toast({ title: 'Motivo obrigatório', description: 'Por favor, informe o motivo da invalidação.', variant: 'destructive' });
+      toast({
+        title: "Motivo obrigatório",
+        description: "Por favor, informe o motivo da invalidação.",
+        variant: "destructive",
+      });
       return;
     }
 
     setProcessing(true);
     const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'invalido', motivo_invalidacao: rejectionReason, validado_por: user?.id, validado_em: new Date().toISOString() })
-      .eq('id', expense.id);
+      .from("lancamentos")
+      .update({
+        status: "invalido",
+        motivo_invalidacao: rejectionReason,
+        validado_por: user?.id,
+        validado_em: new Date().toISOString(),
+      })
+      .eq("id", expense.id);
 
     if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
+      const { data: profile } = await supabase.from("profiles").select("nome").eq("id", user?.id).maybeSingle();
       await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'rejeitar',
-        entityType: 'lancamento',
+        userId: user?.id || "",
+        userName: profile?.nome || user?.email || "",
+        action: "rejeitar",
+        entityType: "lancamento",
         entityId: expense.id,
         entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
         oldValues: { status: expense.status },
-        newValues: { status: 'invalido', motivo: rejectionReason },
+        newValues: { status: "invalido", motivo: rejectionReason },
       });
-      toast({ title: 'Despesa invalidada' });
+      toast({ title: "Despesa invalidada" });
       navigate(`/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`);
     }
     setProcessing(false);
@@ -226,51 +234,39 @@ const LancamentoDetalhe = () => {
 
   if (!expense) return null;
 
-  const originLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
+  const originLabels: Record<string, string> = { proprio: "Próprio", conjuge: "Cônjuge", filhos: "Filhos" };
 
   // Determine back path based on context
-  const backPath = isRHorFinanceiro && expense.colaboradorId 
-    ? `/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`
-    : '/lancamentos';
+  const backPath =
+    isRHorFinanceiro && expense.colaboradorId
+      ? `/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`
+      : "/lancamentos";
 
   return (
     <PageFormLayout
       title="Detalhes do Lançamento"
-      description={`Criado em ${expense.createdAt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`}
+      description={`Criado em ${expense.createdAt.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`}
       backTo={backPath}
       backLabel="Voltar"
       isViewMode
       extraActions={
         <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
-          
           {/* RH validation actions */}
           {canValidate && (
             <>
-              {expense.status === 'enviado' && (
-                <Button
-                  variant="outline"
-                  onClick={handleStartAnalysis}
-                  disabled={processing}
-                >
+              {expense.status === "enviado" && (
+                <Button variant="outline" onClick={handleStartAnalysis} disabled={processing}>
                   {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   <Clock className="mr-2 h-4 w-4" />
                   Iniciar Análise
                 </Button>
               )}
-              <Button
-                variant="destructive"
-                onClick={handleReject}
-                disabled={!rejectionReason.trim() || processing}
-              >
+              <Button variant="destructive" onClick={handleReject} disabled={!rejectionReason.trim() || processing}>
                 {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <XCircle className="mr-2 h-4 w-4" />
-                Invalidar
+                Rejeitar
               </Button>
-              <Button
-                className="bg-success hover:bg-success/90"
-                onClick={handleApprove}
-                disabled={processing}
-              >
+              <Button className="bg-success hover:bg-success/90" onClick={handleApprove} disabled={processing}>
                 {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 <CheckCircle className="mr-2 h-4 w-4" />
                 Aprovar
@@ -292,7 +288,7 @@ const LancamentoDetalhe = () => {
         </div>
 
         {/* Rejection reason */}
-        {expense.status === 'invalido' && expense.motivoInvalidacao && (
+        {expense.status === "invalido" && expense.motivoInvalidacao && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Motivo da Invalidação</AlertTitle>
@@ -345,7 +341,9 @@ const LancamentoDetalhe = () => {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Não Considerado</p>
-                  <p className="font-mono font-medium text-destructive">{formatCurrency(expense.valorNaoConsiderado)}</p>
+                  <p className="font-mono font-medium text-destructive">
+                    {formatCurrency(expense.valorNaoConsiderado)}
+                  </p>
                 </div>
               </div>
             </AlertDescription>
@@ -357,11 +355,11 @@ const LancamentoDetalhe = () => {
         {/* Attachments */}
         <div className="space-y-3">
           <h3 className="text-sm font-semibold">Comprovantes Anexados</h3>
-          <AttachmentList 
-            lancamentoId={expense.id} 
+          <AttachmentList
+            lancamentoId={expense.id}
             onCountChange={setAttachmentCount}
             allowDelete={false}
-            onDeleteComplete={() => setAttachmentRefreshKey(k => k + 1)}
+            onDeleteComplete={() => setAttachmentRefreshKey((k) => k + 1)}
           />
         </div>
 
