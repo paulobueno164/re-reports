@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Shield, Loader2, UserCog, MoreVertical, Users, Info, ExternalLink, Plus, Eye, EyeOff } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
@@ -6,6 +6,9 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -33,6 +36,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ExpenseTypesManager, ExpenseTypesManagerRef, ExpenseTypeSelection } from '@/components/colaboradores/ExpenseTypesManager';
+import { formatCurrency } from '@/lib/expense-validation';
 
 type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
 
@@ -66,13 +71,27 @@ const UsuariosLista = () => {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [creating, setCreating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const expenseTypesRef = useRef<ExpenseTypesManagerRef>(null);
+  const [pendingExpenseTypes, setPendingExpenseTypes] = useState<ExpenseTypeSelection[]>([]);
+  
   const [newUserData, setNewUserData] = useState({
+    // Basic data
     nome: '',
     email: '',
     password: '',
     confirmPassword: '',
     matricula: '',
     departamento: '',
+    // Remuneration
+    salarioBase: 0,
+    valeAlimentacao: 0,
+    valeRefeicao: 0,
+    ajudaCusto: 0,
+    mobilidade: 0,
+    transporte: 0,
+    cestaBeneficiosTeto: 0,
+    temPida: false,
+    pidaTeto: 0,
   });
 
   useEffect(() => {
@@ -155,8 +174,8 @@ const UsuariosLista = () => {
 
       const userId = userData.userId;
 
-      // 2. Create colaborador linked to user
-      const { error: colaboradorError } = await supabase
+      // 2. Create colaborador linked to user with remuneration data
+      const { data: newColaborador, error: colaboradorError } = await supabase
         .from('colaboradores_elegiveis')
         .insert({
           matricula: newUserData.matricula,
@@ -165,26 +184,70 @@ const UsuariosLista = () => {
           departamento: newUserData.departamento,
           user_id: userId,
           ativo: true,
-        });
+          salario_base: newUserData.salarioBase,
+          vale_alimentacao: newUserData.valeAlimentacao,
+          vale_refeicao: newUserData.valeRefeicao,
+          ajuda_custo: newUserData.ajudaCusto,
+          mobilidade: newUserData.mobilidade,
+          transporte: newUserData.transporte,
+          cesta_beneficios_teto: newUserData.cestaBeneficiosTeto,
+          tem_pida: newUserData.temPida,
+          pida_teto: newUserData.pidaTeto,
+        })
+        .select('id')
+        .single();
 
       if (colaboradorError) throw colaboradorError;
 
+      // 3. Save expense types if any selected
+      const expenseTypesToSave = expenseTypesRef.current?.getSelectedTypes() || pendingExpenseTypes;
+      if (expenseTypesToSave.length > 0 && newColaborador) {
+        const expenseTypeLinks = expenseTypesToSave.map(et => ({
+          colaborador_id: newColaborador.id,
+          tipo_despesa_id: et.tipo_despesa_id,
+          teto_individual: et.teto_individual,
+          ativo: true,
+        }));
+        
+        const { error: linkError } = await supabase
+          .from('colaborador_tipos_despesas')
+          .insert(expenseTypeLinks);
+        
+        if (linkError) {
+          console.error('Erro ao vincular tipos de despesa:', linkError);
+        }
+      }
+
       toast({ title: 'Sucesso', description: 'Usuário e colaborador criados com sucesso.' });
       setShowCreateDialog(false);
-      setNewUserData({
-        nome: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        matricula: '',
-        departamento: '',
-      });
+      resetNewUserData();
       fetchUsers();
     } catch (error: any) {
       toast({ title: 'Erro ao criar usuário', description: error.message, variant: 'destructive' });
     } finally {
       setCreating(false);
     }
+  };
+
+  const resetNewUserData = () => {
+    setNewUserData({
+      nome: '',
+      email: '',
+      password: '',
+      confirmPassword: '',
+      matricula: '',
+      departamento: '',
+      salarioBase: 0,
+      valeAlimentacao: 0,
+      valeRefeicao: 0,
+      ajudaCusto: 0,
+      mobilidade: 0,
+      transporte: 0,
+      cestaBeneficiosTeto: 0,
+      temPida: false,
+      pidaTeto: 0,
+    });
+    setPendingExpenseTypes([]);
   };
 
   const filteredUsers = users.filter((user) => {
@@ -373,98 +436,221 @@ const UsuariosLista = () => {
       </div>
 
       {/* Create User + Colaborador Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-md">
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open);
+        if (!open) resetNewUserData();
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Novo Usuário + Colaborador</DialogTitle>
             <DialogDescription>
-              Crie um novo usuário de acesso e seu cadastro de colaborador simultaneamente.
+              Crie um novo usuário de acesso e seu cadastro de colaborador com remuneração e tipos de despesa.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Nome Completo *</Label>
-              <Input
-                value={newUserData.nome}
-                onChange={(e) => setNewUserData({ ...newUserData, nome: e.target.value })}
-                placeholder="Nome do colaborador"
-              />
-            </div>
+          <Tabs defaultValue="dados" className="flex-1 overflow-hidden flex flex-col">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados + Acesso</TabsTrigger>
+              <TabsTrigger value="remuneracao" className="text-xs sm:text-sm">Remuneração</TabsTrigger>
+              <TabsTrigger value="despesas" className="text-xs sm:text-sm">Tipos de Despesa</TabsTrigger>
+            </TabsList>
             
-            <div className="space-y-2">
-              <Label>E-mail *</Label>
-              <Input
-                type="email"
-                value={newUserData.email}
-                onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
-                placeholder="email@empresa.com.br"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Matrícula *</Label>
-                <Input
-                  value={newUserData.matricula}
-                  onChange={(e) => setNewUserData({ ...newUserData, matricula: e.target.value })}
-                  placeholder="Ex: 12345"
-                />
-              </div>
+            <ScrollArea className="flex-1 px-1">
+              <TabsContent value="dados" className="space-y-4 py-4 mt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome Completo *</Label>
+                    <Input
+                      value={newUserData.nome}
+                      onChange={(e) => setNewUserData({ ...newUserData, nome: e.target.value })}
+                      placeholder="Nome do colaborador"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>E-mail *</Label>
+                    <Input
+                      type="email"
+                      value={newUserData.email}
+                      onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                      placeholder="email@empresa.com.br"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Matrícula *</Label>
+                    <Input
+                      value={newUserData.matricula}
+                      onChange={(e) => setNewUserData({ ...newUserData, matricula: e.target.value })}
+                      placeholder="Ex: 12345"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Departamento *</Label>
+                    <Select
+                      value={newUserData.departamento}
+                      onValueChange={(value) => setNewUserData({ ...newUserData, departamento: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Senha de Acesso *</Label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        value={newUserData.password}
+                        onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                        placeholder="Mínimo 6 caracteres"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label>Confirmar Senha *</Label>
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newUserData.confirmPassword}
+                      onChange={(e) => setNewUserData({ ...newUserData, confirmPassword: e.target.value })}
+                      placeholder="Repita a senha"
+                    />
+                  </div>
+                </div>
+              </TabsContent>
               
-              <div className="space-y-2">
-                <Label>Departamento *</Label>
-                <Select
-                  value={newUserData.departamento}
-                  onValueChange={(value) => setNewUserData({ ...newUserData, departamento: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Senha de Acesso *</Label>
-              <div className="relative">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={newUserData.password}
-                  onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
-                  placeholder="Mínimo 6 caracteres"
+              <TabsContent value="remuneracao" className="space-y-4 py-4 mt-0">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold">Remuneração Fixa</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Salário Base</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.salarioBase || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, salarioBase: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Vale Alimentação</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.valeAlimentacao || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, valeAlimentacao: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Vale Refeição</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.valeRefeicao || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, valeRefeicao: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Ajuda de Custo</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.ajudaCusto || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, ajudaCusto: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Mobilidade</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.mobilidade || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, mobilidade: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Transporte</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.transporte || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, transporte: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold">Benefícios Variáveis</h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs">Teto Cesta de Benefícios</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.cestaBeneficiosTeto || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs">Teto PI/DA</Label>
+                      <Input
+                        type="number"
+                        value={newUserData.pidaTeto || ''}
+                        onChange={(e) => setNewUserData({ ...newUserData, pidaTeto: parseFloat(e.target.value) || 0 })}
+                        placeholder="0,00"
+                        disabled={!newUserData.temPida}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="temPida"
+                      checked={newUserData.temPida}
+                      onCheckedChange={(checked) => setNewUserData({ ...newUserData, temPida: checked, pidaTeto: checked ? newUserData.pidaTeto : 0 })}
+                    />
+                    <Label htmlFor="temPida" className="text-sm">Colaborador tem PI/DA</Label>
+                  </div>
+                </div>
+                
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Estes valores podem ser ajustados posteriormente na página de detalhes do colaborador.
+                  </AlertDescription>
+                </Alert>
+              </TabsContent>
+              
+              <TabsContent value="despesas" className="py-4 mt-0">
+                <ExpenseTypesManager
+                  ref={expenseTypesRef}
+                  standalone={true}
+                  onSelectionChange={setPendingExpenseTypes}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Confirmar Senha *</Label>
-              <Input
-                type={showPassword ? 'text' : 'password'}
-                value={newUserData.confirmPassword}
-                onChange={(e) => setNewUserData({ ...newUserData, confirmPassword: e.target.value })}
-                placeholder="Repita a senha"
-              />
-            </div>
-          </div>
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
           
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setShowCreateDialog(false)} disabled={creating}>
               Cancelar
             </Button>
