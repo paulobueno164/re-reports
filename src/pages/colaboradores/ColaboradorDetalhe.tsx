@@ -189,23 +189,18 @@ const ColaboradorDetalhe = () => {
             </div>
           </div>
 
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Componentes Variáveis</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">Cesta de Benefícios - Teto</p>
-                <p className="font-mono font-medium">{formatCurrency(colaborador.cestaBeneficiosTeto)}</p>
+          {colaborador.temPida && (
+            <>
+              <Separator />
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-foreground">PI/DA</h3>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">PI/DA - Teto</p>
+                  <p className="font-mono font-medium">{formatCurrency(colaborador.pidaTeto)}</p>
+                </div>
               </div>
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">PI/DA - Teto</p>
-                <p className="font-mono font-medium">
-                  {colaborador.temPida ? formatCurrency(colaborador.pidaTeto) : 'N/A'}
-                </p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
 
           <Separator />
 
@@ -227,8 +222,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
                           { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                          { nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' },
+                          ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
                       };
@@ -252,8 +246,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
                           { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                          { nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' },
+                          ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
                       };
@@ -281,8 +274,7 @@ const ColaboradorDetalhe = () => {
                   { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
                   { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
                   { nome: 'Transporte', valor: colaborador.transporte, tipo: 'Fixo' },
-                  { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                  { nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' },
+                  ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
                 ].map((item) => (
                   <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
                     <span>{item.nome}</span>
