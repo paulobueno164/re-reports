@@ -95,6 +95,7 @@ const ColaboradorLancamentos = () => {
   const [loading, setLoading] = useState(true);
   const [totalUsado, setTotalUsado] = useState(0);
   const [totalPendente, setTotalPendente] = useState(0);
+  const [tetoCesta, setTetoCesta] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [percentualUsado, setPercentualUsado] = useState(0);
   const [bloqueadoPorUltimoLancamento, setBloqueadoPorUltimoLancamento] = useState(false);
@@ -278,25 +279,40 @@ const ColaboradorLancamentos = () => {
   const fetchExpenses = async () => {
     if (!id || !selectedPeriodId) return;
 
-    const { data: expensesData, error } = await supabase
-      .from('lancamentos')
-      .select(`
-        id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, motivo_invalidacao, created_at,
-        calendario_periodos (id, periodo),
-        tipos_despesas (id, nome)
-      `)
-      .eq('colaborador_id', id)
-      .eq('periodo_id', selectedPeriodId)
-      .order('created_at', { ascending: false });
+    // Fetch expenses and cesta teto in parallel
+    const [expensesRes, cestaRes] = await Promise.all([
+      supabase
+        .from('lancamentos')
+        .select(`
+          id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
+          descricao_fato_gerador, status, motivo_invalidacao, created_at,
+          calendario_periodos (id, periodo),
+          tipos_despesas (id, nome)
+        `)
+        .eq('colaborador_id', id)
+        .eq('periodo_id', selectedPeriodId)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('colaborador_tipos_despesas')
+        .select('teto_individual')
+        .eq('colaborador_id', id)
+        .eq('ativo', true)
+    ]);
 
-    if (error) {
+    if (expensesRes.error) {
       toast({ title: 'Erro', description: 'Erro ao carregar lançamentos', variant: 'destructive' });
       return;
     }
 
-    if (expensesData) {
-      const mapped = expensesData.map((e: any) => ({
+    // Calculate cesta teto from colaborador_tipos_despesas
+    const totalTetoCesta = (cestaRes.data || []).reduce(
+      (sum, item) => sum + (Number(item.teto_individual) || 0), 
+      0
+    );
+    setTetoCesta(totalTetoCesta);
+
+    if (expensesRes.data) {
+      const mapped = expensesRes.data.map((e: any) => ({
         id: e.id,
         periodoId: e.calendario_periodos?.id,
         periodo: e.calendario_periodos?.periodo || '',
@@ -315,23 +331,26 @@ const ColaboradorLancamentos = () => {
       setExpenses(mapped);
 
       // Calculate totals (only approved expenses count as used)
-      if (colaborador) {
-        const usado = mapped
-          .filter(e => e.status === 'valido')
-          .reduce((sum, e) => sum + e.valorConsiderado, 0);
-        const pendente = mapped
-          .filter(e => e.status === 'enviado' || e.status === 'em_analise')
-          .reduce((sum, e) => sum + e.valorConsiderado, 0);
-        setTotalUsado(usado);
-        setTotalPendente(pendente);
-        setSaldoDisponivel(0); // Cesta removed
-        setPercentualUsado(0); // Cesta removed
+      const usado = mapped
+        .filter(e => e.status === 'valido')
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      const pendente = mapped
+        .filter(e => e.status === 'enviado' || e.status === 'em_analise')
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      
+      setTotalUsado(usado);
+      setTotalPendente(pendente);
+      
+      // Calculate saldo and percentage based on cesta teto
+      const saldo = Math.max(0, totalTetoCesta - usado);
+      const percentual = totalTetoCesta > 0 ? (usado / totalTetoCesta) * 100 : 0;
+      setSaldoDisponivel(saldo);
+      setPercentualUsado(Math.min(100, percentual));
 
-        const bloqueio = verificarBloqueioAposLimite(
-          mapped.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
-        );
-        setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
-      }
+      const bloqueio = verificarBloqueioAposLimite(
+        mapped.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
+      );
+      setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
     }
   };
 
@@ -616,7 +635,7 @@ const ColaboradorLancamentos = () => {
                     <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
-                      <span>Utilizado: {formatCurrency(totalUsado)}</span>
+                      <span>Limite: {formatCurrency(tetoCesta)}</span>
                     </div>
                   </div>
                 </CardContent>

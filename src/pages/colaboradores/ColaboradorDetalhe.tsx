@@ -145,7 +145,7 @@ const ColaboradorDetalhe = () => {
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="dados">Dados Básicos</TabsTrigger>
           <TabsTrigger value="remuneracao">Remuneração</TabsTrigger>
-          <TabsTrigger value="despesas">Tipos de Despesa</TabsTrigger>
+          <TabsTrigger value="despesas">Cesta de Benefícios</TabsTrigger>
         </TabsList>
 
         <TabsContent value="dados" className="space-y-6">
