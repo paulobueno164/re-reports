@@ -100,10 +100,11 @@ const ColaboradoresLista = () => {
   };
 
   const filteredEmployees = employees.filter((emp) => {
+    const searchLower = searchTerm.toLowerCase();
     const matchesSearch =
-      emp.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      emp.matricula.includes(searchTerm) ||
-      emp.departamento.toLowerCase().includes(searchTerm.toLowerCase());
+      emp.nome.toLowerCase().includes(searchLower) ||
+      emp.matricula.toLowerCase().includes(searchLower) ||
+      emp.departamento.toLowerCase().includes(searchLower);
     const matchesDept = filterDepartamento === 'all' || emp.departamento === filterDepartamento;
     return matchesSearch && matchesDept;
   });

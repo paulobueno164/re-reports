@@ -90,12 +90,14 @@ const EventosFolhaLista = () => {
     setLoading(false);
   };
 
-  const filteredEvents = events.filter(
-    (event) =>
-      event.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      event.codigoEvento.includes(searchTerm) ||
-      event.descricaoEvento.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEvents = events.filter((event) => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      event.tipoDespesaNome?.toLowerCase().includes(searchLower) ||
+      event.codigoEvento.toLowerCase().includes(searchLower) ||
+      event.descricaoEvento.toLowerCase().includes(searchLower)
+    );
+  });
 
   const unlinkedExpenseTypes = expenseTypes.filter((t) => !t.hasEvent);
 
