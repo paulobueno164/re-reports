@@ -3,6 +3,7 @@ import { Play, Download, FileSpreadsheet, CheckCircle, AlertCircle, Clock } from
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -55,6 +56,7 @@ const Fechamento = () => {
   const [processingProgress, setProcessingProgress] = useState(0);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('');
+  const [filterPeriod, setFilterPeriod] = useState(''); // Period filter for history view
   const [closingLogs, setClosingLogs] = useState<ClosingLog[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [pendingEnviado, setPendingEnviado] = useState(0);
@@ -63,15 +65,22 @@ const Fechamento = () => {
   const [loading, setLoading] = useState(true);
 
   const currentPeriod = periods.find((p) => p.status === 'aberto');
+  const viewingPeriod = periods.find(p => p.id === filterPeriod);
   const pendingValidation = pendingEnviado + pendingEmAnalise;
   const canProcess = pendingValidation === 0 && hasRole('RH');
   const canExport = hasRole('FINANCEIRO');
 
   useEffect(() => {
-    fetchData();
+    fetchPeriods();
   }, []);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    if (filterPeriod) {
+      fetchDataForPeriod(filterPeriod);
+    }
+  }, [filterPeriod]);
+
+  const fetchPeriods = async () => {
     setLoading(true);
     
     // Fetch periods
@@ -83,33 +92,42 @@ const Fechamento = () => {
     if (periodsData) {
       setPeriods(periodsData);
       const openPeriod = periodsData.find(p => p.status === 'aberto');
-      if (openPeriod) {
-        setSelectedPeriod(openPeriod.id);
+      const defaultPeriod = openPeriod || periodsData[0];
+      if (defaultPeriod) {
+        setSelectedPeriod(openPeriod?.id || '');
+        setFilterPeriod(defaultPeriod.id);
       }
     }
+    
+    setLoading(false);
+  };
 
-    // Fetch pending validation count - separate by status
+  const fetchDataForPeriod = async (periodId: string) => {
+    // Fetch pending validation count for selected period
     const { count: enviadoCount } = await supabase
       .from('lancamentos')
       .select('*', { count: 'exact', head: true })
+      .eq('periodo_id', periodId)
       .eq('status', 'enviado');
     
     const { count: emAnaliseCount } = await supabase
       .from('lancamentos')
       .select('*', { count: 'exact', head: true })
+      .eq('periodo_id', periodId)
       .eq('status', 'em_analise');
     
     setPendingEnviado(enviadoCount || 0);
     setPendingEmAnalise(emAnaliseCount || 0);
 
-    // Fetch total lancamentos
+    // Fetch total lancamentos for selected period
     const { count: totalCount } = await supabase
       .from('lancamentos')
-      .select('*', { count: 'exact', head: true });
+      .select('*', { count: 'exact', head: true })
+      .eq('periodo_id', periodId);
     
     setTotalLancamentos(totalCount || 0);
 
-    // Fetch closing logs
+    // Fetch closing logs for selected period
     const { data: fechamentos } = await supabase
       .from('fechamentos')
       .select(`
@@ -122,6 +140,7 @@ const Fechamento = () => {
         calendario_periodos (periodo),
         profiles:usuario_id (nome)
       `)
+      .eq('periodo_id', periodId)
       .order('data_processamento', { ascending: false });
     
     if (fechamentos) {
@@ -135,9 +154,9 @@ const Fechamento = () => {
         valorTotal: Number(f.valor_total),
         status: f.status,
       })));
+    } else {
+      setClosingLogs([]);
     }
-
-    setLoading(false);
   };
 
   const columns = [
@@ -334,7 +353,7 @@ const Fechamento = () => {
       });
 
       setIsDialogOpen(false);
-      fetchData();
+      fetchPeriods();
     } catch (error: any) {
       toast({
         title: 'Erro no processamento',
@@ -459,19 +478,38 @@ const Fechamento = () => {
         )}
       </PageHeader>
 
+      {/* Period Filter */}
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1">
+          <Label className="text-xs text-muted-foreground">Período</Label>
+          <Select value={filterPeriod} onValueChange={setFilterPeriod}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((period) => (
+                <SelectItem key={period.id} value={period.id}>
+                  {period.periodo} {period.status === 'aberto' ? '(Aberto)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              Período Atual
+              Período Selecionado
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-bold">{currentPeriod?.periodo || 'N/A'}</p>
-            <span className={`status-badge ${currentPeriod?.status === 'aberto' ? 'status-valid' : 'status-draft'}`}>
-              {currentPeriod?.status === 'aberto' ? 'Aberto' : 'Fechado'}
+            <p className="text-2xl font-bold">{viewingPeriod?.periodo || 'N/A'}</p>
+            <span className={`status-badge ${viewingPeriod?.status === 'aberto' ? 'status-valid' : 'status-draft'}`}>
+              {viewingPeriod?.status === 'aberto' ? 'Aberto' : 'Fechado'}
             </span>
           </CardContent>
         </Card>
@@ -507,7 +545,7 @@ const Fechamento = () => {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-bold">{totalLancamentos}</p>
-            <p className="text-xs text-muted-foreground">no período atual</p>
+            <p className="text-xs text-muted-foreground">no período selecionado</p>
           </CardContent>
         </Card>
 
