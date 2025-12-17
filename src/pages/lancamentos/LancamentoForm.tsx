@@ -206,7 +206,8 @@ const LancamentoForm = () => {
     setLoading(false);
   };
 
-  const handleSave = async (status: 'rascunho' | 'enviado') => {
+  const handleSave = async () => {
+    const status: 'enviado' = 'enviado';
     if (!colaborador) {
       toast({ title: 'Erro', description: 'Você não está cadastrado como colaborador elegível.', variant: 'destructive' });
       return;
@@ -300,8 +301,8 @@ const LancamentoForm = () => {
       }
 
       toast({
-        title: status === 'rascunho' ? 'Rascunho salvo' : 'Lançamento enviado',
-        description: status === 'enviado' ? 'O lançamento foi enviado para análise.' : 'O rascunho foi salvo.',
+        title: 'Lançamento enviado',
+        description: 'O lançamento foi enviado para análise.',
       });
 
       navigate('/lancamentos');
@@ -440,11 +441,7 @@ const LancamentoForm = () => {
 
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
           <Button variant="outline" onClick={() => navigate('/lancamentos')} disabled={saving}>Cancelar</Button>
-          <Button variant="secondary" onClick={() => handleSave('rascunho')} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar Rascunho
-          </Button>
-          <Button onClick={() => handleSave('enviado')} disabled={saving}>
+          <Button onClick={() => handleSave()} disabled={saving}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Enviar para Análise
           </Button>

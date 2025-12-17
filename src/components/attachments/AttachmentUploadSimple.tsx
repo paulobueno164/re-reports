@@ -50,7 +50,7 @@ export function AttachmentUploadSimple({
       <Alert variant="default" className="border-primary/30 bg-primary/5">
         <AlertCircle className="h-4 w-4" />
         <AlertDescription className="text-xs">
-          Você pode adicionar comprovantes enquanto o lançamento estiver em rascunho.
+          Adicione comprovantes para validação do lançamento.
         </AlertDescription>
       </Alert>
       

@@ -219,7 +219,6 @@ interface ColaboradorExpenseData {
     cestaTeto: number;
   };
   statusCounts: {
-    rascunho: number;
     enviado: number;
     em_analise: number;
     valido: number;
@@ -235,7 +234,6 @@ export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
   const wb = XLSX.utils.book_new();
   
   const statusLabels: Record<string, string> = {
-    rascunho: 'Rascunho',
     enviado: 'Enviado',
     em_analise: 'Em Análise',
     valido: 'Válido',
@@ -253,7 +251,6 @@ export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
     [],
     ['RESUMO POR STATUS'],
     ['Status', 'Quantidade'],
-    ['Rascunho', data.statusCounts.rascunho],
     ['Enviado', data.statusCounts.enviado],
     ['Em Análise', data.statusCounts.em_analise],
     ['Válido', data.statusCounts.valido],

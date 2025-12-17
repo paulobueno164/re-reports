@@ -367,7 +367,6 @@ export function formatDate(date: Date): string {
 // Helper para status label
 export function getStatusLabel(status: string): string {
   const labels: Record<string, string> = {
-    rascunho: 'Rascunho',
     enviado: 'Enviado',
     em_analise: 'Em Análise',
     valido: 'Válido',

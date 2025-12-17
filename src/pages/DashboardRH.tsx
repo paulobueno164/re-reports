@@ -47,7 +47,6 @@ interface DashboardData {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  rascunho: '#94a3b8',
   enviado: '#f59e0b',
   em_analise: '#3b82f6',
   valido: '#10b981',
@@ -194,7 +193,6 @@ const DashboardRH = () => {
         statusMap.set(l.status, (statusMap.get(l.status) || 0) + 1);
       });
       const statusLabels: Record<string, string> = {
-        rascunho: 'Rascunho',
         enviado: 'Enviado',
         em_analise: 'Em Análise',
         valido: 'Válido',

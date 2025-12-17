@@ -56,7 +56,6 @@ interface Colaborador {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  rascunho: '#94a3b8',
   enviado: '#f59e0b',
   em_analise: '#3b82f6',
   valido: '#10b981',
@@ -72,7 +71,6 @@ const DashboardColaborador = () => {
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [statusCounts, setStatusCounts] = useState({
-    rascunho: 0,
     enviado: 0,
     em_analise: 0,
     valido: 0,
@@ -176,7 +174,6 @@ const DashboardColaborador = () => {
 
       // Calculate status counts
       const counts = {
-        rascunho: mapped.filter(e => e.status === 'rascunho').length,
         enviado: mapped.filter(e => e.status === 'enviado').length,
         em_analise: mapped.filter(e => e.status === 'em_analise').length,
         valido: mapped.filter(e => e.status === 'valido').length,
@@ -209,7 +206,6 @@ const DashboardColaborador = () => {
 
   // Data for pie chart
   const statusData = [
-    { name: 'Rascunho', value: statusCounts.rascunho, color: STATUS_COLORS.rascunho },
     { name: 'Enviado', value: statusCounts.enviado, color: STATUS_COLORS.enviado },
     { name: 'Em Análise', value: statusCounts.em_analise, color: STATUS_COLORS.em_analise },
     { name: 'Aprovado', value: statusCounts.valido, color: STATUS_COLORS.valido },
@@ -425,18 +421,6 @@ const DashboardColaborador = () => {
         </Card>
       </div>
 
-      {/* Rascunhos Alert */}
-      {statusCounts.rascunho > 0 && (
-        <Alert>
-          <Send className="h-4 w-4" />
-          <AlertDescription>
-            Você tem <strong>{statusCounts.rascunho} lançamento(s) em rascunho</strong> que ainda não foram enviados para análise.{' '}
-            <Link to={`/lancamentos/colaborador/${colaborador.id}`} className="text-primary hover:underline">
-              Clique aqui para revisar e enviar.
-            </Link>
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Recent Expenses */}
       <Card>
