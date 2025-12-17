@@ -40,6 +40,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, validarPeriodoLancamento, verificarBloqueioAposLimite } from '@/lib/expense-validation';
+import { findCurrentPeriod } from '@/lib/utils';
 import { exportColaboradorExpenses } from '@/lib/excel-export';
 
 interface Expense {
@@ -266,18 +267,8 @@ const ColaboradorLancamentos = () => {
         if (urlPeriod && mapped.some(p => p.id === urlPeriod)) {
           setSelectedPeriodId(urlPeriod);
         } else {
-          // Find current period based on today's date
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-          
-          const currentPeriod = mapped.find(p => {
-            const inicio = new Date(p.dataInicio);
-            const final = new Date(p.dataFinal);
-            inicio.setHours(0, 0, 0, 0);
-            final.setHours(23, 59, 59, 999);
-            return today >= inicio && today <= final;
-          });
-          
+          // Find current period based on today's date using shared utility
+          const currentPeriod = findCurrentPeriod(mapped);
           setSelectedPeriodId(currentPeriod?.id || mapped[0].id);
         }
       }

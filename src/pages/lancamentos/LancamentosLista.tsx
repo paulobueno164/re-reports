@@ -19,12 +19,14 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
-import { cn } from '@/lib/utils';
+import { cn, findCurrentPeriod as findCurrentPeriodUtil } from '@/lib/utils';
 
 interface CalendarPeriod {
   id: string;
   periodo: string;
   status: string;
+  dataInicio: Date;
+  dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
 }
@@ -63,23 +65,9 @@ const LancamentosLista = () => {
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
-  // Determine current period based on today's date
+  // Determine current period based on today's date using shared utility
   const getCurrentPeriod = (periodsData: CalendarPeriod[]) => {
-    const today = new Date();
-    const todayTime = today.getTime();
-    
-    // First try to find open period where today is within launch window
-    const currentOpen = periodsData.find((p) => {
-      if (p.status !== 'aberto') return false;
-      const abertura = p.abreLancamento.getTime();
-      const fechamento = p.fechaLancamento.getTime() + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
-      return todayTime >= abertura && todayTime <= fechamento;
-    });
-    
-    if (currentOpen) return currentOpen;
-    
-    // Fall back to most recent open period
-    return periodsData.find((p) => p.status === 'aberto') || periodsData[0];
+    return findCurrentPeriodUtil(periodsData) || periodsData[0];
   };
 
   // Toggle sort
@@ -138,7 +126,7 @@ const LancamentosLista = () => {
   const fetchPeriods = async () => {
     const { data: periodsData, error } = await supabase
       .from('calendario_periodos')
-      .select('id, periodo, status, abre_lancamento, fecha_lancamento')
+      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
       .order('periodo', { ascending: false });
 
     if (error) {
@@ -147,10 +135,12 @@ const LancamentosLista = () => {
     }
 
     if (periodsData) {
-      const mapped = periodsData.map(p => ({
+      const mapped: CalendarPeriod[] = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
         status: p.status,
+        dataInicio: new Date(p.data_inicio),
+        dataFinal: new Date(p.data_final),
         abreLancamento: new Date(p.abre_lancamento),
         fechaLancamento: new Date(p.fecha_lancamento),
       }));
