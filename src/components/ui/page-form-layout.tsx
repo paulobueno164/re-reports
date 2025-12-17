@@ -42,7 +42,7 @@ export const PageFormLayout = ({
             {description && <CardDescription>{description}</CardDescription>}
           </div>
           {extraActions && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {extraActions}
             </div>
           )}
