@@ -22,6 +22,7 @@ import {
   History,
   UserCog,
 } from 'lucide-react';
+import onsetLogo from '@/assets/onset-logo.png';
 
 
 interface NavItem {
@@ -128,13 +129,8 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-          <span className="text-lg font-bold text-sidebar-primary-foreground">RE</span>
-        </div>
-        <div>
-          <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
-          <p className="text-xs text-sidebar-foreground/60">Remuneração Estratégica</p>
-        </div>
+        <img src={onsetLogo} alt="Onset" className="h-8 w-auto" />
+        <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
       </div>
 
       {/* Role Badge */}

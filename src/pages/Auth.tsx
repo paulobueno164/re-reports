@@ -86,15 +86,7 @@ const Auth = () => {
 
         {/* Logo RE-Reports */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <span className="text-xl font-bold text-primary-foreground">RE</span>
-            </div>
-            <div className="text-left">
-              <h1 className="text-2xl font-bold text-foreground">RE-Reports</h1>
-              <p className="text-sm text-muted-foreground">Remuneração Estratégica</p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-bold text-foreground">RE-Reports</h1>
         </div>
 
         <Card>
@@ -146,7 +138,7 @@ const Auth = () => {
         </Card>
         
         <p className="text-center text-xs text-muted-foreground mt-4">
-          Sistema interno de Remuneração Estratégica
+          Sistema interno de gestão de benefícios
         </p>
       </div>
     </div>
