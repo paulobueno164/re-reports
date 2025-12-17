@@ -64,6 +64,7 @@ const Relatorios = () => {
 
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
+  const canGenerateBatch = hasRole('FINANCEIRO');
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
@@ -324,7 +325,7 @@ const Relatorios = () => {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Relatórios" description="Gere extratos da Remuneração Estratégica em PDF" />
       <Tabs defaultValue="individual" className="space-y-6">
-        {isRHorFinanceiro && (
+        {canGenerateBatch && (
           <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="individual" className="flex items-center gap-2"><User className="h-4 w-4" />Individual</TabsTrigger>
             <TabsTrigger value="batch" className="flex items-center gap-2"><Users className="h-4 w-4" />Em Lote</TabsTrigger>
