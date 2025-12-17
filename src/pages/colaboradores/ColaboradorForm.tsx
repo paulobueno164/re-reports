@@ -465,7 +465,7 @@ const ColaboradorForm = () => {
                   checked={formData.beneficioProporcional}
                   onCheckedChange={(checked) => setFormData({ ...formData, beneficioProporcional: checked })}
                 />
-                <Label htmlFor="beneficioProporcional">Aplicar benefício proporcional aos dias trabalhados</Label>
+                <Label htmlFor="beneficioProporcional">Aplicar valores proporcionais no período de férias (VA, VR, Mobilidade, etc.)</Label>
               </div>
             </div>
           </TabsContent>
