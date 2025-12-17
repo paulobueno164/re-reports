@@ -421,14 +421,14 @@ const Relatorios = () => {
                 <Separator />
                 <div>
                   <h3 className="text-sm font-semibold mb-3">Análise de Utilização - Cesta de Benefícios</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold">{formatCurrency(previewData.utilizacao.limiteCesta)}</p><p className="text-xs text-muted-foreground">Limite Total</p></div>
-                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold text-primary">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Aprovado</p></div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4">
+                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold truncate">{formatCurrency(previewData.utilizacao.limiteCesta)}</p><p className="text-xs text-muted-foreground">Limite Total</p></div>
+                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-primary truncate">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Aprovado</p></div>
                     {previewData.utilizacao.totalPendente > 0 && (
-                      <div className="p-4 bg-warning/10 rounded-lg text-center"><p className="text-2xl font-bold text-warning">{formatCurrency(previewData.utilizacao.totalPendente)}</p><p className="text-xs text-muted-foreground">Pendente</p></div>
+                      <div className="p-2 sm:p-4 bg-warning/10 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-warning truncate">{formatCurrency(previewData.utilizacao.totalPendente)}</p><p className="text-xs text-muted-foreground">Pendente</p></div>
                     )}
-                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold">{previewData.utilizacao.percentual}%</p><p className="text-xs text-muted-foreground">Percentual</p></div>
-                    <div className="p-4 bg-muted/50 rounded-lg text-center"><p className="text-2xl font-bold text-muted-foreground">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Conv. PI/DA</p></div>
+                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold">{previewData.utilizacao.percentual}%</p><p className="text-xs text-muted-foreground">Percentual</p></div>
+                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-muted-foreground truncate">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Conv. PI/DA</p></div>
                   </div>
                   <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
                 </div>
