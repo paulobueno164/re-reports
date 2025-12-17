@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { findCurrentPeriod } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
   BarChart,
@@ -39,6 +40,7 @@ interface Period {
   periodo: string;
   status: string;
   data_inicio: string;
+  data_final: string;
 }
 
 interface ExportMetrics {
@@ -69,8 +71,8 @@ interface Export {
 const DashboardFinanceiro = () => {
   const [loading, setLoading] = useState(true);
   const [periods, setPeriods] = useState<Period[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('todos');
-  const [currentPeriodName, setCurrentPeriodName] = useState<string>('Todos os Períodos');
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [currentPeriodName, setCurrentPeriodName] = useState<string>('');
   const [metrics, setMetrics] = useState<ExportMetrics>({
     totalExports: 0,
     totalRecords: 0,
@@ -88,17 +90,25 @@ const DashboardFinanceiro = () => {
     const fetchPeriods = async () => {
       const { data: allPeriods } = await supabase
         .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio')
+        .select('id, periodo, status, data_inicio, data_final')
         .order('data_inicio', { ascending: false });
 
       if (allPeriods && allPeriods.length > 0) {
         setPeriods(allPeriods);
+        
+        // Set current period based on today's date
+        const currentPeriod = findCurrentPeriod(allPeriods);
+        if (currentPeriod) {
+          setSelectedPeriodId(currentPeriod.id);
+          setCurrentPeriodName(currentPeriod.periodo);
+        }
       }
     };
     fetchPeriods();
   }, []);
 
   useEffect(() => {
+    if (!selectedPeriodId) return;
     fetchData();
   }, [selectedPeriodId]);
 
