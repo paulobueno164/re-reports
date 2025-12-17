@@ -36,16 +36,22 @@ export const PageFormLayout = ({
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          {description && <CardDescription>{description}</CardDescription>}
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <CardTitle>{title}</CardTitle>
+            {description && <CardDescription>{description}</CardDescription>}
+          </div>
+          {extraActions && (
+            <div className="flex gap-2">
+              {extraActions}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           {children}
 
           {!isViewMode && (onSave || onCancel) && (
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
-              <div className="flex flex-col-reverse sm:flex-row gap-3 flex-1 sm:flex-initial">{extraActions}</div>
               {onCancel && (
                 <Button variant="outline" onClick={onCancel} disabled={saving}>
                   Cancelar
@@ -57,12 +63,6 @@ export const PageFormLayout = ({
                   Salvar
                 </Button>
               )}
-            </div>
-          )}
-
-          {isViewMode && extraActions && (
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t">
-              {extraActions}
             </div>
           )}
         </CardContent>
