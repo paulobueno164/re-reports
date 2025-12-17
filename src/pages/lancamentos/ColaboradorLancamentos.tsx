@@ -57,7 +57,7 @@ interface Expense {
   createdAt: Date;
 }
 
-type StatusFilter = 'todos' | 'pendentes' | 'rascunho' | 'valido' | 'invalido';
+type StatusFilter = 'todos' | 'pendentes' | 'valido' | 'invalido';
 
 interface CalendarPeriod {
   id: string;
@@ -123,7 +123,6 @@ const ColaboradorLancamentos = () => {
 
   // Status counts
   const statusCounts = useMemo(() => ({
-    rascunho: expenses.filter(e => e.status === 'rascunho').length,
     enviado: expenses.filter(e => e.status === 'enviado').length,
     em_analise: expenses.filter(e => e.status === 'em_analise').length,
     valido: expenses.filter(e => e.status === 'valido').length,
@@ -441,9 +440,6 @@ const ColaboradorLancamentos = () => {
         case 'pendentes':
           matchesStatus = exp.status === 'enviado' || exp.status === 'em_analise';
           break;
-        case 'rascunho':
-          matchesStatus = exp.status === 'rascunho';
-          break;
         case 'valido':
           matchesStatus = exp.status === 'valido';
           break;
@@ -495,48 +491,9 @@ const ColaboradorLancamentos = () => {
       className: 'text-right w-[100px]',
       render: (item: Expense) => (
         <div className="flex justify-end gap-1">
-          <div className="hidden sm:flex gap-1">
-            <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/lancamentos/${item.id}`)}>
-              <Eye className="h-4 w-4" />
-            </Button>
-            {item.status === 'rascunho' && canEdit && (
-              <>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/lancamentos/${item.id}/editar`)}>
-                  <Edit className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => handleDelete(item)}>
-                  <Trash2 className="h-4 w-4 text-destructive" />
-                </Button>
-              </>
-            )}
-          </div>
-          <div className="sm:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/lancamentos/${item.id}`)}>
-                  <Eye className="mr-2 h-4 w-4" />
-                  Visualizar
-                </DropdownMenuItem>
-                {item.status === 'rascunho' && canEdit && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate(`/lancamentos/${item.id}/editar`)}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Editar
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDelete(item)} className="text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Excluir
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => navigate(`/lancamentos/${item.id}`)}>
+            <Eye className="h-4 w-4" />
+          </Button>
         </div>
       ),
     },
@@ -634,7 +591,6 @@ const ColaboradorLancamentos = () => {
                 <CardContent>
                   <p className="text-xl sm:text-2xl font-bold">{expenses.length}</p>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
-                    {statusCounts.rascunho > 0 && <span>{statusCounts.rascunho} rascunho</span>}
                     {statusCounts.enviado > 0 && <span className="text-warning">{statusCounts.enviado} enviado</span>}
                     {statusCounts.em_analise > 0 && <span className="text-warning">{statusCounts.em_analise} análise</span>}
                     {statusCounts.valido > 0 && <span className="text-success">{statusCounts.valido} válido</span>}
@@ -709,7 +665,6 @@ const ColaboradorLancamentos = () => {
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="pendentes">Pendentes</SelectItem>
-                <SelectItem value="rascunho">Rascunhos</SelectItem>
                 <SelectItem value="valido">Válidos</SelectItem>
                 <SelectItem value="invalido">Inválidos</SelectItem>
               </SelectContent>

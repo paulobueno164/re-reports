@@ -102,7 +102,7 @@ export const ExpenseTimeline = ({ expenseId }: ExpenseTimelineProps) => {
           type: 'criar',
           timestamp: new Date(expense.created_at),
           userName: expense.colaboradores_elegiveis?.nome || 'Colaborador',
-          description: 'Lançamento criado como rascunho',
+          description: 'Lançamento criado e enviado para análise',
         });
       }
     }

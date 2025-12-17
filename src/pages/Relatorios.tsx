@@ -461,13 +461,11 @@ const Relatorios = () => {
                                 <td className="px-3 sm:px-4 py-2 text-center">
                                   <Badge variant={
                                     d.status === 'valido' ? 'default' : 
-                                    d.status === 'invalido' ? 'destructive' : 
-                                    d.status === 'rascunho' ? 'secondary' : 'outline'
+                                    d.status === 'invalido' ? 'destructive' : 'outline'
                                   } className="text-xs">
                                     {d.status === 'valido' ? 'Aprovado' : 
                                      d.status === 'invalido' ? 'Rejeitado' : 
-                                     d.status === 'enviado' ? 'Pendente' : 
-                                     d.status === 'em_analise' ? 'Em Análise' : 'Rascunho'}
+                                     d.status === 'enviado' ? 'Pendente' : 'Em Análise'}
                                   </Badge>
                                 </td>
                               </tr>

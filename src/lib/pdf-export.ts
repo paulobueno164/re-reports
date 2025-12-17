@@ -212,7 +212,6 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
       invalido: 'Rejeitado',
       enviado: 'Enviado',
       em_analise: 'Em Análise',
-      rascunho: 'Rascunho',
     };
 
     autoTable(doc, {

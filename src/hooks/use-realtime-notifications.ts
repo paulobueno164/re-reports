@@ -70,8 +70,8 @@ export function useRealtimeNotifications() {
             const oldStatus = (payload.old as any)?.status;
             const newStatus = payload.new.status;
 
-            // New expense submitted for analysis
-            if (oldStatus === 'rascunho' && newStatus === 'enviado') {
+            // New expense submitted for analysis (INSERT event is handled separately)
+            if (newStatus === 'enviado' && oldStatus !== 'enviado') {
               // Fetch collaborator name
               const { data: colaborador } = await supabase
                 .from('colaboradores_elegiveis')

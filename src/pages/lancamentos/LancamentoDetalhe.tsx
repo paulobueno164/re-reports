@@ -242,46 +242,6 @@ const LancamentoDetalhe = () => {
       isViewMode
       extraActions={
         <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
-          {/* Collaborator actions - edit and send to analysis */}
-          {expense.status === 'rascunho' && (
-            <>
-              <Button variant="outline" onClick={() => navigate(`/lancamentos/${id}/editar`)}>
-                <Edit className="mr-2 h-4 w-4" />
-                Editar
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button disabled={sendingToAnalysis}>
-                    {sendingToAnalysis ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Enviar para Análise
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Enviar para análise?</AlertDialogTitle>
-                    <AlertDialogDescription asChild>
-                      <div className="space-y-3">
-                        <p>Após o envio, o lançamento não poderá mais ser editado ou excluído.</p>
-                        {attachmentCount === 0 && (
-                          <Alert variant="destructive" className="mt-2">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Atenção: Sem comprovantes</AlertTitle>
-                            <AlertDescription>Este lançamento não possui comprovantes anexados.</AlertDescription>
-                          </Alert>
-                        )}
-                      </div>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleSendToAnalysis}>
-                      {attachmentCount === 0 ? 'Enviar mesmo assim' : 'Confirmar Envio'}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </>
-          )}
           
           {/* RH validation actions */}
           {canValidate && (
@@ -400,15 +360,9 @@ const LancamentoDetalhe = () => {
           <AttachmentList 
             lancamentoId={expense.id} 
             onCountChange={setAttachmentCount}
-            allowDelete={expense.status === 'rascunho'}
+            allowDelete={false}
             onDeleteComplete={() => setAttachmentRefreshKey(k => k + 1)}
           />
-          {expense.status === 'rascunho' && (
-            <AttachmentUploadSimple
-              lancamentoId={expense.id}
-              onUploadComplete={() => setAttachmentRefreshKey(k => k + 1)}
-            />
-          )}
         </div>
 
         <Separator />

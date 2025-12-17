@@ -7,10 +7,6 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<string, { label: string; className: string }> = {
-  rascunho: {
-    label: 'Rascunho',
-    className: 'status-badge status-draft',
-  },
   enviado: {
     label: 'Enviado',
     className: 'status-badge bg-info/10 text-info',

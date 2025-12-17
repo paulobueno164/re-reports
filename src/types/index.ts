@@ -4,7 +4,7 @@
 export type UserRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
 
 // Status de lançamento
-export type ExpenseStatus = 'rascunho' | 'enviado' | 'em_analise' | 'valido' | 'invalido';
+export type ExpenseStatus = 'enviado' | 'em_analise' | 'valido' | 'invalido';
 
 // Classificação de despesa
 export type ExpenseClassification = 'fixo' | 'variavel';

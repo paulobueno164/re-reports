@@ -201,7 +201,7 @@ const LancamentosLista = () => {
       const colabExpenses = expensesData?.filter(e => e.colaborador_id === colab.id) || [];
       const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
       const totalConsiderado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
-      const qtdPendentes = colabExpenses.filter(e => ['rascunho', 'enviado', 'em_analise'].includes(e.status)).length;
+      const qtdPendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status)).length;
       const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
 
       return {
