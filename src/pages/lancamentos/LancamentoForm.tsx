@@ -101,7 +101,7 @@ const LancamentoForm = () => {
     // Fetch colaborador
     const { data: colabData } = await supabase
       .from('colaboradores_elegiveis')
-      .select('id, nome')
+      .select('id, nome, cesta_beneficios_teto')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -110,7 +110,7 @@ const LancamentoForm = () => {
         id: colabData.id,
         nome: colabData.nome,
       });
-      setCestaTeto(0); // Cesta removed
+      setCestaTeto(Number(colabData.cesta_beneficios_teto) || 0);
     }
 
     // Fetch expense types
@@ -201,7 +201,7 @@ const LancamentoForm = () => {
       if (expenses) {
         const usado = expenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
         setTotalUsado(usado);
-        setSaldoDisponivel(0); // Cesta removed
+        setSaldoDisponivel((Number(colabData.cesta_beneficios_teto) || 0) - usado);
       }
 
       // Fetch existing hashes
