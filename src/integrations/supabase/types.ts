@@ -389,6 +389,7 @@ export type Database = {
           descricao_fato_gerador: string
           id: string
           motivo_invalidacao: string | null
+          numero_documento: string | null
           origem: Database["public"]["Enums"]["expense_origin"]
           periodo_id: string
           status: Database["public"]["Enums"]["expense_status"]
@@ -406,6 +407,7 @@ export type Database = {
           descricao_fato_gerador: string
           id?: string
           motivo_invalidacao?: string | null
+          numero_documento?: string | null
           origem?: Database["public"]["Enums"]["expense_origin"]
           periodo_id: string
           status?: Database["public"]["Enums"]["expense_status"]
@@ -423,6 +425,7 @@ export type Database = {
           descricao_fato_gerador?: string
           id?: string
           motivo_invalidacao?: string | null
+          numero_documento?: string | null
           origem?: Database["public"]["Enums"]["expense_origin"]
           periodo_id?: string
           status?: Database["public"]["Enums"]["expense_status"]
