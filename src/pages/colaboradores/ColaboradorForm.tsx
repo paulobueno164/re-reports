@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Download, FileText, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Download, FileText, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -553,6 +553,14 @@ const ColaboradorForm = () => {
                     value={formData.cestaBeneficiosTeto}
                     onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
                   />
+                  {formData.cestaBeneficiosTeto === 0 && (
+                    <Alert variant="destructive" className="mt-2">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>
+                        Com o teto da Cesta de Benefícios zerado, o colaborador não poderá realizar lançamentos de despesas variáveis.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
               </div>
 
