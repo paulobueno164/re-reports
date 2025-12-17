@@ -35,6 +35,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -63,6 +64,8 @@ interface CalendarPeriod {
   id: string;
   periodo: string;
   status: string;
+  dataInicio: Date;
+  dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
 }
@@ -238,28 +241,43 @@ const ColaboradorLancamentos = () => {
     // Fetch periods
     const { data: periodsData } = await supabase
       .from('calendario_periodos')
-      .select('id, periodo, status, abre_lancamento, fecha_lancamento')
-      .order('periodo', { ascending: false });
+      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
+      .order('data_inicio', { ascending: false });
 
     if (periodsData) {
-      const mapped = periodsData.map(p => ({
+      const mapped: CalendarPeriod[] = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
         status: p.status,
+        dataInicio: new Date(p.data_inicio),
+        dataFinal: new Date(p.data_final),
         abreLancamento: new Date(p.abre_lancamento),
         fechaLancamento: new Date(p.fecha_lancamento),
       }));
       setPeriods(mapped);
       
-      // Set default period if not already set
+      // Set default period
       if (!selectedPeriodId && mapped.length > 0) {
         const urlPeriod = searchParams.get('periodo');
+        
+        // For COLABORADOR: always use current period based on date
+        // For RH/FINANCEIRO: allow URL param or default to current
         if (urlPeriod && mapped.some(p => p.id === urlPeriod)) {
           setSelectedPeriodId(urlPeriod);
         } else {
-          // Default to current open period
-          const current = mapped.find(p => p.status === 'aberto') || mapped[0];
-          setSelectedPeriodId(current.id);
+          // Find current period based on today's date
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const currentPeriod = mapped.find(p => {
+            const inicio = new Date(p.dataInicio);
+            const final = new Date(p.dataFinal);
+            inicio.setHours(0, 0, 0, 0);
+            final.setHours(23, 59, 59, 999);
+            return today >= inicio && today <= final;
+          });
+          
+          setSelectedPeriodId(currentPeriod?.id || mapped[0].id);
         }
       }
     }
@@ -525,24 +543,36 @@ const ColaboradorLancamentos = () => {
       }
     >
       <div className="space-y-6">
-        {/* Period Selector */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1 sm:max-w-[250px]">
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger>
-                <Calendar className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Selecione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.map(period => (
-                  <SelectItem key={period.id} value={period.id}>
-                    {period.periodo} {period.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Period Selector - Only for RH/FINANCEIRO */}
+        {isRHorFinanceiro ? (
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 sm:max-w-[250px]">
+              <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+                <SelectTrigger>
+                  <Calendar className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Selecione o período" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map(period => (
+                    <SelectItem key={period.id} value={period.id}>
+                      {period.periodo} {period.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Period Badge - For COLABORADOR */
+          selectedPeriod && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Período vigente:</span>
+              <Badge variant={selectedPeriod.status === 'aberto' ? 'default' : 'secondary'}>
+                {selectedPeriod.periodo} ({selectedPeriod.status === 'aberto' ? 'Aberto' : 'Fechado'})
+              </Badge>
+            </div>
+          )
+        )}
 
         {/* Alerts */}
         {periodoValidation && !periodoValidation.permitido && selectedPeriod?.status === 'aberto' && (
@@ -564,7 +594,7 @@ const ColaboradorLancamentos = () => {
         {/* Summary Cards */}
         {colaborador && (
           <div className="space-y-4">
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRHorFinanceiro ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRHorFinanceiro ? 'lg:grid-cols-4' : 'lg:grid-cols-2'} gap-3 sm:gap-4`}>
               <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
@@ -616,17 +646,20 @@ const ColaboradorLancamentos = () => {
                 </Card>
               )}
 
-              <Card className={isRHorFinanceiro ? '' : 'sm:col-span-2 md:col-span-1'}>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm sm:text-lg font-semibold">{selectedPeriod?.periodo}</p>
-                  <p className={`text-xs ${selectedPeriod?.status === 'aberto' ? 'text-success' : 'text-muted-foreground'}`}>
-                    {selectedPeriod?.status === 'aberto' ? 'Período aberto' : 'Período fechado'}
-                  </p>
-                </CardContent>
-              </Card>
+              {/* Período Selecionado Card - RH/FINANCEIRO only */}
+              {isRHorFinanceiro && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm sm:text-lg font-semibold">{selectedPeriod?.periodo}</p>
+                    <p className={`text-xs ${selectedPeriod?.status === 'aberto' ? 'text-success' : 'text-muted-foreground'}`}>
+                      {selectedPeriod?.status === 'aberto' ? 'Período aberto' : 'Período fechado'}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Export Button */}
