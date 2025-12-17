@@ -57,6 +57,7 @@ const LancamentoDetalhe = () => {
   const [sendingToAnalysis, setSendingToAnalysis] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [showReasonError, setShowReasonError] = useState(false);
 
   const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
   const canValidate = isRHorFinanceiro && (expense?.status === "enviado" || expense?.status === "em_analise");
@@ -185,6 +186,7 @@ const LancamentoDetalhe = () => {
 
   const handleReject = async () => {
     if (!expense || !rejectionReason.trim()) {
+      setShowReasonError(true);
       toast({
         title: "Motivo obrigatório",
         description: "Por favor, informe o motivo da invalidação.",
@@ -368,13 +370,22 @@ const LancamentoDetalhe = () => {
         {/* Rejection Reason Input for RH */}
         {canValidate && (
           <div className="space-y-2">
-            <Label>Motivo da Invalidação (se aplicável)</Label>
+            <Label className={showReasonError ? "text-destructive" : ""}>
+              Motivo da Invalidação (se aplicável)
+            </Label>
             <Textarea
               value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
+              onChange={(e) => {
+                setRejectionReason(e.target.value);
+                if (showReasonError) setShowReasonError(false);
+              }}
               placeholder="Descreva o motivo caso precise invalidar esta despesa..."
               rows={3}
+              className={showReasonError ? "border-destructive focus-visible:ring-destructive" : ""}
             />
+            {showReasonError && (
+              <p className="text-sm text-destructive">Preencha o motivo antes de rejeitar</p>
+            )}
           </div>
         )}
 
