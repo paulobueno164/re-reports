@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Receipt, Clock, CheckCircle, XCircle, AlertTriangle, FileText, Loader2, TrendingUp, Send } from 'lucide-react';
+import { Receipt, Clock, CheckCircle, XCircle, AlertTriangle, FileText, Loader2, TrendingUp } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
@@ -7,9 +7,8 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -36,6 +35,8 @@ interface Period {
   id: string;
   periodo: string;
   status: string;
+  dataInicio: Date;
+  dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
 }
@@ -67,8 +68,7 @@ const DashboardColaborador = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [colaborador, setColaborador] = useState<Colaborador | null>(null);
-  const [periods, setPeriods] = useState<Period[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
+  const [currentPeriod, setCurrentPeriod] = useState<Period | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [statusCounts, setStatusCounts] = useState({
     enviado: 0,
@@ -84,10 +84,29 @@ const DashboardColaborador = () => {
   }, [user]);
 
   useEffect(() => {
-    if (selectedPeriodId && colaborador) {
+    if (currentPeriod && colaborador) {
       fetchExpenses();
     }
-  }, [selectedPeriodId, colaborador]);
+  }, [currentPeriod, colaborador]);
+
+  const findCurrentPeriod = (periods: Period[]): Period | null => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Find period where today falls within data_inicio and data_final
+    const current = periods.find(p => {
+      const inicio = new Date(p.dataInicio);
+      const final = new Date(p.dataFinal);
+      inicio.setHours(0, 0, 0, 0);
+      final.setHours(23, 59, 59, 999);
+      return today >= inicio && today <= final;
+    });
+
+    if (current) return current;
+
+    // If no current period found, return the most recent one
+    return periods.length > 0 ? periods[0] : null;
+  };
 
   const fetchInitialData = async () => {
     if (!user) return;
@@ -123,29 +142,30 @@ const DashboardColaborador = () => {
     // Fetch periods
     const { data: periodsData } = await supabase
       .from('calendario_periodos')
-      .select('id, periodo, status, abre_lancamento, fecha_lancamento')
-      .order('periodo', { ascending: false });
+      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
+      .order('data_inicio', { ascending: false });
 
     if (periodsData && periodsData.length > 0) {
-      const mapped = periodsData.map(p => ({
+      const mapped: Period[] = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
         status: p.status,
+        dataInicio: new Date(p.data_inicio),
+        dataFinal: new Date(p.data_final),
         abreLancamento: new Date(p.abre_lancamento),
         fechaLancamento: new Date(p.fecha_lancamento),
       }));
-      setPeriods(mapped);
       
-      // Find current open period
-      const openPeriod = mapped.find(p => p.status === 'aberto');
-      setSelectedPeriodId(openPeriod?.id || mapped[0].id);
+      // Find current period based on today's date
+      const current = findCurrentPeriod(mapped);
+      setCurrentPeriod(current);
     }
 
     setLoading(false);
   };
 
   const fetchExpenses = async () => {
-    if (!colaborador) return;
+    if (!colaborador || !currentPeriod) return;
 
     const { data: expensesData } = await supabase
       .from('lancamentos')
@@ -158,7 +178,7 @@ const DashboardColaborador = () => {
         tipos_despesas (nome)
       `)
       .eq('colaborador_id', colaborador.id)
-      .eq('periodo_id', selectedPeriodId)
+      .eq('periodo_id', currentPeriod.id)
       .order('created_at', { ascending: false });
 
     if (expensesData) {
@@ -188,15 +208,15 @@ const DashboardColaborador = () => {
       setTotalUsado(total);
     }
 
-    // Calculate dias restantes
-    const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
-    if (selectedPeriod) {
-      const dias = Math.max(0, Math.ceil((selectedPeriod.fechaLancamento.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+    // Calculate dias restantes (only if period is open)
+    if (currentPeriod.status === 'aberto') {
+      const dias = Math.max(0, Math.ceil((currentPeriod.fechaLancamento.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
       setDiasRestantes(dias);
+    } else {
+      setDiasRestantes(0);
     }
   };
 
-  const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
   const saldoDisponivel = colaborador ? colaborador.cestaBeneficiosTeto - totalUsado : 0;
   const percentualUsado = colaborador && colaborador.cestaBeneficiosTeto > 0 
     ? Math.round((totalUsado / colaborador.cestaBeneficiosTeto) * 100) 
@@ -273,31 +293,21 @@ const DashboardColaborador = () => {
         title={`Olá, ${colaborador.nome.split(' ')[0]}`} 
         description={`${colaborador.matricula} • ${colaborador.departamento}`}
       >
-        <div className="flex flex-row gap-4 items-end flex-wrap">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Período</Label>
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.periodo} {p.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground invisible">Ação</Label>
-            <Button asChild>
-              <Link to={`/lancamentos/colaborador/${colaborador.id}`}>
-                <Receipt className="mr-2 h-4 w-4" />
-                Meus Lançamentos
-              </Link>
-            </Button>
-          </div>
+        <div className="flex flex-row gap-4 items-center flex-wrap">
+          {currentPeriod && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Período:</span>
+              <Badge variant={currentPeriod.status === 'aberto' ? 'default' : 'secondary'}>
+                {currentPeriod.periodo} ({currentPeriod.status === 'aberto' ? 'Aberto' : 'Fechado'})
+              </Badge>
+            </div>
+          )}
+          <Button asChild>
+            <Link to={`/lancamentos/colaborador/${colaborador.id}`}>
+              <Receipt className="mr-2 h-4 w-4" />
+              Meus Lançamentos
+            </Link>
+          </Button>
         </div>
       </PageHeader>
 
@@ -306,7 +316,7 @@ const DashboardColaborador = () => {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
-            Cesta de Benefícios - {selectedPeriod?.periodo || ''}
+            Cesta de Benefícios - {currentPeriod?.periodo || ''}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -324,8 +334,11 @@ const DashboardColaborador = () => {
             <Progress value={Math.min(percentualUsado, 100)} className="h-3" />
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>{percentualUsado}% utilizado</span>
-              {selectedPeriod?.status === 'aberto' && diasRestantes > 0 && (
+              {currentPeriod?.status === 'aberto' && diasRestantes > 0 && (
                 <span className="text-primary">{diasRestantes} dias restantes para lançar</span>
+              )}
+              {currentPeriod?.status === 'fechado' && (
+                <span className="text-muted-foreground">Período encerrado</span>
               )}
             </div>
           </div>
@@ -337,7 +350,7 @@ const DashboardColaborador = () => {
         <StatCard
           title="Total de Lançamentos"
           value={expenses.length}
-          description={`No período ${selectedPeriod?.periodo || ''}`}
+          description={`No período ${currentPeriod?.periodo || ''}`}
           icon={Receipt}
         />
         <StatCard
@@ -421,7 +434,6 @@ const DashboardColaborador = () => {
         </Card>
       </div>
 
-
       {/* Recent Expenses */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -441,9 +453,11 @@ const DashboardColaborador = () => {
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>Nenhum lançamento encontrado neste período.</p>
-              <Button asChild className="mt-4">
-                <Link to={`/lancamentos/colaborador/${colaborador.id}`}>Fazer Primeiro Lançamento</Link>
-              </Button>
+              {currentPeriod?.status === 'aberto' && (
+                <Button asChild className="mt-4">
+                  <Link to={`/lancamentos/colaborador/${colaborador.id}`}>Fazer Primeiro Lançamento</Link>
+                </Button>
+              )}
             </div>
           )}
         </CardContent>
