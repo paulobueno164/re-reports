@@ -1,5 +1,5 @@
-import { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
-import { Package, Loader2, Save } from 'lucide-react';
+import { useState, useEffect, useImperativeHandle, forwardRef, useMemo } from 'react';
+import { Package, Loader2, Save, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -47,6 +47,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
     const [linkedTypes, setLinkedTypes] = useState<Map<string, ColaboradorTipoDespesa>>(new Map());
     const [changes, setChanges] = useState<Map<string, { selected: boolean; teto: number | null }>>(new Map());
+    const [searchTerm, setSearchTerm] = useState('');
 
     useImperativeHandle(ref, () => ({
       getSelectedTypes: () => {
@@ -196,12 +197,20 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       }
     };
 
-    // Group expense types by grupo
-    const groupedTypes = expenseTypes.reduce((acc, type) => {
-      if (!acc[type.grupo]) acc[type.grupo] = [];
-      acc[type.grupo].push(type);
-      return acc;
-    }, {} as Record<string, ExpenseType[]>);
+    // Filter and group expense types
+    const filteredAndGroupedTypes = useMemo(() => {
+      const filtered = expenseTypes.filter(type => {
+        const search = searchTerm.toLowerCase();
+        return type.nome.toLowerCase().includes(search) || 
+               type.grupo.toLowerCase().includes(search);
+      });
+      
+      return filtered.reduce((acc, type) => {
+        if (!acc[type.grupo]) acc[type.grupo] = [];
+        acc[type.grupo].push(type);
+        return acc;
+      }, {} as Record<string, ExpenseType[]>);
+    }, [expenseTypes, searchTerm]);
 
     if (loading) {
       return (
@@ -230,9 +239,22 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nome ou grupo..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
           <div className="space-y-4">
-            <div className="space-y-4">
-              {Object.entries(groupedTypes).map(([grupo, types]) => (
+            {Object.keys(filteredAndGroupedTypes).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                Nenhum tipo de despesa encontrado
+              </p>
+            ) : (
+              Object.entries(filteredAndGroupedTypes).map(([grupo, types]) => (
                 <div key={grupo} className="space-y-2">
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     {grupo}
@@ -280,8 +302,8 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                     })}
                   </div>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             {standalone 
