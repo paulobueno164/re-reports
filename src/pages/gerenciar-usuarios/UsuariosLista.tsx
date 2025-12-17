@@ -6,6 +6,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -321,41 +322,100 @@ const UsuariosLista = () => {
       header: '',
       className: 'text-right',
       render: (item: UserWithRoles) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="bg-popover">
-            <DropdownMenuItem onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
-              <UserCog className="mr-2 h-4 w-4" />
-              Gerenciar Roles
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => handleOpenPasswordDialog(item)}>
-              <KeyRound className="mr-2 h-4 w-4" />
-              Alterar Senha
-            </DropdownMenuItem>
+        <div className="flex justify-end gap-1">
+          {/* Desktop: Icon buttons with tooltips */}
+          <div className="hidden sm:flex gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
+                  <UserCog className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Gerenciar Roles</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenPasswordDialog(item)}>
+                  <KeyRound className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Alterar Senha</TooltipContent>
+            </Tooltip>
+            
             {!item.colaboradorId && (
-              <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
-                <Link className="mr-2 h-4 w-4" />
-                Vincular Colaborador
-              </DropdownMenuItem>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenLinkDialog(item)}>
+                    <Link className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Vincular Colaborador</TooltipContent>
+              </Tooltip>
             )}
+            
             {item.colaboradorId && (
               <>
-                <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Ver Colaborador
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive focus:text-destructive">
-                  <Unlink2 className="mr-2 h-4 w-4" />
-                  Desvincular
-                </DropdownMenuItem>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver Colaborador</TooltipContent>
+                </Tooltip>
+                
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => handleOpenUnlinkDialog(item)}>
+                      <Unlink2 className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Desvincular</TooltipContent>
+                </Tooltip>
               </>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </div>
+          
+          {/* Mobile: Dropdown menu */}
+          <div className="sm:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-popover">
+                <DropdownMenuItem onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
+                  <UserCog className="mr-2 h-4 w-4" />
+                  Gerenciar Roles
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenPasswordDialog(item)}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Alterar Senha
+                </DropdownMenuItem>
+                {!item.colaboradorId && (
+                  <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
+                    <Link className="mr-2 h-4 w-4" />
+                    Vincular Colaborador
+                  </DropdownMenuItem>
+                )}
+                {item.colaboradorId && (
+                  <>
+                    <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Ver Colaborador
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive focus:text-destructive">
+                      <Unlink2 className="mr-2 h-4 w-4" />
+                      Desvincular
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       ),
     },
   ];
