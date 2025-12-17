@@ -321,73 +321,41 @@ const UsuariosLista = () => {
       header: '',
       className: 'text-right',
       render: (item: UserWithRoles) => (
-        <div className="flex justify-end gap-1">
-          <div className="hidden sm:flex gap-1">
-            <Button variant="outline" size="sm" onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
-              <UserCog className="h-4 w-4 mr-2" />
-              Roles
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreVertical className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => handleOpenPasswordDialog(item)}>
-              <KeyRound className="h-4 w-4 mr-2" />
-              Senha
-            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-popover">
+            <DropdownMenuItem onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
+              <UserCog className="mr-2 h-4 w-4" />
+              Gerenciar Roles
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleOpenPasswordDialog(item)}>
+              <KeyRound className="mr-2 h-4 w-4" />
+              Alterar Senha
+            </DropdownMenuItem>
             {!item.colaboradorId && (
-              <Button variant="ghost" size="sm" onClick={() => handleOpenLinkDialog(item)}>
-                <Link className="h-4 w-4 mr-2" />
-                Vincular
-              </Button>
+              <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
+                <Link className="mr-2 h-4 w-4" />
+                Vincular Colaborador
+              </DropdownMenuItem>
             )}
             {item.colaboradorId && (
               <>
-                <Button variant="ghost" size="sm" onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Ver
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive hover:text-destructive">
-                  <Unlink2 className="h-4 w-4 mr-2" />
+                <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Ver Colaborador
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive focus:text-destructive">
+                  <Unlink2 className="mr-2 h-4 w-4" />
                   Desvincular
-                </Button>
+                </DropdownMenuItem>
               </>
             )}
-          </div>
-          <div className="sm:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
-                  <UserCog className="mr-2 h-4 w-4" />
-                  Gerenciar Roles
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleOpenPasswordDialog(item)}>
-                  <KeyRound className="mr-2 h-4 w-4" />
-                  Alterar Senha
-                </DropdownMenuItem>
-                {!item.colaboradorId && (
-                  <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
-                    <Link className="mr-2 h-4 w-4" />
-                    Vincular Colaborador
-                  </DropdownMenuItem>
-                )}
-                {item.colaboradorId && (
-                  <>
-                    <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Ver Colaborador
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive">
-                      <Unlink2 className="mr-2 h-4 w-4" />
-                      Desvincular Colaborador
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ),
     },
   ];
