@@ -70,8 +70,8 @@ const Fechamento = () => {
   const currentPeriod = periods.find((p) => p.status === 'aberto');
   const viewingPeriod = periods.find(p => p.id === filterPeriod);
   const pendingValidation = pendingEnviado + pendingEmAnalise;
-  const canProcess = pendingValidation === 0 && hasRole('RH');
-  const canExport = hasRole('FINANCEIRO');
+  const canProcess = pendingValidation === 0 && (hasRole('RH') || hasRole('FINANCEIRO'));
+  const canExport = hasRole('FINANCEIRO') || hasRole('RH');
 
   useEffect(() => {
     fetchPeriods();
@@ -476,7 +476,7 @@ const Fechamento = () => {
         title="Fechamento Mensal"
         description="Processe o fechamento e exporte dados para a Folha de Pagamento"
       >
-        {hasRole('RH') && (
+        {(hasRole('RH') || hasRole('FINANCEIRO')) && (
           <Button onClick={() => setIsDialogOpen(true)} disabled={!canProcess}>
             <Play className="mr-2 h-4 w-4" />
             Processar Fechamento
