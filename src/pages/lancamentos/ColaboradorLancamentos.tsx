@@ -114,8 +114,9 @@ const ColaboradorLancamentos = () => {
   const [processing, setProcessing] = useState(false);
 
   const isOwnProfile = colaborador?.userId === user?.id;
-  const canEdit = hasRole('RH') || hasRole('FINANCEIRO') || isOwnProfile;
-  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
+  const canEdit = hasRole('RH') || isOwnProfile; // FINANCEIRO cannot edit
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO'); // For viewing
+  const canApprove = hasRole('RH'); // Only RH can approve/reject
   
   // Pending expenses for batch operations
   const pendingExpenses = useMemo(() => 
@@ -485,8 +486,8 @@ const ColaboradorLancamentos = () => {
   }, [expenses, searchTerm, statusFilter]);
 
   const columns = [
-    // Checkbox column for RH/FINANCEIRO batch selection (only for pending items)
-    ...(isRHorFinanceiro && pendingExpenses.length > 0 ? [{
+    // Checkbox column for RH batch selection (only for pending items)
+    ...(canApprove && pendingExpenses.length > 0 ? [{
       key: 'select',
       header: (
         <Checkbox
@@ -729,8 +730,8 @@ const ColaboradorLancamentos = () => {
           </div>
         </div>
 
-        {/* Batch Approval Controls - RH/FINANCEIRO */}
-        {isRHorFinanceiro && selectedIds.length > 0 && (
+        {/* Batch Approval Controls - RH only */}
+        {canApprove && selectedIds.length > 0 && (
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
             <div className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{selectedIds.length}</span> selecionado(s)

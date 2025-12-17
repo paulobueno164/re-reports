@@ -61,7 +61,7 @@ const LancamentoDetalhe = () => {
   const rejectionReasonRef = useRef<HTMLTextAreaElement>(null);
 
   const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
-  const canValidate = isRHorFinanceiro && (expense?.status === "enviado" || expense?.status === "em_analise");
+  const canValidate = hasRole("RH") && (expense?.status === "enviado" || expense?.status === "em_analise"); // Only RH can validate
 
   useEffect(() => {
     fetchExpense();
