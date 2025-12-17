@@ -176,9 +176,12 @@ export type Database = {
         Row: {
           ajuda_custo: number
           ativo: boolean
+          beneficio_proporcional: boolean
           created_at: string
           departamento: string
           email: string
+          ferias_fim: string | null
+          ferias_inicio: string | null
           id: string
           matricula: string
           mobilidade: number
@@ -195,9 +198,12 @@ export type Database = {
         Insert: {
           ajuda_custo?: number
           ativo?: boolean
+          beneficio_proporcional?: boolean
           created_at?: string
           departamento: string
           email: string
+          ferias_fim?: string | null
+          ferias_inicio?: string | null
           id?: string
           matricula: string
           mobilidade?: number
@@ -214,9 +220,12 @@ export type Database = {
         Update: {
           ajuda_custo?: number
           ativo?: boolean
+          beneficio_proporcional?: boolean
           created_at?: string
           departamento?: string
           email?: string
+          ferias_fim?: string | null
+          ferias_inicio?: string | null
           id?: string
           matricula?: string
           mobilidade?: number
@@ -388,9 +397,14 @@ export type Database = {
           created_at: string
           descricao_fato_gerador: string
           id: string
+          lancamento_origem_id: string | null
           motivo_invalidacao: string | null
           numero_documento: string | null
           origem: Database["public"]["Enums"]["expense_origin"]
+          parcelamento_ativo: boolean
+          parcelamento_numero_parcela: number | null
+          parcelamento_total_parcelas: number | null
+          parcelamento_valor_total: number | null
           periodo_id: string
           status: Database["public"]["Enums"]["expense_status"]
           tipo_despesa_id: string
@@ -406,9 +420,14 @@ export type Database = {
           created_at?: string
           descricao_fato_gerador: string
           id?: string
+          lancamento_origem_id?: string | null
           motivo_invalidacao?: string | null
           numero_documento?: string | null
           origem?: Database["public"]["Enums"]["expense_origin"]
+          parcelamento_ativo?: boolean
+          parcelamento_numero_parcela?: number | null
+          parcelamento_total_parcelas?: number | null
+          parcelamento_valor_total?: number | null
           periodo_id: string
           status?: Database["public"]["Enums"]["expense_status"]
           tipo_despesa_id: string
@@ -424,9 +443,14 @@ export type Database = {
           created_at?: string
           descricao_fato_gerador?: string
           id?: string
+          lancamento_origem_id?: string | null
           motivo_invalidacao?: string | null
           numero_documento?: string | null
           origem?: Database["public"]["Enums"]["expense_origin"]
+          parcelamento_ativo?: boolean
+          parcelamento_numero_parcela?: number | null
+          parcelamento_total_parcelas?: number | null
+          parcelamento_valor_total?: number | null
           periodo_id?: string
           status?: Database["public"]["Enums"]["expense_status"]
           tipo_despesa_id?: string
@@ -443,6 +467,13 @@ export type Database = {
             columns: ["colaborador_id"]
             isOneToOne: false
             referencedRelation: "colaboradores_elegiveis"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lancamentos_lancamento_origem_id_fkey"
+            columns: ["lancamento_origem_id"]
+            isOneToOne: false
+            referencedRelation: "lancamentos"
             referencedColumns: ["id"]
           },
           {

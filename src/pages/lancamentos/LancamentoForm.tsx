@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Upload, Loader2, FileText, X, AlertCircle } from 'lucide-react';
+import { Upload, Loader2, FileText, X, AlertCircle, CreditCard } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Select,
@@ -69,6 +70,9 @@ const LancamentoForm = () => {
   const [formValor, setFormValor] = useState('');
   const [formDescricao, setFormDescricao] = useState('');
   const [formNumeroDocumento, setFormNumeroDocumento] = useState('');
+  const [formParcelamentoAtivo, setFormParcelamentoAtivo] = useState(false);
+  const [formParcelamentoValorTotal, setFormParcelamentoValorTotal] = useState('');
+  const [formParcelamentoTotalParcelas, setFormParcelamentoTotalParcelas] = useState('');
   const [formFile, setFormFile] = useState<File | null>(null);
 
   // Calculated values
@@ -179,6 +183,9 @@ const LancamentoForm = () => {
         setFormValor(expenseData.valor_lancado.toString());
         setFormDescricao(expenseData.descricao_fato_gerador);
         setFormNumeroDocumento((expenseData as any).numero_documento || '');
+        setFormParcelamentoAtivo((expenseData as any).parcelamento_ativo || false);
+        setFormParcelamentoValorTotal((expenseData as any).parcelamento_valor_total?.toString() || '');
+        setFormParcelamentoTotalParcelas((expenseData as any).parcelamento_total_parcelas?.toString() || '');
       }
     }
 
@@ -255,6 +262,9 @@ const LancamentoForm = () => {
 
     setSaving(true);
     try {
+      const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
+      const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
+      
       const lancamentoData = {
         colaborador_id: colaborador.id,
         periodo_id: formPeriodoId,
@@ -266,6 +276,10 @@ const LancamentoForm = () => {
         descricao_fato_gerador: formDescricao,
         numero_documento: formNumeroDocumento || null,
         status: status,
+        parcelamento_ativo: formParcelamentoAtivo,
+        parcelamento_valor_total: valorTotal,
+        parcelamento_numero_parcela: formParcelamentoAtivo ? 1 : null,
+        parcelamento_total_parcelas: totalParcelas,
       };
 
       let lancamentoId: string;
@@ -420,6 +434,63 @@ const LancamentoForm = () => {
             <Label>Descrição do Fato Gerador</Label>
             <Textarea value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} placeholder="Descreva o motivo/natureza da despesa..." rows={3} />
           </div>
+        </div>
+
+        {/* Parcelamento */}
+        <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="parcelamento" className="font-medium">Parcelamento</Label>
+            </div>
+            <Switch
+              id="parcelamento"
+              checked={formParcelamentoAtivo}
+              onCheckedChange={setFormParcelamentoAtivo}
+            />
+          </div>
+          
+          {formParcelamentoAtivo && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+              <div className="space-y-2">
+                <Label>Valor Total (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formParcelamentoValorTotal}
+                  onChange={(e) => setFormParcelamentoValorTotal(e.target.value)}
+                  placeholder="0,00"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor da Parcela (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={formValor}
+                  onChange={(e) => setFormValor(e.target.value)}
+                  placeholder="0,00"
+                  className="font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Quantidade de Parcelas</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formParcelamentoTotalParcelas}
+                  onChange={(e) => setFormParcelamentoTotalParcelas(e.target.value)}
+                  placeholder="Ex: 12"
+                />
+              </div>
+              <div className="col-span-full">
+                <p className="text-xs text-muted-foreground">
+                  O lançamento será criado automaticamente todo mês até completar todas as parcelas informadas.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2">

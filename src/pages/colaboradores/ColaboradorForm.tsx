@@ -80,6 +80,9 @@ const ColaboradorForm = () => {
     temPida: false,
     pidaTeto: 0,
     ativo: true,
+    feriasInicio: '',
+    feriasFim: '',
+    beneficioProporcional: false,
   });
 
   // Zero PI/DA when switch is disabled
@@ -125,6 +128,9 @@ const ColaboradorForm = () => {
         temPida: colaboradorData.tem_pida,
         pidaTeto: Number(colaboradorData.pida_teto),
         ativo: colaboradorData.ativo,
+        feriasInicio: colaboradorData.ferias_inicio || '',
+        feriasFim: colaboradorData.ferias_fim || '',
+        beneficioProporcional: colaboradorData.beneficio_proporcional || false,
       });
       if (data.user_id) {
         setLinkedUserId(data.user_id);
@@ -280,6 +286,9 @@ const ColaboradorForm = () => {
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
       user_id: linkedUserId || null,
+      ferias_inicio: formData.feriasInicio || null,
+      ferias_fim: formData.feriasFim || null,
+      beneficio_proporcional: formData.beneficioProporcional,
     };
 
     try {
@@ -427,6 +436,36 @@ const ColaboradorForm = () => {
                   onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
                 />
                 <Label htmlFor="ativo">Colaborador Ativo</Label>
+              </div>
+
+              <Separator className="my-4" />
+
+              <h3 className="text-sm font-semibold text-foreground">Período de Férias</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                <div className="space-y-2">
+                  <Label>Início das Férias</Label>
+                  <Input
+                    type="date"
+                    value={formData.feriasInicio}
+                    onChange={(e) => setFormData({ ...formData, feriasInicio: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fim das Férias</Label>
+                  <Input
+                    type="date"
+                    value={formData.feriasFim}
+                    onChange={(e) => setFormData({ ...formData, feriasFim: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2 mt-3">
+                <Switch
+                  id="beneficioProporcional"
+                  checked={formData.beneficioProporcional}
+                  onCheckedChange={(checked) => setFormData({ ...formData, beneficioProporcional: checked })}
+                />
+                <Label htmlFor="beneficioProporcional">Aplicar benefício proporcional aos dias trabalhados</Label>
               </div>
             </div>
           </TabsContent>
