@@ -110,7 +110,7 @@ interface SidebarProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
+function SidebarContent({ onNavClick, onClose }: { onNavClick?: () => void; onClose?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { signOut, hasRole, roles } = useAuth();
@@ -128,14 +128,27 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       {/* Logo */}
-      <div className="flex h-16 items-center gap-3 px-6 border-b border-sidebar-border">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-          <span className="text-lg font-bold text-sidebar-primary-foreground">RE</span>
+      <div className="flex h-16 items-center justify-between px-6 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
+            <span className="text-lg font-bold text-sidebar-primary-foreground">RE</span>
+          </div>
+          <div>
+            <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
+            <p className="text-xs text-sidebar-foreground/60">Remuneração Estratégica</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-base font-semibold text-sidebar-foreground">RE-Reports</h1>
-          <p className="text-xs text-sidebar-foreground/60">Remuneração Estratégica</p>
-        </div>
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="h-8 w-8 text-sidebar-foreground/60 hover:text-sidebar-foreground"
+          >
+            <X className="h-5 w-5" />
+            <span className="sr-only">Fechar menu</span>
+          </Button>
+        )}
       </div>
 
       {/* Role Badge */}
@@ -197,7 +210,10 @@ export function Sidebar({ open, onOpenChange }: SidebarProps) {
           <SheetHeader className="sr-only">
             <SheetTitle>Menu de navegação</SheetTitle>
           </SheetHeader>
-          <SidebarContent onNavClick={() => onOpenChange?.(false)} />
+          <SidebarContent 
+            onNavClick={() => onOpenChange?.(false)} 
+            onClose={() => onOpenChange?.(false)} 
+          />
         </SheetContent>
       </Sheet>
     );
