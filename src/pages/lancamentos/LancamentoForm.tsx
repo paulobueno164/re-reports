@@ -185,9 +185,10 @@ const LancamentoForm = () => {
     if (colabData) {
       const { data: expenses } = await supabase
         .from('lancamentos')
-        .select('valor_considerado')
+        .select('valor_considerado, status')
         .eq('colaborador_id', colabData.id)
-        .eq('periodo_id', periodsData?.find(p => p.status === 'aberto')?.id || '');
+        .eq('periodo_id', periodsData?.find(p => p.status === 'aberto')?.id || '')
+        .eq('status', 'valido');
 
       if (expenses) {
         const usado = expenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);

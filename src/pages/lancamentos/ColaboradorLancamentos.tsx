@@ -324,9 +324,11 @@ const ColaboradorLancamentos = () => {
 
       setExpenses(mapped);
 
-      // Calculate totals
+      // Calculate totals (only approved expenses count as used)
       if (colaborador) {
-        const usado = mapped.reduce((sum, e) => sum + e.valorConsiderado, 0);
+        const usado = mapped
+          .filter(e => e.status === 'valido')
+          .reduce((sum, e) => sum + e.valorConsiderado, 0);
         setTotalUsado(usado);
         setSaldoDisponivel(colaborador.cestaBeneficiosTeto - usado);
         setPercentualUsado((usado / colaborador.cestaBeneficiosTeto) * 100);
