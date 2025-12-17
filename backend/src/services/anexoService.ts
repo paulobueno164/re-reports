@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import { query } from '../config/database';
 import { Anexo } from '../types';
+import { removeFile } from '../services/storageService';
 
 export interface CreateAnexoInput {
   lancamento_id: string;
@@ -83,6 +84,19 @@ export const deleteAnexo = async (id: string): Promise<boolean> => {
 };
 
 export const deleteAnexosByLancamentoId = async (lancamentoId: string): Promise<number> => {
+  // Primeiro, buscar todos os anexos para remover os arquivos
+  const anexos = await getAnexosByLancamentoId(lancamentoId);
+  
+  // Remover arquivos do storage
+  for (const anexo of anexos) {
+    try {
+      removeFile('comprovantes', anexo.storage_path);
+    } catch (error) {
+      console.error(`Erro ao remover arquivo ${anexo.storage_path}:`, error);
+    }
+  }
+  
+  // Remover registros do banco
   const result = await query('DELETE FROM anexos WHERE lancamento_id = $1', [lancamentoId]);
   return result.rowCount ?? 0;
 };

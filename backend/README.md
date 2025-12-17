@@ -60,6 +60,28 @@ npm start
 - `GET /api/exportacoes`
 - `GET /api/audit-logs`
 
+### Anexos (requer autenticação)
+- `GET /api/lancamentos/:lancamentoId/anexos` - Listar anexos de um lançamento
+- `POST /api/lancamentos/:lancamentoId/anexos` - Upload de anexo (form-data: file)
+- `POST /api/lancamentos/:lancamentoId/anexos/batch` - Upload múltiplo (form-data: files)
+- `GET /api/anexos/:id/download` - Download de anexo
+- `GET /api/anexos/:id/view` - Visualizar anexo inline
+- `DELETE /api/anexos/:id` - Remover anexo
+
 ### CRON (requer CRON_SECRET)
 - `POST /cron/check-pending-expenses`
 - `POST /cron/send-email`
+
+## Estrutura de Storage
+
+Os arquivos são armazenados localmente no diretório configurado em `STORAGE_PATH` (padrão: `./uploads`):
+
+```
+uploads/
+└── comprovantes/
+    └── {colaborador_id}/
+        └── {arquivo_timestamp_random}.ext
+```
+
+Tipos de arquivo permitidos: PDF, PNG, JPEG, XLSX, XLS, DOC, DOCX
+Tamanho máximo: 5MB por arquivo
