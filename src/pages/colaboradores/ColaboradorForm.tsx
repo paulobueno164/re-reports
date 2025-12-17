@@ -358,7 +358,7 @@ const ColaboradorForm = () => {
             <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados Básicos</TabsTrigger>
             <TabsTrigger value="usuario" className="text-xs sm:text-sm">Acesso ao Sistema</TabsTrigger>
             <TabsTrigger value="remuneracao" className="text-xs sm:text-sm">Remuneração</TabsTrigger>
-            <TabsTrigger value="despesas" className="text-xs sm:text-sm">Tipos de Despesa</TabsTrigger>
+            <TabsTrigger value="despesas" className="text-xs sm:text-sm">Cesta de Benefícios</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dados" className="space-y-6">
@@ -549,32 +549,8 @@ const ColaboradorForm = () => {
                   />
                 </div>
               </div>
-            </div>
 
-            <Separator />
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold text-foreground">Componentes Variáveis</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cesta de Benefícios - Teto (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.cestaBeneficiosTeto}
-                    onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>PI/DA - Teto (R$)</Label>
-                  <Input
-                    type="number"
-                    value={formData.pidaTeto}
-                    onChange={(e) => setFormData({ ...formData, pidaTeto: parseFloat(e.target.value) || 0 })}
-                    disabled={!formData.temPida}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 pt-2">
                 <Switch
                   id="temPida"
                   checked={formData.temPida}
@@ -582,6 +558,17 @@ const ColaboradorForm = () => {
                 />
                 <Label htmlFor="temPida">Possui PI/DA (Propriedade Intelectual / Direitos Autorais)</Label>
               </div>
+
+              {formData.temPida && (
+                <div className="space-y-2 pt-2">
+                  <Label>PI/DA - Teto (R$)</Label>
+                  <Input
+                    type="number"
+                    value={formData.pidaTeto}
+                    onChange={(e) => setFormData({ ...formData, pidaTeto: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
             </div>
 
             <Separator />
