@@ -207,21 +207,8 @@ const ColaboradorLancamentos = () => {
         } : null
       );
       setPeriodoValidation(validation);
-      
-      // Debug log
-      console.log('DEBUG Validacao Periodo:', {
-        selectedPeriod: selectedPeriod.periodo,
-        status: selectedPeriod.status,
-        abreLancamento: selectedPeriod.abreLancamento,
-        fechaLancamento: selectedPeriod.fechaLancamento,
-        dataAtual: new Date(),
-        validation,
-        colaboradorUserId: colaborador?.userId,
-        userId: user?.id,
-        isOwnProfile: colaborador?.userId === user?.id,
-      });
     }
-  }, [selectedPeriod, nextPeriod, colaborador, user]);
+  }, [selectedPeriod, nextPeriod]);
 
   const fetchData = async () => {
     if (!id) return;
@@ -556,18 +543,6 @@ const ColaboradorLancamentos = () => {
   ];
 
   const canCreateNew = canEdit && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
-
-  // Debug no momento da renderização
-  console.log('DEBUG RENDER:', {
-    canEdit,
-    isOwnProfile,
-    selectedPeriodStatus: selectedPeriod?.status,
-    showButton: canEdit && selectedPeriod?.status === 'aberto',
-    canCreateNew,
-    saldoDisponivel,
-    bloqueadoPorUltimoLancamento,
-    periodoPermitido: periodoValidation?.permitido,
-  });
 
   if (loading) {
     return (
