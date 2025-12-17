@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
+import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2, CalendarDays } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -368,14 +368,14 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 4 - Dias para Lançamento (Colaborador) */}
+            {/* Card 4 - Dias para Lançamento (prazo de envio dos colaboradores) */}
             <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-white/80">Dias p/ Lançamento</p>
+                    <p className="text-xs sm:text-sm font-medium text-white/80">Prazo Lançamento</p>
                     <p className="text-2xl sm:text-3xl font-bold mt-1">{data.diasParaLancamento}</p>
-                    <p className="text-xs text-white/80 mt-1 truncate">Colaboradores enviar</p>
+                    <p className="text-xs text-white/80 mt-1 truncate">Dias p/ colaboradores</p>
                   </div>
                   <div className="p-2 sm:p-2.5 bg-white/20 rounded-lg flex-shrink-0">
                     <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
@@ -384,17 +384,17 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 5 - Dias Restantes (RH) */}
+            {/* Card 5 - Dias Restantes do Período de Acúmulo */}
             <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-slate-300">Dias Restantes</p>
+                    <p className="text-xs sm:text-sm font-medium text-slate-300">Período Acúmulo</p>
                     <p className="text-2xl sm:text-3xl font-bold mt-1">{data.diasRestantes}</p>
-                    <p className="text-xs text-slate-400 mt-1 truncate">Fim do período</p>
+                    <p className="text-xs text-slate-400 mt-1 truncate">Dias até encerrar</p>
                   </div>
                   <div className="p-2 sm:p-2.5 bg-white/10 rounded-lg flex-shrink-0">
-                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                    <CalendarDays className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                   </div>
                 </div>
               </CardContent>
