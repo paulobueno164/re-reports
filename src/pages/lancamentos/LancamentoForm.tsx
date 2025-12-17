@@ -68,6 +68,7 @@ const LancamentoForm = () => {
   const [formOrigem, setFormOrigem] = useState<'proprio' | 'conjuge' | 'filhos'>('proprio');
   const [formValor, setFormValor] = useState('');
   const [formDescricao, setFormDescricao] = useState('');
+  const [formNumeroDocumento, setFormNumeroDocumento] = useState('');
   const [formFile, setFormFile] = useState<File | null>(null);
 
   // Calculated values
@@ -177,6 +178,7 @@ const LancamentoForm = () => {
         setFormOrigem(expenseData.origem as 'proprio' | 'conjuge' | 'filhos');
         setFormValor(expenseData.valor_lancado.toString());
         setFormDescricao(expenseData.descricao_fato_gerador);
+        setFormNumeroDocumento((expenseData as any).numero_documento || '');
       }
     }
 
@@ -262,6 +264,7 @@ const LancamentoForm = () => {
         valor_considerado: validation.valorConsiderado,
         valor_nao_considerado: validation.valorNaoConsiderado,
         descricao_fato_gerador: formDescricao,
+        numero_documento: formNumeroDocumento || null,
         status: status,
       };
 
@@ -404,9 +407,19 @@ const LancamentoForm = () => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Descrição do Fato Gerador</Label>
-          <Textarea value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} placeholder="Descreva o motivo/natureza da despesa..." rows={3} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Número do Documento</Label>
+            <Input 
+              value={formNumeroDocumento} 
+              onChange={(e) => setFormNumeroDocumento(e.target.value)} 
+              placeholder="Ex: NF-001234, REC-5678" 
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Descrição do Fato Gerador</Label>
+            <Textarea value={formDescricao} onChange={(e) => setFormDescricao(e.target.value)} placeholder="Descreva o motivo/natureza da despesa..." rows={3} />
+          </div>
         </div>
 
         <div className="space-y-2">
