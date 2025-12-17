@@ -36,7 +36,6 @@ interface ColaboradorResumo {
   nome: string;
   matricula: string;
   departamento: string;
-  cestaBeneficiosTeto: number;
   totalLancado: number;
   totalConsiderado: number;
   qtdLancamentos: number;
@@ -160,7 +159,7 @@ const LancamentosLista = () => {
     // Fetch all eligible collaborators
     const { data: colabData, error: colabError } = await supabase
       .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, departamento, cesta_beneficios_teto')
+      .select('id, nome, matricula, departamento')
       .eq('ativo', true)
       .order('nome');
 
@@ -199,7 +198,6 @@ const LancamentosLista = () => {
         nome: colab.nome,
         matricula: colab.matricula,
         departamento: colab.departamento,
-        cestaBeneficiosTeto: Number(colab.cesta_beneficios_teto),
         totalLancado,
         totalConsiderado,
         qtdLancamentos: colabExpenses.length,
@@ -335,9 +333,6 @@ const LancamentosLista = () => {
             item.qtdLancamentos === 0 && "text-muted-foreground"
           )}>
             {formatCurrency(item.totalConsiderado)}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            de {formatCurrency(item.cestaBeneficiosTeto)}
           </div>
         </div>
       )

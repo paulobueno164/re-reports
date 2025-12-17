@@ -176,7 +176,6 @@ export type Database = {
         Row: {
           ajuda_custo: number
           ativo: boolean
-          cesta_beneficios_teto: number
           created_at: string
           departamento: string
           email: string
@@ -196,7 +195,6 @@ export type Database = {
         Insert: {
           ajuda_custo?: number
           ativo?: boolean
-          cesta_beneficios_teto?: number
           created_at?: string
           departamento: string
           email: string
@@ -216,7 +214,6 @@ export type Database = {
         Update: {
           ajuda_custo?: number
           ativo?: boolean
-          cesta_beneficios_teto?: number
           created_at?: string
           departamento?: string
           email?: string

@@ -129,7 +129,7 @@ const DashboardRH = () => {
       // Fetch colaboradores
       let colaboradoresQuery = supabase
         .from('colaboradores_elegiveis')
-        .select('id, cesta_beneficios_teto, departamento')
+        .select('id, departamento')
         .eq('ativo', true);
       
       if (selectedDepartment !== 'todos') {
@@ -211,10 +211,9 @@ const DashboardRH = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Utilization
-      const totalCestaTeto = colaboradores?.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0) || 0;
+      // Utilization - using total expenses instead of cesta teto
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
-      const utilizationPercentage = totalCestaTeto > 0 ? Math.round((totalUtilizado / totalCestaTeto) * 100) : 0;
+      const utilizationPercentage = totalUtilizado > 0 ? 100 : 0;
 
       // Expenses by month (last 6 months)
       const { data: allLancamentosMonths } = await supabase

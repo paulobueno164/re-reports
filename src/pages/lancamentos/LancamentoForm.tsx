@@ -58,7 +58,7 @@ const LancamentoForm = () => {
   const [saving, setSaving] = useState(false);
   const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
-  const [colaborador, setColaborador] = useState<{ id: string; nome: string; cestaBeneficiosTeto: number } | null>(null);
+  const [colaborador, setColaborador] = useState<{ id: string; nome: string } | null>(null);
   const [existingAttachmentHashes, setExistingAttachmentHashes] = useState<Set<string>>(new Set());
   const [attachmentRefreshKey, setAttachmentRefreshKey] = useState(0);
 
@@ -96,7 +96,7 @@ const LancamentoForm = () => {
     // Fetch colaborador
     const { data: colabData } = await supabase
       .from('colaboradores_elegiveis')
-      .select('id, nome, cesta_beneficios_teto')
+      .select('id, nome')
       .eq('user_id', user.id)
       .maybeSingle();
 
@@ -104,9 +104,8 @@ const LancamentoForm = () => {
       setColaborador({
         id: colabData.id,
         nome: colabData.nome,
-        cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto),
       });
-      setCestaTeto(Number(colabData.cesta_beneficios_teto));
+      setCestaTeto(0); // Cesta removed
     }
 
     // Fetch expense types
@@ -193,7 +192,7 @@ const LancamentoForm = () => {
       if (expenses) {
         const usado = expenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
         setTotalUsado(usado);
-        setSaldoDisponivel(Number(colabData.cesta_beneficios_teto) - usado);
+        setSaldoDisponivel(0); // Cesta removed
       }
 
       // Fetch existing hashes

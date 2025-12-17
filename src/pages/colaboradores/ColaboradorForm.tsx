@@ -77,11 +77,19 @@ const ColaboradorForm = () => {
     ajudaCusto: 0,
     mobilidade: 0,
     transporte: 0,
-    cestaBeneficiosTeto: 0,
     temPida: false,
     pidaTeto: 0,
     ativo: true,
   });
+
+  // Zero PI/DA when switch is disabled
+  const handleTemPidaChange = (checked: boolean) => {
+    setFormData({ 
+      ...formData, 
+      temPida: checked,
+      pidaTeto: checked ? formData.pidaTeto : 0
+    });
+  };
 
   useEffect(() => {
     if (isEditing) {
@@ -113,7 +121,6 @@ const ColaboradorForm = () => {
         ajudaCusto: Number(data.ajuda_custo),
         mobilidade: Number(data.mobilidade),
         transporte: Number(data.transporte),
-        cestaBeneficiosTeto: Number(data.cesta_beneficios_teto),
         temPida: data.tem_pida,
         pidaTeto: Number(data.pida_teto),
         ativo: data.ativo,
@@ -268,7 +275,6 @@ const ColaboradorForm = () => {
       ajuda_custo: formData.ajudaCusto,
       mobilidade: formData.mobilidade,
       transporte: formData.transporte,
-      cesta_beneficios_teto: formData.cestaBeneficiosTeto,
       tem_pida: formData.temPida,
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
@@ -329,7 +335,6 @@ const ColaboradorForm = () => {
       formData.ajudaCusto +
       formData.mobilidade +
       formData.transporte +
-      formData.cestaBeneficiosTeto +
       formData.pidaTeto
     );
   };
@@ -591,8 +596,7 @@ const ColaboradorForm = () => {
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
                             { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                            ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
                         };
@@ -616,8 +620,7 @@ const ColaboradorForm = () => {
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
                             { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                            { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                            ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
                         };
@@ -645,8 +648,7 @@ const ColaboradorForm = () => {
                     { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                     { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
                     { nome: 'Transporte', valor: formData.transporte, tipo: 'Fixo' },
-                    { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                    { nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' },
+                    ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                   ].map((item) => (
                     <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
                       <span>{item.nome}</span>
