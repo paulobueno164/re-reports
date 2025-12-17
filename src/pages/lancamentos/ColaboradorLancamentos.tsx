@@ -73,6 +73,7 @@ interface Colaborador {
   matricula: string;
   departamento: string;
   cestaBeneficiosTeto: number;
+  userId: string | null;
 }
 
 const ColaboradorLancamentos = () => {
@@ -107,7 +108,7 @@ const ColaboradorLancamentos = () => {
   const [batchRejectionReason, setBatchRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const isOwnProfile = colaborador?.id && user?.id;
+  const isOwnProfile = colaborador?.userId === user?.id;
   const canEdit = hasRole('RH') || hasRole('FINANCEIRO') || isOwnProfile;
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
   
@@ -216,7 +217,7 @@ const ColaboradorLancamentos = () => {
     // Fetch collaborator data
     const { data: colabData, error: colabError } = await supabase
       .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, departamento, cesta_beneficios_teto')
+      .select('id, nome, matricula, departamento, cesta_beneficios_teto, user_id')
       .eq('id', id)
       .single();
 
@@ -232,6 +233,7 @@ const ColaboradorLancamentos = () => {
       matricula: colabData.matricula,
       departamento: colabData.departamento,
       cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto),
+      userId: colabData.user_id,
     });
 
     // Fetch periods
