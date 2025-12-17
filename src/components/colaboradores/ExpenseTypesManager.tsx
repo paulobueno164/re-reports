@@ -1,12 +1,11 @@
 import { useState, useEffect, useImperativeHandle, forwardRef, useMemo } from 'react';
-import { Package, Loader2, Save, Search } from 'lucide-react';
+import { Package, Loader2, Save, Search, CheckSquare, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency } from '@/lib/expense-validation';
 import { toast } from 'sonner';
 
 interface ExpenseType {
@@ -14,19 +13,16 @@ interface ExpenseType {
   nome: string;
   grupo: string;
   classificacao: string;
-  valor_padrao_teto: number;
 }
 
 interface ColaboradorTipoDespesa {
   id: string;
   tipo_despesa_id: string;
-  teto_individual: number | null;
   ativo: boolean;
 }
 
 export interface ExpenseTypeSelection {
   tipo_despesa_id: string;
-  teto_individual: number | null;
 }
 
 export interface ExpenseTypesManagerRef {
@@ -46,18 +42,15 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     const [saving, setSaving] = useState(false);
     const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
     const [linkedTypes, setLinkedTypes] = useState<Map<string, ColaboradorTipoDespesa>>(new Map());
-    const [changes, setChanges] = useState<Map<string, { selected: boolean; teto: number | null }>>(new Map());
+    const [changes, setChanges] = useState<Map<string, boolean>>(new Map());
     const [searchTerm, setSearchTerm] = useState('');
 
     useImperativeHandle(ref, () => ({
       getSelectedTypes: () => {
         const selections: ExpenseTypeSelection[] = [];
-        for (const [typeId, change] of changes.entries()) {
-          if (change.selected) {
-            selections.push({
-              tipo_despesa_id: typeId,
-              teto_individual: change.teto,
-            });
+        for (const [typeId, selected] of changes.entries()) {
+          if (selected) {
+            selections.push({ tipo_despesa_id: typeId });
           }
         }
         return selections;
@@ -71,12 +64,9 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     useEffect(() => {
       if (onSelectionChange) {
         const selections: ExpenseTypeSelection[] = [];
-        for (const [typeId, change] of changes.entries()) {
-          if (change.selected) {
-            selections.push({
-              tipo_despesa_id: typeId,
-              teto_individual: change.teto,
-            });
+        for (const [typeId, selected] of changes.entries()) {
+          if (selected) {
+            selections.push({ tipo_despesa_id: typeId });
           }
         }
         onSelectionChange(selections);
@@ -89,7 +79,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       // Fetch all variable expense types
       const { data: types, error: typesError } = await supabase
         .from('tipos_despesas')
-        .select('*')
+        .select('id, nome, grupo, classificacao')
         .eq('ativo', true)
         .eq('classificacao', 'variavel')
         .order('grupo', { ascending: true })
@@ -107,7 +97,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       if (colaboradorId) {
         const { data: links, error: linksError } = await supabase
           .from('colaborador_tipos_despesas')
-          .select('*')
+          .select('id, tipo_despesa_id, ativo')
           .eq('colaborador_id', colaboradorId);
 
         if (linksError) {
@@ -125,13 +115,10 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       setLinkedTypes(linkedMap);
 
       // Initialize changes with current state
-      const initialChanges = new Map<string, { selected: boolean; teto: number | null }>();
+      const initialChanges = new Map<string, boolean>();
       types?.forEach(type => {
         const link = linkedMap.get(type.id);
-        initialChanges.set(type.id, {
-          selected: !!link?.ativo,
-          teto: link?.teto_individual ?? null,
-        });
+        initialChanges.set(type.id, !!link?.ativo);
       });
       setChanges(initialChanges);
 
@@ -139,14 +126,23 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     };
 
     const handleToggleType = (typeId: string, checked: boolean) => {
-      const current = changes.get(typeId) || { selected: false, teto: null };
-      setChanges(prev => new Map(prev).set(typeId, { ...current, selected: checked }));
+      setChanges(prev => new Map(prev).set(typeId, checked));
     };
 
-    const handleTetoChange = (typeId: string, value: string) => {
-      const current = changes.get(typeId) || { selected: false, teto: null };
-      const teto = value === '' ? null : parseFloat(value);
-      setChanges(prev => new Map(prev).set(typeId, { ...current, teto }));
+    const handleSelectAll = () => {
+      const newChanges = new Map<string, boolean>();
+      expenseTypes.forEach(type => {
+        newChanges.set(type.id, true);
+      });
+      setChanges(newChanges);
+    };
+
+    const handleDeselectAll = () => {
+      const newChanges = new Map<string, boolean>();
+      expenseTypes.forEach(type => {
+        newChanges.set(type.id, false);
+      });
+      setChanges(newChanges);
     };
 
     const handleSave = async () => {
@@ -155,18 +151,15 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       setSaving(true);
 
       try {
-        for (const [typeId, change] of changes.entries()) {
+        for (const [typeId, selected] of changes.entries()) {
           const existingLink = linkedTypes.get(typeId);
 
-          if (change.selected) {
+          if (selected) {
             if (existingLink) {
               // Update existing link
               await supabase
                 .from('colaborador_tipos_despesas')
-                .update({
-                  ativo: true,
-                  teto_individual: change.teto,
-                })
+                .update({ ativo: true })
                 .eq('id', existingLink.id);
             } else {
               // Create new link
@@ -176,7 +169,6 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                   colaborador_id: colaboradorId,
                   tipo_despesa_id: typeId,
                   ativo: true,
-                  teto_individual: change.teto,
                 });
             }
           } else if (existingLink) {
@@ -220,22 +212,44 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       );
     }
 
-    const selectedCount = Array.from(changes.values()).filter(c => c.selected).length;
+    const selectedCount = Array.from(changes.values()).filter(c => c).length;
+    const allSelected = selectedCount === expenseTypes.length && expenseTypes.length > 0;
 
     return (
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Package className="h-4 w-4" />
-              Tipos de Despesa Permitidos ({selectedCount} selecionados)
+              Tipos de Despesa Permitidos ({selectedCount} de {expenseTypes.length})
             </div>
-            {!disabled && !standalone && colaboradorId && (
-              <Button size="sm" onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
-                Salvar
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {!disabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={allSelected ? handleDeselectAll : handleSelectAll}
+                >
+                  {allSelected ? (
+                    <>
+                      <Square className="h-4 w-4 mr-1" />
+                      Desmarcar Todos
+                    </>
+                  ) : (
+                    <>
+                      <CheckSquare className="h-4 w-4 mr-1" />
+                      Selecionar Todos
+                    </>
+                  )}
+                </Button>
+              )}
+              {!disabled && !standalone && colaboradorId && (
+                <Button size="sm" onClick={handleSave} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                  Salvar
+                </Button>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -259,44 +273,30 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                   <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     {grupo}
                   </h4>
-                  <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {types.map(type => {
-                      const change = changes.get(type.id) || { selected: false, teto: null };
+                      const selected = changes.get(type.id) || false;
 
                       return (
                         <div
                           key={type.id}
-                          className={`flex items-center gap-3 p-2 rounded-lg border transition-colors ${
-                            change.selected ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                            selected ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 hover:bg-muted/50'
                           }`}
+                          onClick={() => !disabled && handleToggleType(type.id, !selected)}
                         >
                           <Checkbox
                             id={`type-${type.id}`}
-                            checked={change.selected}
+                            checked={selected}
                             onCheckedChange={(checked) => handleToggleType(type.id, !!checked)}
                             disabled={disabled}
                           />
-                          <div className="flex-1 min-w-0">
-                            <Label
-                              htmlFor={`type-${type.id}`}
-                              className="text-sm font-medium cursor-pointer"
-                            >
-                              {type.nome}
-                            </Label>
-                            <p className="text-xs text-muted-foreground">
-                              Teto padrão: {formatCurrency(type.valor_padrao_teto)}
-                            </p>
-                          </div>
-                          <div className="w-28">
-                            <Input
-                              type="number"
-                              placeholder="Teto ind."
-                              value={change.teto ?? ''}
-                              onChange={(e) => handleTetoChange(type.id, e.target.value)}
-                              disabled={disabled || !change.selected}
-                              className="h-8 text-sm"
-                            />
-                          </div>
+                          <Label
+                            htmlFor={`type-${type.id}`}
+                            className="text-sm font-medium cursor-pointer flex-1"
+                          >
+                            {type.nome}
+                          </Label>
                         </div>
                       );
                     })}
@@ -305,11 +305,8 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
               ))
             )}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
-            {standalone 
-              ? 'Selecione os tipos de despesa que este colaborador poderá lançar. Deixe em branco para permitir todos.'
-              : 'Deixe o teto individual em branco para usar o teto padrão do tipo de despesa.'
-            }
+          <p className="text-xs text-muted-foreground mt-4">
+            Selecione os tipos de despesa que este colaborador poderá lançar na Cesta de Benefícios.
           </p>
         </CardContent>
       </Card>
