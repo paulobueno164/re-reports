@@ -304,7 +304,6 @@ const ColaboradorForm = () => {
           const expenseTypeLinks = expenseTypesToSave.map(et => ({
             colaborador_id: newColaborador.id,
             tipo_despesa_id: et.tipo_despesa_id,
-            teto_individual: et.teto_individual,
             ativo: true,
           }));
           

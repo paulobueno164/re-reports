@@ -175,17 +175,6 @@ const TipoDespesaForm = () => {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label>Valor Padrão para Teto (R$)</Label>
-          <Input
-            type="number"
-            value={formData.valorPadraoTeto}
-            onChange={(e) => setFormData({ ...formData, valorPadraoTeto: parseFloat(e.target.value) || 0 })}
-            placeholder="0,00"
-          />
-          <p className="text-xs text-muted-foreground">Este valor será sugerido ao cadastrar novos colaboradores</p>
-        </div>
-
         <div className="space-y-3">
           <Label>Origem Permitida</Label>
           <p className="text-xs text-muted-foreground">Selecione quem pode ser beneficiário desta despesa</p>
