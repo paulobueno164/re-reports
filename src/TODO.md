@@ -27,7 +27,7 @@
 ### FASE 3: Dados Mensais (Req 2)
 - [ ] 2.1 Interface Web para lançamentos
 - [ ] 2.2 Fluxo de inclusão/envio mensal
-  - [ ] Controle de status (Rascunho, Enviado, Em Análise, Válido, Inválido)
+  - [ ] Controle de status (Enviado, Em Análise, Válido, Inválido)
   - [ ] Validação de período
 - [ ] 2.3 Campos obrigatórios por comprovante
   - [ ] Mês referência
@@ -131,7 +131,7 @@
 - tipo_despesa_id, origem
 - valor_lancado, valor_considerado, valor_nao_considerado
 - descricao_fato_gerador
-- status (rascunho, enviado, em_analise, valido, invalido)
+- status (enviado, em_analise, valido, invalido)
 - motivo_invalidacao
 - created_at, updated_at
 
