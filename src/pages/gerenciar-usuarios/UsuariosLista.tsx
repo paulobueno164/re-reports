@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Shield, ShieldCheck, ShieldAlert, Loader2, UserCog, MoreVertical } from 'lucide-react';
+import { Search, Shield, Loader2, UserCog, MoreVertical, Users, Info, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -25,6 +26,7 @@ interface UserWithRoles {
   nome: string;
   createdAt: string;
   roles: AppRole[];
+  colaboradorId?: string;
 }
 
 const UsuariosLista = () => {
@@ -54,6 +56,11 @@ const UsuariosLista = () => {
 
       if (rolesError) throw rolesError;
 
+      // Fetch colaboradores to link users
+      const { data: colaboradores } = await supabase
+        .from('colaboradores_elegiveis')
+        .select('id, user_id');
+
       const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => ({
         id: profile.id,
         email: profile.email,
@@ -62,6 +69,7 @@ const UsuariosLista = () => {
         roles: (roles || [])
           .filter((r) => r.user_id === profile.id)
           .map((r) => r.role as AppRole),
+        colaboradorId: (colaboradores || []).find(c => c.user_id === profile.id)?.id,
       }));
 
       setUsers(usersWithRoles);
@@ -127,6 +135,20 @@ const UsuariosLista = () => {
       ),
     },
     {
+      key: 'vinculo',
+      header: 'Colaborador',
+      hideOnMobile: true,
+      render: (item: UserWithRoles) => (
+        item.colaboradorId ? (
+          <Badge variant="outline" className="text-success border-success/30">
+            Vinculado
+          </Badge>
+        ) : (
+          <span className="text-muted-foreground text-sm">-</span>
+        )
+      ),
+    },
+    {
       key: 'createdAt',
       header: 'Cadastro',
       hideOnMobile: true,
@@ -142,10 +164,18 @@ const UsuariosLista = () => {
       className: 'text-right',
       render: (item: UserWithRoles) => (
         <div className="flex justify-end gap-1">
-          <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
-            <UserCog className="h-4 w-4 mr-2" />
-            Gerenciar Roles
-          </Button>
+          <div className="hidden sm:flex gap-1">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/gerenciar-usuarios/${item.id}/roles`)}>
+              <UserCog className="h-4 w-4 mr-2" />
+              Roles
+            </Button>
+            {item.colaboradorId && (
+              <Button variant="ghost" size="sm" onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Ver Colaborador
+              </Button>
+            )}
+          </div>
           <div className="sm:hidden">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -158,6 +188,12 @@ const UsuariosLista = () => {
                   <UserCog className="mr-2 h-4 w-4" />
                   Gerenciar Roles
                 </DropdownMenuItem>
+                {item.colaboradorId && (
+                  <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    Ver Colaborador
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -181,6 +217,17 @@ const UsuariosLista = () => {
         description="Visualize e gerencie as permissões dos usuários do sistema"
       />
 
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Para criar novos usuários ou alterar e-mail/senha, acesse o cadastro do colaborador em{' '}
+          <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/colaboradores')}>
+            Colaboradores
+          </Button>
+          . Aqui você pode gerenciar apenas as <strong>roles</strong> (permissões) dos usuários existentes.
+        </AlertDescription>
+      </Alert>
+
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card rounded-lg border p-4">
@@ -201,9 +248,9 @@ const UsuariosLista = () => {
         </div>
         <div className="bg-card rounded-lg border p-4">
           <div className="text-2xl font-bold">
-            {users.filter((u) => u.roles.includes('COLABORADOR')).length}
+            {users.filter((u) => u.colaboradorId).length}
           </div>
-          <div className="text-sm text-muted-foreground">Colaboradores</div>
+          <div className="text-sm text-muted-foreground">Vinculados</div>
         </div>
       </div>
 
