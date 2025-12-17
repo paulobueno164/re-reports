@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader2, UserCog, MoreVertical, Plus, Eye, EyeOff, Link, KeyRound, ExternalLink } from 'lucide-react';
+import { Search, Loader2, UserCog, MoreVertical, Plus, Eye, EyeOff, Link, Unlink2, KeyRound, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,10 @@ const UsuariosLista = () => {
   const [colaboradoresSemUsuario, setColaboradoresSemUsuario] = useState<ColaboradorSemUsuario[]>([]);
   const [selectedColaboradorId, setSelectedColaboradorId] = useState('');
   const [linking, setLinking] = useState(false);
+  
+  // Unlink colaborador dialog
+  const [showUnlinkDialog, setShowUnlinkDialog] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -207,6 +211,33 @@ const UsuariosLista = () => {
     }
   };
 
+  const handleOpenUnlinkDialog = (user: UserWithRoles) => {
+    setSelectedUser(user);
+    setShowUnlinkDialog(true);
+  };
+
+  const handleUnlinkColaborador = async () => {
+    if (!selectedUser || !selectedUser.colaboradorId) return;
+
+    setUnlinking(true);
+    try {
+      const { error } = await supabase
+        .from('colaboradores_elegiveis')
+        .update({ user_id: null })
+        .eq('id', selectedUser.colaboradorId);
+
+      if (error) throw error;
+
+      toast({ title: 'Sucesso', description: 'Colaborador desvinculado com sucesso.' });
+      setShowUnlinkDialog(false);
+      fetchUsers();
+    } catch (error: any) {
+      toast({ title: 'Erro ao desvincular', description: error.message, variant: 'destructive' });
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -307,10 +338,16 @@ const UsuariosLista = () => {
               </Button>
             )}
             {item.colaboradorId && (
-              <Button variant="ghost" size="sm" onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Ver Colaborador
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Ver
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive hover:text-destructive">
+                  <Unlink2 className="h-4 w-4 mr-2" />
+                  Desvincular
+                </Button>
+              </>
             )}
           </div>
           <div className="sm:hidden">
@@ -336,10 +373,16 @@ const UsuariosLista = () => {
                   </DropdownMenuItem>
                 )}
                 {item.colaboradorId && (
-                  <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Ver Colaborador
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Ver Colaborador
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenUnlinkDialog(item)} className="text-destructive">
+                      <Unlink2 className="mr-2 h-4 w-4" />
+                      Desvincular Colaborador
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
@@ -513,6 +556,38 @@ const UsuariosLista = () => {
             >
               {linking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Vincular
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unlink Colaborador Dialog */}
+      <Dialog open={showUnlinkDialog} onOpenChange={setShowUnlinkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desvincular Colaborador</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja desvincular o colaborador <strong>{selectedUser?.colaboradorNome}</strong> do usuário <strong>{selectedUser?.nome}</strong>?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Alert variant="destructive" className="my-4">
+            <AlertDescription>
+              O colaborador perderá o acesso ao sistema até que seja vinculado a outro usuário.
+            </AlertDescription>
+          </Alert>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUnlinkDialog(false)} disabled={unlinking}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleUnlinkColaborador} 
+              disabled={unlinking}
+            >
+              {unlinking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Desvincular
             </Button>
           </DialogFooter>
         </DialogContent>
