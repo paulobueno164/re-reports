@@ -139,9 +139,9 @@ const HistoricoAuditoria = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Buscar</Label>
+          <div className="flex flex-row gap-4 items-end flex-wrap">
+            <div className="space-y-1.5 flex-1 min-w-[200px] max-w-sm">
+              <Label className="text-xs text-muted-foreground">Buscar</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -152,10 +152,10 @@ const HistoricoAuditoria = () => {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Ação</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Ação</Label>
               <Select value={filterAction} onValueChange={setFilterAction}>
-                <SelectTrigger>
+                <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Todas" />
                 </SelectTrigger>
                 <SelectContent>
@@ -168,10 +168,10 @@ const HistoricoAuditoria = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Tipo de Entidade</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tipo de Entidade</Label>
               <Select value={filterEntity} onValueChange={setFilterEntity}>
-                <SelectTrigger>
+                <SelectTrigger className="w-[160px]">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>
@@ -183,10 +183,10 @@ const HistoricoAuditoria = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Usuário</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Usuário</Label>
               <Select value={filterUser} onValueChange={setFilterUser}>
-                <SelectTrigger>
+                <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Todos" />
                 </SelectTrigger>
                 <SelectContent>

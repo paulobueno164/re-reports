@@ -469,19 +469,23 @@ const ValidacaoLista = () => {
 
       {/* Search and Filters */}
       <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por colaborador ou tipo..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+        <div className="flex flex-row gap-4 items-end flex-wrap">
+          <div className="space-y-1.5 flex-1 min-w-[200px] max-w-md">
+            <Label className="text-xs text-muted-foreground">Buscar</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por colaborador ou tipo..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
           </div>
-          <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Status</Label>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -491,7 +495,10 @@ const ValidacaoLista = () => {
                 <SelectItem value="all">Todos</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="shrink-0">
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground invisible">Ação</Label>
+            <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="h-10">
               <Filter className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Filtros Avançados</span>
             </Button>

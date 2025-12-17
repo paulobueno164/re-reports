@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -203,19 +204,23 @@ const TiposDespesasLista = () => {
       </PageHeader>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
+      <div className="flex flex-row gap-4 items-end flex-wrap">
+        <div className="space-y-1.5 flex-1 min-w-[200px] max-w-md">
+          <Label className="text-xs text-muted-foreground">Buscar</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Grupo</Label>
           <Select value={filterGrupo} onValueChange={setFilterGrupo}>
-            <SelectTrigger className="w-full sm:w-36">
+            <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Grupo" />
             </SelectTrigger>
             <SelectContent>
@@ -227,8 +232,11 @@ const TiposDespesasLista = () => {
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Classificação</Label>
           <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
-            <SelectTrigger className="w-full sm:w-32">
+            <SelectTrigger className="w-[130px]">
               <SelectValue placeholder="Tipo" />
             </SelectTrigger>
             <SelectContent>

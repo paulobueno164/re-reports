@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -276,25 +277,31 @@ const DashboardColaborador = () => {
         title={`Olá, ${colaborador.nome.split(' ')[0]}`} 
         description={`${colaborador.matricula} • ${colaborador.departamento}`}
       >
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              {periods.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.periodo} {p.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button asChild>
-            <Link to={`/lancamentos/colaborador/${colaborador.id}`}>
-              <Receipt className="mr-2 h-4 w-4" />
-              Meus Lançamentos
-            </Link>
-          </Button>
+        <div className="flex flex-row gap-4 items-end flex-wrap">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Período</Label>
+            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                {periods.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.periodo} {p.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground invisible">Ação</Label>
+            <Button asChild>
+              <Link to={`/lancamentos/colaborador/${colaborador.id}`}>
+                <Receipt className="mr-2 h-4 w-4" />
+                Meus Lançamentos
+              </Link>
+            </Button>
+          </div>
         </div>
       </PageHeader>
 

@@ -686,29 +686,35 @@ const ColaboradorLancamentos = () => {
         )}
 
         {/* Search and Status Filter */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 sm:max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input 
-              placeholder="Buscar por tipo de despesa..." 
-              value={searchTerm} 
-              onChange={(e) => setSearchTerm(e.target.value)} 
-              className="pl-9" 
-            />
+        <div className="flex flex-row gap-4 items-end flex-wrap">
+          <div className="space-y-1.5 flex-1 min-w-[200px] max-w-md">
+            <Label className="text-xs text-muted-foreground">Buscar</Label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar por tipo de despesa..." 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                className="pl-9" 
+              />
+            </div>
           </div>
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Filtrar status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="pendentes">Pendentes</SelectItem>
-              <SelectItem value="rascunho">Rascunhos</SelectItem>
-              <SelectItem value="valido">Válidos</SelectItem>
-              <SelectItem value="invalido">Inválidos</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Status</Label>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+              <SelectTrigger className="w-[180px]">
+                <Filter className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Filtrar status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendentes">Pendentes</SelectItem>
+                <SelectItem value="rascunho">Rascunhos</SelectItem>
+                <SelectItem value="valido">Válidos</SelectItem>
+                <SelectItem value="invalido">Inválidos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* Batch Approval Controls - RH/FINANCEIRO */}
