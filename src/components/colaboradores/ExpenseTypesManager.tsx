@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { toast } from 'sonner';
@@ -231,7 +230,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <ScrollArea className="h-64 pr-4">
+          <div className="space-y-4">
             <div className="space-y-4">
               {Object.entries(groupedTypes).map(([grupo, types]) => (
                 <div key={grupo} className="space-y-2">
@@ -283,7 +282,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </div>
           <p className="text-xs text-muted-foreground mt-3">
             {standalone 
               ? 'Selecione os tipos de despesa que este colaborador poderá lançar. Deixe em branco para permitir todos.'
