@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Search, Loader2, Download, FileText, Link, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Download, FileText, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,7 +29,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
-import { ExpenseTypesManager } from '@/components/colaboradores/ExpenseTypesManager';
+import { ExpenseTypesManager, ExpenseTypesManagerRef, ExpenseTypeSelection } from '@/components/colaboradores/ExpenseTypesManager';
 
 const departments = [
   'Tecnologia da Informação',
@@ -51,6 +51,10 @@ const ColaboradorForm = () => {
   const [saving, setSaving] = useState(false);
   const [foundUser, setFoundUser] = useState<{ id: string; nome: string; email: string } | null>(null);
   const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
+  
+  // Expense types for new colaborador
+  const expenseTypesRef = useRef<ExpenseTypesManagerRef>(null);
+  const [pendingExpenseTypes, setPendingExpenseTypes] = useState<ExpenseTypeSelection[]>([]);
   
   // User management states
   const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
@@ -280,8 +284,33 @@ const ColaboradorForm = () => {
         if (error) throw error;
         toast({ title: 'Colaborador atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
-        const { error } = await supabase.from('colaboradores_elegiveis').insert([dbData]);
+        const { data: newColaborador, error } = await supabase
+          .from('colaboradores_elegiveis')
+          .insert([dbData])
+          .select('id')
+          .single();
         if (error) throw error;
+        
+        // Save expense types for new colaborador
+        const expenseTypesToSave = expenseTypesRef.current?.getSelectedTypes() || pendingExpenseTypes;
+        if (expenseTypesToSave.length > 0 && newColaborador) {
+          const expenseTypeLinks = expenseTypesToSave.map(et => ({
+            colaborador_id: newColaborador.id,
+            tipo_despesa_id: et.tipo_despesa_id,
+            teto_individual: et.teto_individual,
+            ativo: true,
+          }));
+          
+          const { error: linkError } = await supabase
+            .from('colaborador_tipos_despesas')
+            .insert(expenseTypeLinks);
+          
+          if (linkError) {
+            console.error('Erro ao vincular tipos de despesa:', linkError);
+            // Don't fail the whole operation, just log the error
+          }
+        }
+        
         toast({ title: 'Colaborador criado', description: 'O colaborador foi cadastrado com sucesso.' });
       }
       navigate('/colaboradores');
@@ -329,7 +358,7 @@ const ColaboradorForm = () => {
             <TabsTrigger value="dados" className="text-xs sm:text-sm">Dados Básicos</TabsTrigger>
             <TabsTrigger value="usuario" className="text-xs sm:text-sm">Acesso ao Sistema</TabsTrigger>
             <TabsTrigger value="remuneracao" className="text-xs sm:text-sm">Remuneração</TabsTrigger>
-            <TabsTrigger value="despesas" disabled={!isEditing} className="text-xs sm:text-sm">Tipos de Despesa</TabsTrigger>
+            <TabsTrigger value="despesas" className="text-xs sm:text-sm">Tipos de Despesa</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dados" className="space-y-6">
@@ -650,7 +679,15 @@ const ColaboradorForm = () => {
           </TabsContent>
 
           <TabsContent value="despesas">
-            {isEditing && id && <ExpenseTypesManager colaboradorId={id} />}
+            {isEditing && id ? (
+              <ExpenseTypesManager colaboradorId={id} />
+            ) : (
+              <ExpenseTypesManager 
+                ref={expenseTypesRef}
+                standalone 
+                onSelectionChange={setPendingExpenseTypes}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </PageFormLayout>
