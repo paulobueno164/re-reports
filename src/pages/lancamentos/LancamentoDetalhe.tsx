@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Edit, Loader2, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
 import { PageFormLayout } from "@/components/ui/page-form-layout";
@@ -58,6 +58,7 @@ const LancamentoDetalhe = () => {
   const [processing, setProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [showReasonError, setShowReasonError] = useState(false);
+  const rejectionReasonRef = useRef<HTMLTextAreaElement>(null);
 
   const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
   const canValidate = isRHorFinanceiro && (expense?.status === "enviado" || expense?.status === "em_analise");
@@ -187,6 +188,8 @@ const LancamentoDetalhe = () => {
   const handleReject = async () => {
     if (!expense || !rejectionReason.trim()) {
       setShowReasonError(true);
+      rejectionReasonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      rejectionReasonRef.current?.focus();
       toast({
         title: "Motivo obrigatório",
         description: "Por favor, informe o motivo da invalidação.",
@@ -374,6 +377,7 @@ const LancamentoDetalhe = () => {
               Motivo da Invalidação (se aplicável)
             </Label>
             <Textarea
+              ref={rejectionReasonRef}
               value={rejectionReason}
               onChange={(e) => {
                 setRejectionReason(e.target.value);
