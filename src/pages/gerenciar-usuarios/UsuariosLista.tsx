@@ -1,16 +1,32 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Shield, Loader2, UserCog, MoreVertical, Users, Info, ExternalLink } from 'lucide-react';
+import { Search, Shield, Loader2, UserCog, MoreVertical, Users, Info, ExternalLink, Plus, Eye, EyeOff } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
@@ -29,12 +45,35 @@ interface UserWithRoles {
   colaboradorId?: string;
 }
 
+const departments = [
+  'Tecnologia da Informação',
+  'Financeiro',
+  'Recursos Humanos',
+  'Marketing',
+  'Comercial',
+  'Operações',
+  'Jurídico',
+];
+
 const UsuariosLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // New user + colaborador dialog states
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newUserData, setNewUserData] = useState({
+    nome: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    matricula: '',
+    departamento: '',
+  });
 
   useEffect(() => {
     fetchUsers();
@@ -77,6 +116,74 @@ const UsuariosLista = () => {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateUserWithColaborador = async () => {
+    // Validations
+    if (!newUserData.nome || !newUserData.email || !newUserData.password || !newUserData.matricula || !newUserData.departamento) {
+      toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
+      return;
+    }
+    if (newUserData.password.length < 6) {
+      toast({ title: 'Erro', description: 'A senha deve ter no mínimo 6 caracteres.', variant: 'destructive' });
+      return;
+    }
+    if (newUserData.password !== newUserData.confirmPassword) {
+      toast({ title: 'Erro', description: 'As senhas não conferem.', variant: 'destructive' });
+      return;
+    }
+    if (!newUserData.email.includes('@')) {
+      toast({ title: 'Erro', description: 'Informe um e-mail válido.', variant: 'destructive' });
+      return;
+    }
+
+    setCreating(true);
+    try {
+      // 1. Create user via edge function
+      const { data: userData, error: userError } = await supabase.functions.invoke('manage-user', {
+        body: {
+          action: 'create',
+          email: newUserData.email.toLowerCase().trim(),
+          password: newUserData.password,
+          nome: newUserData.nome,
+        },
+      });
+
+      if (userError) throw userError;
+      if (userData?.error) throw new Error(userData.error);
+
+      const userId = userData.userId;
+
+      // 2. Create colaborador linked to user
+      const { error: colaboradorError } = await supabase
+        .from('colaboradores_elegiveis')
+        .insert({
+          matricula: newUserData.matricula,
+          nome: newUserData.nome,
+          email: newUserData.email.toLowerCase().trim(),
+          departamento: newUserData.departamento,
+          user_id: userId,
+          ativo: true,
+        });
+
+      if (colaboradorError) throw colaboradorError;
+
+      toast({ title: 'Sucesso', description: 'Usuário e colaborador criados com sucesso.' });
+      setShowCreateDialog(false);
+      setNewUserData({
+        nome: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        matricula: '',
+        departamento: '',
+      });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ title: 'Erro ao criar usuário', description: error.message, variant: 'destructive' });
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -211,63 +318,164 @@ const UsuariosLista = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PageHeader
-        title="Gerenciar Usuários"
-        description="Visualize e gerencie as permissões dos usuários do sistema"
-      />
-
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          Para criar novos usuários ou alterar e-mail/senha, acesse o cadastro do colaborador em{' '}
-          <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/colaboradores')}>
-            Colaboradores
+    <>
+      <div className="space-y-6 animate-fade-in">
+        <PageHeader
+          title="Gerenciar Usuários"
+          description="Visualize e gerencie as permissões dos usuários do sistema"
+        >
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Novo Usuário + Colaborador</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
-          . Aqui você pode gerenciar apenas as <strong>roles</strong> (permissões) dos usuários existentes.
-        </AlertDescription>
-      </Alert>
+        </PageHeader>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card rounded-lg border p-4">
-          <div className="text-2xl font-bold">{users.length}</div>
-          <div className="text-sm text-muted-foreground">Total de Usuários</div>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <div className="text-2xl font-bold">
-            {users.filter((u) => u.roles.includes('RH')).length}
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="bg-card rounded-lg border p-4">
+            <div className="text-2xl font-bold">{users.length}</div>
+            <div className="text-sm text-muted-foreground">Total de Usuários</div>
           </div>
-          <div className="text-sm text-muted-foreground">Usuários RH</div>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <div className="text-2xl font-bold">
-            {users.filter((u) => u.roles.includes('FINANCEIRO')).length}
+          <div className="bg-card rounded-lg border p-4">
+            <div className="text-2xl font-bold">
+              {users.filter((u) => u.roles.includes('RH')).length}
+            </div>
+            <div className="text-sm text-muted-foreground">Usuários RH</div>
           </div>
-          <div className="text-sm text-muted-foreground">Usuários Financeiro</div>
-        </div>
-        <div className="bg-card rounded-lg border p-4">
-          <div className="text-2xl font-bold">
-            {users.filter((u) => u.colaboradorId).length}
+          <div className="bg-card rounded-lg border p-4">
+            <div className="text-2xl font-bold">
+              {users.filter((u) => u.roles.includes('FINANCEIRO')).length}
+            </div>
+            <div className="text-sm text-muted-foreground">Usuários Financeiro</div>
           </div>
-          <div className="text-sm text-muted-foreground">Vinculados</div>
+          <div className="bg-card rounded-lg border p-4">
+            <div className="text-2xl font-bold">
+              {users.filter((u) => u.colaboradorId).length}
+            </div>
+            <div className="text-sm text-muted-foreground">Vinculados</div>
+          </div>
         </div>
+
+        {/* Search */}
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por nome ou e-mail..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {/* Table */}
+        <DataTable data={filteredUsers} columns={columns} emptyMessage="Nenhum usuário encontrado" />
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome ou e-mail..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9"
-        />
-      </div>
-
-      {/* Table */}
-      <DataTable data={filteredUsers} columns={columns} emptyMessage="Nenhum usuário encontrado" />
-    </div>
+      {/* Create User + Colaborador Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo Usuário + Colaborador</DialogTitle>
+            <DialogDescription>
+              Crie um novo usuário de acesso e seu cadastro de colaborador simultaneamente.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Nome Completo *</Label>
+              <Input
+                value={newUserData.nome}
+                onChange={(e) => setNewUserData({ ...newUserData, nome: e.target.value })}
+                placeholder="Nome do colaborador"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>E-mail *</Label>
+              <Input
+                type="email"
+                value={newUserData.email}
+                onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                placeholder="email@empresa.com.br"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Matrícula *</Label>
+                <Input
+                  value={newUserData.matricula}
+                  onChange={(e) => setNewUserData({ ...newUserData, matricula: e.target.value })}
+                  placeholder="Ex: 12345"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Departamento *</Label>
+                <Select
+                  value={newUserData.departamento}
+                  onValueChange={(value) => setNewUserData({ ...newUserData, departamento: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Senha de Acesso *</Label>
+              <div className="relative">
+                <Input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newUserData.password}
+                  onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Confirmar Senha *</Label>
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                value={newUserData.confirmPassword}
+                onChange={(e) => setNewUserData({ ...newUserData, confirmPassword: e.target.value })}
+                placeholder="Repita a senha"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)} disabled={creating}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateUserWithColaborador} disabled={creating}>
+              {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Criar Usuário
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
