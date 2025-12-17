@@ -109,7 +109,7 @@ const ColaboradorLancamentos = () => {
 
   const isOwnProfile = colaborador?.id && user?.id;
   const canEdit = hasRole('RH') || hasRole('FINANCEIRO') || isOwnProfile;
-  const isRH = hasRole('RH');
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
   
   // Pending expenses for batch operations
   const pendingExpenses = useMemo(() => 
@@ -457,8 +457,8 @@ const ColaboradorLancamentos = () => {
   }, [expenses, searchTerm, statusFilter]);
 
   const columns = [
-    // Checkbox column for RH batch selection (only for pending items)
-    ...(isRH && pendingExpenses.length > 0 ? [{
+    // Checkbox column for RH/FINANCEIRO batch selection (only for pending items)
+    ...(isRHorFinanceiro && pendingExpenses.length > 0 ? [{
       key: 'select',
       header: (
         <Checkbox
@@ -605,7 +605,7 @@ const ColaboradorLancamentos = () => {
         {/* Summary Cards */}
         {colaborador && (
           <div className="space-y-4">
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRH ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 ${isRHorFinanceiro ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-3 sm:gap-4`}>
               <Card className={bloqueadoPorUltimoLancamento ? 'border-destructive/50' : ''}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Cesta de Benefícios</CardTitle>
@@ -641,8 +641,8 @@ const ColaboradorLancamentos = () => {
                 </CardContent>
               </Card>
 
-              {/* Pending Validation Card - RH only */}
-              {isRH && (
+              {/* Pending Validation Card - RH/FINANCEIRO only */}
+              {isRHorFinanceiro && (
                 <Card className={pendingValidation > 0 ? 'border-warning/50' : ''}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</CardTitle>
@@ -658,7 +658,7 @@ const ColaboradorLancamentos = () => {
                 </Card>
               )}
 
-              <Card className={isRH ? '' : 'sm:col-span-2 md:col-span-1'}>
+              <Card className={isRHorFinanceiro ? '' : 'sm:col-span-2 md:col-span-1'}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">Período Selecionado</CardTitle>
                 </CardHeader>
@@ -709,8 +709,8 @@ const ColaboradorLancamentos = () => {
           </Select>
         </div>
 
-        {/* Batch Approval Controls - RH only */}
-        {isRH && selectedIds.length > 0 && (
+        {/* Batch Approval Controls - RH/FINANCEIRO */}
+        {isRHorFinanceiro && selectedIds.length > 0 && (
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
             <div className="text-sm text-muted-foreground">
               <span className="font-medium text-foreground">{selectedIds.length}</span> selecionado(s)

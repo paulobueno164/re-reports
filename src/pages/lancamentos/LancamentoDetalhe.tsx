@@ -58,8 +58,8 @@ const LancamentoDetalhe = () => {
   const [processing, setProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const isRH = hasRole('RH');
-  const canValidate = isRH && (expense?.status === 'enviado' || expense?.status === 'em_analise');
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
+  const canValidate = isRHorFinanceiro && (expense?.status === 'enviado' || expense?.status === 'em_analise');
 
   useEffect(() => {
     fetchExpense();
@@ -229,7 +229,7 @@ const LancamentoDetalhe = () => {
   const originLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
 
   // Determine back path based on context
-  const backPath = isRH && expense.colaboradorId 
+  const backPath = isRHorFinanceiro && expense.colaboradorId 
     ? `/lancamentos/colaborador/${expense.colaboradorId}?periodo=${expense.periodoId}`
     : '/lancamentos';
 
@@ -324,7 +324,7 @@ const LancamentoDetalhe = () => {
         {/* Status */}
         <div className="flex items-center gap-3">
           <StatusBadge status={expense.status as any} />
-          {isRH && expense.colaboradorNome && (
+          {isRHorFinanceiro && expense.colaboradorNome && (
             <span className="text-sm text-muted-foreground">
               Colaborador: <span className="font-medium text-foreground">{expense.colaboradorNome}</span>
             </span>
