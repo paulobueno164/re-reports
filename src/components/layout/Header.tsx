@@ -15,6 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useIsMobile } from '@/hooks/use-mobile';
+import onsetLogo from '@/assets/onset-logo.png';
 
 interface HeaderProps {
   title?: string;
@@ -60,11 +61,7 @@ export function Header({ title, onMenuClick }: HeaderProps) {
         
         {/* Mobile Logo */}
         {isMobile && !searchExpanded && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">RE</span>
-            </div>
-          </div>
+          <img src={onsetLogo} alt="Onset" className="h-8 w-auto" />
         )}
 
         {title && !isMobile && (
