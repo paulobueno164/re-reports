@@ -40,13 +40,13 @@ const navigation: NavItem[] = [
     roles: ['COLABORADOR'],
   },
   {
-    label: 'Dashboard RH',
+    label: 'Dashboard',
     href: '/dashboard-rh',
     icon: <Activity className="w-5 h-5" />,
     roles: ['RH'],
   },
   {
-    label: 'Dashboard Financeiro',
+    label: 'Dashboard',
     href: '/dashboard-financeiro',
     icon: <BarChart3 className="w-5 h-5" />,
     roles: ['FINANCEIRO'],
