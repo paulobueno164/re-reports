@@ -37,7 +37,6 @@ interface Colaborador {
   ajudaCusto: number;
   mobilidade: number;
   transporte: number;
-  cestaBeneficiosTeto: number;
   temPida: boolean;
   pidaTeto: number;
   ativo: boolean;
@@ -89,7 +88,6 @@ const ColaboradoresLista = () => {
           ajudaCusto: Number(e.ajuda_custo),
           mobilidade: Number(e.mobilidade),
           transporte: Number(e.transporte),
-          cestaBeneficiosTeto: Number(e.cesta_beneficios_teto),
           temPida: e.tem_pida,
           pidaTeto: Number(e.pida_teto),
           ativo: e.ativo,
@@ -143,13 +141,6 @@ const ColaboradoresLista = () => {
       },
     },
     { key: 'departamento', header: 'Depto', hideOnMobile: true },
-    {
-      key: 'cestaBeneficiosTeto',
-      header: 'Teto Cesta',
-      className: 'text-right font-mono',
-      hideOnMobile: true,
-      render: (item: Colaborador) => formatCurrency(item.cestaBeneficiosTeto),
-    },
     {
       key: 'temPida',
       header: 'PI/DA',

@@ -25,7 +25,6 @@ interface Colaborador {
   ajudaCusto: number;
   mobilidade: number;
   transporte: number;
-  cestaBeneficiosTeto: number;
   temPida: boolean;
   pidaTeto: number;
   ativo: boolean;
@@ -69,7 +68,6 @@ const ColaboradorDetalhe = () => {
         ajudaCusto: Number(data.ajuda_custo),
         mobilidade: Number(data.mobilidade),
         transporte: Number(data.transporte),
-        cestaBeneficiosTeto: Number(data.cesta_beneficios_teto),
         temPida: data.tem_pida,
         pidaTeto: Number(data.pida_teto),
         ativo: data.ativo,
@@ -99,7 +97,6 @@ const ColaboradorDetalhe = () => {
       colaborador.ajudaCusto +
       colaborador.mobilidade +
       colaborador.transporte +
-      colaborador.cestaBeneficiosTeto +
       colaborador.pidaTeto
     );
   };

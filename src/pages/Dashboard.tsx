@@ -270,25 +270,13 @@ const Dashboard = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Utilization calculation (filtered by department)
-      let utilizationQuery = supabase
-        .from('colaboradores_elegiveis')
-        .select('id, cesta_beneficios_teto')
-        .eq('ativo', true);
-      
-      if (selectedDepartment !== 'todos') {
-        utilizationQuery = utilizationQuery.eq('departamento', selectedDepartment);
-      }
-      
-      const { data: colaboradores } = await utilizationQuery;
-
-      const totalCestaTeto = colaboradores?.reduce((sum, c) => sum + Number(c.cesta_beneficios_teto), 0) || 0;
+      // Utilization calculation - simplified without cesta_beneficios_teto
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const utilizationData = {
         used: totalUtilizado,
-        available: Math.max(0, totalCestaTeto - totalUtilizado),
-        total: totalCestaTeto,
-        percentage: totalCestaTeto > 0 ? Math.round((totalUtilizado / totalCestaTeto) * 100) : 0,
+        available: 0,
+        total: totalUtilizado,
+        percentage: 100,
       };
 
       // Expenses by month (last 6 months)

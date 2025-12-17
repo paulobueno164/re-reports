@@ -47,7 +47,6 @@ interface Colaborador {
   nome: string;
   matricula: string;
   departamento: string;
-  cestaBeneficiosTeto: number;
   valeAlimentacao: number;
   valeRefeicao: number;
   ajudaCusto: number;
@@ -122,7 +121,6 @@ const DashboardColaborador = () => {
       nome: colabData.nome,
       matricula: colabData.matricula,
       departamento: colabData.departamento,
-      cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto),
       valeAlimentacao: Number(colabData.vale_alimentacao),
       valeRefeicao: Number(colabData.vale_refeicao),
       ajudaCusto: Number(colabData.ajuda_custo),
@@ -216,10 +214,8 @@ const DashboardColaborador = () => {
     }
   };
 
-  const saldoDisponivel = colaborador ? colaborador.cestaBeneficiosTeto - totalUsado : 0;
-  const percentualUsado = colaborador && colaborador.cestaBeneficiosTeto > 0 
-    ? Math.round((totalUsado / colaborador.cestaBeneficiosTeto) * 100) 
-    : 0;
+  const saldoDisponivel = 0; // Cesta removed
+  const percentualUsado = 0; // Cesta removed
 
   const pendentesAnalise = statusCounts.enviado + statusCounts.em_analise;
 
@@ -336,9 +332,8 @@ const DashboardColaborador = () => {
                 )}
               </div>
               <div className="text-right">
-                <p className="text-2xl font-semibold text-success">{formatCurrency(saldoDisponivel)}</p>
-                <p className="text-sm text-muted-foreground">saldo disponível</p>
-                <p className="text-xs text-muted-foreground mt-1">de {formatCurrency(colaborador.cestaBeneficiosTeto)}</p>
+                <p className="text-2xl font-semibold text-success">{formatCurrency(totalUsado)}</p>
+                <p className="text-sm text-muted-foreground">total utilizado</p>
               </div>
             </div>
             <Progress value={Math.min(percentualUsado, 100)} className="h-3" />

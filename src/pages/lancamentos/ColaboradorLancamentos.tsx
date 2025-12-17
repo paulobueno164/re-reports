@@ -76,7 +76,6 @@ interface Colaborador {
   nome: string;
   matricula: string;
   departamento: string;
-  cestaBeneficiosTeto: number;
   userId: string | null;
 }
 
@@ -163,7 +162,7 @@ const ColaboradorLancamentos = () => {
       totais: {
         total: expenses.reduce((sum, e) => sum + e.valorLancado, 0),
         totalConsiderado: totalUsado,
-        cestaTeto: colaborador.cestaBeneficiosTeto,
+        cestaTeto: 0, // Cesta removed
       },
       statusCounts,
     });
@@ -221,7 +220,7 @@ const ColaboradorLancamentos = () => {
     // Fetch collaborator data
     const { data: colabData, error: colabError } = await supabase
       .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, departamento, cesta_beneficios_teto, user_id')
+      .select('id, nome, matricula, departamento, user_id')
       .eq('id', id)
       .single();
 
@@ -236,7 +235,6 @@ const ColaboradorLancamentos = () => {
       nome: colabData.nome,
       matricula: colabData.matricula,
       departamento: colabData.departamento,
-      cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto),
       userId: colabData.user_id,
     });
 
@@ -326,8 +324,8 @@ const ColaboradorLancamentos = () => {
           .reduce((sum, e) => sum + e.valorConsiderado, 0);
         setTotalUsado(usado);
         setTotalPendente(pendente);
-        setSaldoDisponivel(colaborador.cestaBeneficiosTeto - usado);
-        setPercentualUsado((usado / colaborador.cestaBeneficiosTeto) * 100);
+        setSaldoDisponivel(0); // Cesta removed
+        setPercentualUsado(0); // Cesta removed
 
         const bloqueio = verificarBloqueioAposLimite(
           mapped.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
@@ -618,7 +616,7 @@ const ColaboradorLancamentos = () => {
                     <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
-                      <span>Teto: {formatCurrency(colaborador.cestaBeneficiosTeto)}</span>
+                      <span>Utilizado: {formatCurrency(totalUsado)}</span>
                     </div>
                   </div>
                 </CardContent>
