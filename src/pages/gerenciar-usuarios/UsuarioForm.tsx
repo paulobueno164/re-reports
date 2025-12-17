@@ -84,6 +84,21 @@ const UsuarioForm = () => {
 
     setSaving(true);
     try {
+      // Check if email already exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (checkError) throw checkError;
+      
+      if (existingProfile) {
+        toast({ title: 'Erro', description: 'Já existe um usuário com este e-mail.', variant: 'destructive' });
+        setSaving(false);
+        return;
+      }
+
       // 1. Create user via edge function
       const { data: userData, error: userError } = await supabase.functions.invoke('manage-user', {
         body: {
