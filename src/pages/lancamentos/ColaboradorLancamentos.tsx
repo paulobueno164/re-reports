@@ -207,8 +207,21 @@ const ColaboradorLancamentos = () => {
         } : null
       );
       setPeriodoValidation(validation);
+      
+      // Debug log
+      console.log('DEBUG Validacao Periodo:', {
+        selectedPeriod: selectedPeriod.periodo,
+        status: selectedPeriod.status,
+        abreLancamento: selectedPeriod.abreLancamento,
+        fechaLancamento: selectedPeriod.fechaLancamento,
+        dataAtual: new Date(),
+        validation,
+        colaboradorUserId: colaborador?.userId,
+        userId: user?.id,
+        isOwnProfile: colaborador?.userId === user?.id,
+      });
     }
-  }, [selectedPeriod, nextPeriod]);
+  }, [selectedPeriod, nextPeriod, colaborador, user]);
 
   const fetchData = async () => {
     if (!id) return;
