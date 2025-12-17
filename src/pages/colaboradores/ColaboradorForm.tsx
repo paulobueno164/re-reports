@@ -76,6 +76,7 @@ const ColaboradorForm = () => {
     valeRefeicao: 0,
     ajudaCusto: 0,
     mobilidade: 0,
+    cestaBeneficiosTeto: 0,
     temPida: false,
     pidaTeto: 0,
     ativo: true,
@@ -123,6 +124,7 @@ const ColaboradorForm = () => {
         valeRefeicao: Number(colaboradorData.vale_refeicao),
         ajudaCusto: Number(colaboradorData.ajuda_custo),
         mobilidade: Number(colaboradorData.mobilidade),
+        cestaBeneficiosTeto: Number(colaboradorData.cesta_beneficios_teto),
         temPida: colaboradorData.tem_pida,
         pidaTeto: Number(colaboradorData.pida_teto),
         ativo: colaboradorData.ativo,
@@ -279,6 +281,7 @@ const ColaboradorForm = () => {
       vale_refeicao: formData.valeRefeicao,
       ajuda_custo: formData.ajudaCusto,
       mobilidade: formData.mobilidade,
+      cesta_beneficios_teto: formData.cestaBeneficiosTeto,
       tem_pida: formData.temPida,
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
@@ -340,6 +343,7 @@ const ColaboradorForm = () => {
       formData.valeRefeicao +
       formData.ajudaCusto +
       formData.mobilidade +
+      formData.cestaBeneficiosTeto +
       formData.pidaTeto
     );
   };
@@ -580,6 +584,14 @@ const ColaboradorForm = () => {
                     onChange={(e) => setFormData({ ...formData, mobilidade: parseFloat(e.target.value) || 0 })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label>Cesta de Benefícios - Teto (R$)</Label>
+                  <Input
+                    type="number"
+                    value={formData.cestaBeneficiosTeto}
+                    onChange={(e) => setFormData({ ...formData, cestaBeneficiosTeto: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
               </div>
 
               <div className="flex items-center space-x-2 pt-2">
@@ -622,6 +634,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -645,6 +658,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -672,6 +686,7 @@ const ColaboradorForm = () => {
                     { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                     { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                     { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
+                    { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
                     ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                   ].map((item) => (
                     <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
