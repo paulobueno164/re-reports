@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency } from '@/lib/expense-validation';
+
 
 interface ExpenseType {
   id: string;
@@ -43,7 +43,7 @@ const TiposDespesasLista = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrupo, setFilterGrupo] = useState('all');
-  const [filterClassificacao, setFilterClassificacao] = useState('all');
+  
 
   useEffect(() => {
     fetchExpenseTypes();
@@ -79,8 +79,7 @@ const TiposDespesasLista = () => {
       type.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       type.grupo.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGrupo = filterGrupo === 'all' || type.grupo === filterGrupo;
-    const matchesClassificacao = filterClassificacao === 'all' || type.classificacao === filterClassificacao;
-    return matchesSearch && matchesGrupo && matchesClassificacao;
+    return matchesSearch && matchesGrupo;
   });
 
   const originLabels: Record<string, string> = {
@@ -105,22 +104,6 @@ const TiposDespesasLista = () => {
   const columns = [
     { key: 'nome', header: 'Tipo de Despesa' },
     { key: 'grupo', header: 'Grupo', hideOnMobile: true },
-    {
-      key: 'classificacao',
-      header: 'Classe',
-      render: (item: ExpenseType) => (
-        <Badge variant={item.classificacao === 'fixo' ? 'secondary' : 'default'}>
-          {item.classificacao === 'fixo' ? 'Fixo' : 'Var'}
-        </Badge>
-      ),
-    },
-    {
-      key: 'valorPadraoTeto',
-      header: 'Teto',
-      className: 'text-right font-mono',
-      hideOnMobile: true,
-      render: (item: ExpenseType) => formatCurrency(item.valorPadraoTeto),
-    },
     {
       key: 'origemPermitida',
       header: 'Origem',
@@ -230,19 +213,6 @@ const TiposDespesasLista = () => {
                   {group}
                 </SelectItem>
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Classificação</Label>
-          <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
-            <SelectTrigger className="w-[130px]">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              <SelectItem value="fixo">Fixo</SelectItem>
-              <SelectItem value="variavel">Variável</SelectItem>
             </SelectContent>
           </Select>
         </div>
