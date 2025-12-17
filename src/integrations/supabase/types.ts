@@ -592,12 +592,7 @@ export type Database = {
       app_role: "FINANCEIRO" | "COLABORADOR" | "RH"
       expense_classification: "fixo" | "variavel"
       expense_origin: "proprio" | "conjuge" | "filhos"
-      expense_status:
-        | "rascunho"
-        | "enviado"
-        | "em_analise"
-        | "valido"
-        | "invalido"
+      expense_status: "enviado" | "em_analise" | "valido" | "invalido"
       period_status: "aberto" | "fechado"
     }
     CompositeTypes: {
@@ -729,13 +724,7 @@ export const Constants = {
       app_role: ["FINANCEIRO", "COLABORADOR", "RH"],
       expense_classification: ["fixo", "variavel"],
       expense_origin: ["proprio", "conjuge", "filhos"],
-      expense_status: [
-        "rascunho",
-        "enviado",
-        "em_analise",
-        "valido",
-        "invalido",
-      ],
+      expense_status: ["enviado", "em_analise", "valido", "invalido"],
       period_status: ["aberto", "fechado"],
     },
   },
