@@ -94,6 +94,7 @@ const ColaboradorLancamentos = () => {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('todos');
   const [loading, setLoading] = useState(true);
   const [totalUsado, setTotalUsado] = useState(0);
+  const [totalPendente, setTotalPendente] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [percentualUsado, setPercentualUsado] = useState(0);
   const [bloqueadoPorUltimoLancamento, setBloqueadoPorUltimoLancamento] = useState(false);
@@ -329,7 +330,11 @@ const ColaboradorLancamentos = () => {
         const usado = mapped
           .filter(e => e.status === 'valido')
           .reduce((sum, e) => sum + e.valorConsiderado, 0);
+        const pendente = mapped
+          .filter(e => e.status === 'enviado' || e.status === 'em_analise')
+          .reduce((sum, e) => sum + e.valorConsiderado, 0);
         setTotalUsado(usado);
+        setTotalPendente(pendente);
         setSaldoDisponivel(colaborador.cestaBeneficiosTeto - usado);
         setPercentualUsado((usado / colaborador.cestaBeneficiosTeto) * 100);
 
@@ -604,9 +609,21 @@ const ColaboradorLancamentos = () => {
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs sm:text-sm">
-                      <span>Utilizado</span>
-                      <span className="font-mono font-medium">{formatCurrency(totalUsado)}</span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-success" />
+                        Aprovado
+                      </span>
+                      <span className="font-mono font-medium text-success">{formatCurrency(totalUsado)}</span>
                     </div>
+                    {totalPendente > 0 && (
+                      <div className="flex justify-between text-xs sm:text-sm">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-warning" />
+                          Pendente
+                        </span>
+                        <span className="font-mono font-medium text-warning">{formatCurrency(totalPendente)}</span>
+                      </div>
+                    )}
                     <Progress value={Math.min(percentualUsado, 100)} className="h-2" />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Saldo: {formatCurrency(saldoDisponivel)}</span>
