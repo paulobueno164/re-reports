@@ -40,6 +40,7 @@ interface DashboardData {
   totalLancamentosMes: number;
   valorTotalMes: number;
   pendentesValidacao: number;
+  diasParaLancamento: number;
   diasRestantes: number;
   expensesByCategory: { name: string; value: number }[];
   expensesByStatus: { name: string; value: number; color: string }[];
@@ -67,6 +68,7 @@ const DashboardRH = () => {
     totalLancamentosMes: 0,
     valorTotalMes: 0,
     pendentesValidacao: 0,
+    diasParaLancamento: 0,
     diasRestantes: 0,
     expensesByCategory: [],
     expensesByStatus: [],
@@ -122,8 +124,14 @@ const DashboardRH = () => {
         setCurrentPeriodName(selectedPeriod.periodo);
       }
 
-      const diasRestantes = selectedPeriod
+      // Dias para lançamento (colaborador) - até fecha_lancamento
+      const diasParaLancamento = selectedPeriod
         ? Math.max(0, Math.ceil((new Date(selectedPeriod.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+        : 0;
+      
+      // Dias restantes (RH) - até data_final do período
+      const diasRestantes = selectedPeriod
+        ? Math.max(0, Math.ceil((new Date(selectedPeriod.data_final).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
       // Fetch colaboradores
@@ -240,6 +248,7 @@ const DashboardRH = () => {
         totalLancamentosMes,
         valorTotalMes,
         pendentesValidacao,
+        diasParaLancamento,
         diasRestantes,
         expensesByCategory,
         expensesByStatus,
@@ -310,18 +319,18 @@ const DashboardRH = () => {
       ) : (
         <>
           {/* Stats Cards Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Card 1 - Colaboradores */}
             <Card className="bg-card border">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Colaboradores Elegíveis</p>
-                    <p className="text-3xl font-bold mt-1">{data.totalColaboradores}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Cadastrados no sistema</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">Colaboradores Elegíveis</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.totalColaboradores}</p>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">Cadastrados no sistema</p>
                   </div>
-                  <div className="p-2.5 bg-muted rounded-lg">
-                    <Users className="h-5 w-5 text-muted-foreground" />
+                  <div className="p-2 sm:p-2.5 bg-muted rounded-lg flex-shrink-0">
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
                   </div>
                 </div>
               </CardContent>
@@ -329,15 +338,15 @@ const DashboardRH = () => {
 
             {/* Card 2 - Lançamentos (Primary Gradient) */}
             <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-primary-foreground/80">Lançamentos no Mês</p>
-                    <p className="text-3xl font-bold mt-1">{data.totalLancamentosMes}</p>
-                    <p className="text-xs text-primary-foreground/80 mt-1">{formatCurrency(data.valorTotalMes)}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-primary-foreground/80">Lançamentos no Mês</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.totalLancamentosMes}</p>
+                    <p className="text-xs text-primary-foreground/80 mt-1 truncate">{formatCurrency(data.valorTotalMes)}</p>
                   </div>
-                  <div className="p-2.5 bg-primary-foreground/20 rounded-lg">
-                    <Receipt className="h-5 w-5 text-primary-foreground" />
+                  <div className="p-2 sm:p-2.5 bg-primary-foreground/20 rounded-lg flex-shrink-0">
+                    <Receipt className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
                   </div>
                 </div>
               </CardContent>
@@ -345,31 +354,47 @@ const DashboardRH = () => {
 
             {/* Card 3 - Pendentes */}
             <Card className="bg-card border">
-              <CardContent className="p-5">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Pendentes de Validação</p>
-                    <p className="text-3xl font-bold mt-1">{data.pendentesValidacao}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Aguardando análise do RH</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.pendentesValidacao}</p>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">Aguardando análise</p>
                   </div>
-                  <div className="p-2.5 bg-warning/10 rounded-lg">
-                    <AlertTriangle className="h-5 w-5 text-warning" />
+                  <div className="p-2 sm:p-2.5 bg-warning/10 rounded-lg flex-shrink-0">
+                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Card 4 - Dias Restantes */}
-            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
-              <CardContent className="p-5">
+            {/* Card 4 - Dias para Lançamento (Colaborador) */}
+            <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0">
+              <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-300">Dias Restantes</p>
-                    <p className="text-3xl font-bold mt-1">{data.diasRestantes}</p>
-                    <p className="text-xs text-slate-400 mt-1">Para fechamento do período</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-white/80">Dias p/ Lançamento</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.diasParaLancamento}</p>
+                    <p className="text-xs text-white/80 mt-1 truncate">Colaboradores enviar</p>
                   </div>
-                  <div className="p-2.5 bg-white/10 rounded-lg">
-                    <Clock className="h-5 w-5 text-white" />
+                  <div className="p-2 sm:p-2.5 bg-white/20 rounded-lg flex-shrink-0">
+                    <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 5 - Dias Restantes (RH) */}
+            <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-slate-300">Dias Restantes</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.diasRestantes}</p>
+                    <p className="text-xs text-slate-400 mt-1 truncate">Fim do período</p>
+                  </div>
+                  <div className="p-2 sm:p-2.5 bg-white/10 rounded-lg flex-shrink-0">
+                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                   </div>
                 </div>
               </CardContent>
