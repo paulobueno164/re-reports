@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
@@ -44,6 +45,7 @@ interface Periodo {
 
 const Relatorios = () => {
   const { toast } = useToast();
+  const { user, hasRole } = useAuth();
   const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,10 @@ const Relatorios = () => {
   const [previewData, setPreviewData] = useState<any>(null);
   const [includePendentes, setIncludePendentes] = useState(false);
   const [batchSearch, setBatchSearch] = useState('');
+  const [myColaboradorId, setMyColaboradorId] = useState<string | null>(null);
+
+
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
@@ -81,7 +87,7 @@ const Relatorios = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (selectedPeriod && selectedColaborador) {
@@ -89,14 +95,45 @@ const Relatorios = () => {
     }
   }, [selectedPeriod, selectedColaborador]);
 
+  // Auto-select colaborador for COLABORADOR role
+  useEffect(() => {
+    if (myColaboradorId && !selectedColaborador) {
+      setSelectedColaborador(myColaboradorId);
+    }
+  }, [myColaboradorId]);
+
   const fetchData = async () => {
     setLoading(true);
+    
+    // For COLABORADOR, first fetch their own colaborador ID
+    if (user && !isRHorFinanceiro) {
+      const { data: myColab } = await supabase
+        .from('colaboradores_elegiveis')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (myColab) {
+        setMyColaboradorId(myColab.id);
+        setSelectedColaborador(myColab.id);
+      }
+    }
+    
     const [colaboradoresRes, periodosRes] = await Promise.all([
       supabase.from('colaboradores_elegiveis').select('*').eq('ativo', true).order('nome'),
       supabase.from('calendario_periodos').select('id, periodo, status').order('periodo', { ascending: false }),
     ]);
     if (colaboradoresRes.data) setColaboradores(colaboradoresRes.data);
-    if (periodosRes.data) setPeriodos(periodosRes.data);
+    if (periodosRes.data) {
+      setPeriodos(periodosRes.data);
+      // Auto-select first period
+      const openPeriod = periodosRes.data.find(p => p.status === 'aberto');
+      if (openPeriod && !selectedPeriod) {
+        setSelectedPeriod(openPeriod.id);
+      } else if (!selectedPeriod && periodosRes.data.length > 0) {
+        setSelectedPeriod(periodosRes.data[0].id);
+      }
+    }
     setLoading(false);
   };
 
@@ -291,15 +328,21 @@ const Relatorios = () => {
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Relatórios" description="Gere extratos da Remuneração Estratégica em PDF" />
       <Tabs defaultValue="individual" className="space-y-6">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="individual" className="flex items-center gap-2"><User className="h-4 w-4" />Individual</TabsTrigger>
-          <TabsTrigger value="batch" className="flex items-center gap-2"><Users className="h-4 w-4" />Em Lote</TabsTrigger>
-        </TabsList>
+        {isRHorFinanceiro && (
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="individual" className="flex items-center gap-2"><User className="h-4 w-4" />Individual</TabsTrigger>
+            <TabsTrigger value="batch" className="flex items-center gap-2"><Users className="h-4 w-4" />Em Lote</TabsTrigger>
+          </TabsList>
+        )}
         <TabsContent value="individual" className="space-y-6">
           <Card>
-            <CardHeader><CardTitle className="text-lg">Gerar Extrato Individual</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                {isRHorFinanceiro ? 'Gerar Extrato Individual' : 'Gerar Meu Extrato'}
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className={`grid grid-cols-1 ${isRHorFinanceiro ? 'sm:grid-cols-2' : ''} gap-4`}>
                 <div className="space-y-2">
                   <Label>Período</Label>
                   <Combobox
@@ -311,17 +354,19 @@ const Relatorios = () => {
                     emptyMessage="Nenhum período encontrado."
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Colaborador</Label>
-                  <Combobox
-                    options={colaboradorOptions}
-                    value={selectedColaborador}
-                    onValueChange={setSelectedColaborador}
-                    placeholder="Buscar colaborador..."
-                    searchPlaceholder="Buscar por nome ou matrícula..."
-                    emptyMessage="Nenhum colaborador encontrado."
-                  />
-                </div>
+                {isRHorFinanceiro && (
+                  <div className="space-y-2">
+                    <Label>Colaborador</Label>
+                    <Combobox
+                      options={colaboradorOptions}
+                      value={selectedColaborador}
+                      onValueChange={setSelectedColaborador}
+                      placeholder="Buscar colaborador..."
+                      searchPlaceholder="Buscar por nome ou matrícula..."
+                      emptyMessage="Nenhum colaborador encontrado."
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-3">
@@ -437,6 +482,7 @@ const Relatorios = () => {
             </Card>
           )}
         </TabsContent>
+        {isRHorFinanceiro && (
         <TabsContent value="batch" className="space-y-6">
           <Card>
             <CardHeader><CardTitle className="text-lg">Gerar Relatórios em Lote</CardTitle></CardHeader>
@@ -505,6 +551,7 @@ const Relatorios = () => {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
       </Tabs>
     </div>
   );

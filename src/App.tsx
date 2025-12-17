@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { MainLayout } from "@/components/layout/MainLayout";
-import Dashboard from "./pages/Dashboard";
+import DashboardRouter from "./pages/DashboardRouter";
 import DashboardRH from "./pages/DashboardRH";
 import DashboardFinanceiro from "./pages/DashboardFinanceiro";
 import { ColaboradoresLista, ColaboradorForm, ColaboradorDetalhe } from "./pages/colaboradores";
@@ -41,7 +41,7 @@ const App = () => (
                 <MainLayout />
               </ProtectedRoute>
             }>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<DashboardRouter />} />
               <Route path="/dashboard-rh" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <DashboardRH />
