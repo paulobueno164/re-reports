@@ -557,6 +557,18 @@ const ColaboradorLancamentos = () => {
 
   const canCreateNew = canEdit && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
 
+  // Debug no momento da renderização
+  console.log('DEBUG RENDER:', {
+    canEdit,
+    isOwnProfile,
+    selectedPeriodStatus: selectedPeriod?.status,
+    showButton: canEdit && selectedPeriod?.status === 'aberto',
+    canCreateNew,
+    saldoDisponivel,
+    bloqueadoPorUltimoLancamento,
+    periodoPermitido: periodoValidation?.permitido,
+  });
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
