@@ -315,35 +315,44 @@ const DashboardColaborador = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex justify-between items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Limite Total</p>
+                <p className="text-2xl font-bold">{formatCurrency(colaborador.cestaBeneficiosTeto)}</p>
+              </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="w-3 h-3 rounded-full bg-success" />
-                  <span className="text-sm text-muted-foreground">Aprovado</span>
+                  <p className="text-sm text-muted-foreground">Utilizado</p>
                 </div>
-                <p className="text-3xl font-bold text-success">{formatCurrency(totalUsado)}</p>
-                {totalPendente > 0 && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="w-3 h-3 rounded-full bg-warning" />
-                    <span className="text-sm text-muted-foreground">Pendente</span>
-                    <span className="text-lg font-semibold text-warning">{formatCurrency(totalPendente)}</span>
-                  </div>
-                )}
+                <p className="text-2xl font-bold text-success">{formatCurrency(totalUsado)}</p>
               </div>
-              <div className="text-right">
-                <p className="text-2xl font-semibold text-success">{formatCurrency(totalUsado)}</p>
-                <p className="text-sm text-muted-foreground">total utilizado</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-primary" />
+                  <p className="text-sm text-muted-foreground">Saldo Disponível</p>
+                </div>
+                <p className="text-2xl font-bold text-primary">{formatCurrency(saldoDisponivel)}</p>
               </div>
             </div>
-            <Progress value={Math.min(percentualUsado, 100)} className="h-3" />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{percentualUsado}% utilizado</span>
-              {currentPeriod?.status === 'aberto' && diasRestantes > 0 && (
-                <span className="text-primary">{diasRestantes} dias restantes para lançar</span>
-              )}
-              {currentPeriod?.status === 'fechado' && (
-                <span className="text-muted-foreground">Período encerrado</span>
-              )}
+            {totalPendente > 0 && (
+              <div className="flex items-center gap-2 p-2 bg-warning/10 rounded-lg">
+                <span className="w-3 h-3 rounded-full bg-warning" />
+                <span className="text-sm text-muted-foreground">Pendente de aprovação:</span>
+                <span className="text-sm font-semibold text-warning">{formatCurrency(totalPendente)}</span>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Progress value={percentualUsado} className="h-3" />
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>{percentualUsado.toFixed(1)}% utilizado</span>
+                {currentPeriod?.status === 'aberto' && diasRestantes > 0 && (
+                  <span className="text-primary">{diasRestantes} dias restantes para lançar</span>
+                )}
+                {currentPeriod?.status === 'fechado' && (
+                  <span className="text-muted-foreground">Período encerrado</span>
+                )}
+              </div>
             </div>
           </div>
         </CardContent>
