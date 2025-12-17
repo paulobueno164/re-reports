@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
+import { findCurrentPeriod } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import {
   BarChart,
@@ -30,6 +31,7 @@ interface Period {
   periodo: string;
   status: string;
   data_inicio: string;
+  data_final: string;
   fecha_lancamento: string;
 }
 
@@ -77,24 +79,18 @@ const DashboardRH = () => {
     const fetchInitialData = async () => {
       const { data: allPeriods } = await supabase
         .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio, fecha_lancamento')
+        .select('id, periodo, status, data_inicio, data_final, fecha_lancamento')
         .order('data_inicio', { ascending: false });
 
       if (allPeriods && allPeriods.length > 0) {
         setPeriods(allPeriods);
-        const today = new Date();
-        let closestPeriod = allPeriods[0];
-        let minDiff = Infinity;
         
-        for (const p of allPeriods) {
-          const diff = Math.abs(new Date(p.data_inicio).getTime() - today.getTime());
-          if (diff < minDiff) {
-            minDiff = diff;
-            closestPeriod = p;
-          }
+        // Find current period based on today's date
+        const currentPeriod = findCurrentPeriod(allPeriods);
+        if (currentPeriod) {
+          setSelectedPeriodId(currentPeriod.id);
+          setCurrentPeriodName(currentPeriod.periodo);
         }
-        setSelectedPeriodId(closestPeriod.id);
-        setCurrentPeriodName(closestPeriod.periodo);
       }
 
       const { data: colaboradores } = await supabase

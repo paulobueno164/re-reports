@@ -13,6 +13,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { findCurrentPeriod as findCurrentPeriodUtil } from '@/lib/utils';
 import {
   PieChart,
   Pie,
@@ -90,23 +91,14 @@ const DashboardColaborador = () => {
     }
   }, [currentPeriod, colaborador]);
 
+  // Use the shared utility function for finding current period
   const findCurrentPeriod = (periods: Period[]): Period | null => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Find period where today falls within data_inicio and data_final
-    const current = periods.find(p => {
-      const inicio = new Date(p.dataInicio);
-      const final = new Date(p.dataFinal);
-      inicio.setHours(0, 0, 0, 0);
-      final.setHours(23, 59, 59, 999);
-      return today >= inicio && today <= final;
-    });
-
-    if (current) return current;
-
-    // If no current period found, return the most recent one
-    return periods.length > 0 ? periods[0] : null;
+    const result = findCurrentPeriodUtil(periods.map(p => ({
+      ...p,
+      dataInicio: p.dataInicio,
+      dataFinal: p.dataFinal,
+    })));
+    return result as Period | null;
   };
 
   const fetchInitialData = async () => {

@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
+import { findCurrentPeriod } from '@/lib/utils';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
 import { generateZipWithPDFs } from '@/lib/zip-export';
@@ -41,6 +42,8 @@ interface Periodo {
   id: string;
   periodo: string;
   status: string;
+  data_inicio: string;
+  data_final: string;
 }
 
 const Relatorios = () => {
@@ -121,17 +124,17 @@ const Relatorios = () => {
     
     const [colaboradoresRes, periodosRes] = await Promise.all([
       supabase.from('colaboradores_elegiveis').select('*').eq('ativo', true).order('nome'),
-      supabase.from('calendario_periodos').select('id, periodo, status').order('periodo', { ascending: false }),
+      supabase.from('calendario_periodos').select('id, periodo, status, data_inicio, data_final').order('periodo', { ascending: false }),
     ]);
     if (colaboradoresRes.data) setColaboradores(colaboradoresRes.data);
     if (periodosRes.data) {
       setPeriodos(periodosRes.data);
-      // Auto-select first period
-      const openPeriod = periodosRes.data.find(p => p.status === 'aberto');
-      if (openPeriod && !selectedPeriod) {
-        setSelectedPeriod(openPeriod.id);
-      } else if (!selectedPeriod && periodosRes.data.length > 0) {
-        setSelectedPeriod(periodosRes.data[0].id);
+      // Auto-select current period based on today's date
+      if (!selectedPeriod) {
+        const currentPeriod = findCurrentPeriod(periodosRes.data);
+        if (currentPeriod) {
+          setSelectedPeriod(currentPeriod.id);
+        }
       }
     }
     setLoading(false);

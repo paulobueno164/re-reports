@@ -31,11 +31,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { exportToExcel } from '@/lib/excel-export';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { findCurrentPeriod } from '@/lib/utils';
 
 interface CalendarPeriod {
   id: string;
   periodo: string;
   status: string;
+  data_inicio: string;
+  data_final: string;
 }
 
 interface ClosingLog {
@@ -83,20 +86,23 @@ const Fechamento = () => {
   const fetchPeriods = async () => {
     setLoading(true);
     
-    // Fetch periods
+    // Fetch periods with date fields for proper selection
     const { data: periodsData } = await supabase
       .from('calendario_periodos')
-      .select('id, periodo, status')
+      .select('id, periodo, status, data_inicio, data_final')
       .order('periodo', { ascending: false });
     
     if (periodsData) {
       setPeriods(periodsData);
+      
+      // Find current period based on today's date
+      const currentPeriod = findCurrentPeriod(periodsData);
       const openPeriod = periodsData.find(p => p.status === 'aberto');
-      const defaultPeriod = openPeriod || periodsData[0];
-      if (defaultPeriod) {
-        setSelectedPeriod(openPeriod?.id || '');
-        setFilterPeriod(defaultPeriod.id);
+      
+      if (currentPeriod) {
+        setFilterPeriod(currentPeriod.id);
       }
+      setSelectedPeriod(openPeriod?.id || '');
     }
     
     setLoading(false);
