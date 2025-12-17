@@ -21,7 +21,7 @@ import HistoricoAuditoria from "./pages/HistoricoAuditoria";
 import Instalar from "./pages/Instalar";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import { UsuariosLista, UsuarioRoles } from "./pages/gerenciar-usuarios";
+import { UsuariosLista, UsuarioRoles, UsuarioForm } from "./pages/gerenciar-usuarios";
 import Perfil from "./pages/Perfil";
 
 const queryClient = new QueryClient();
@@ -142,6 +142,11 @@ const App = () => (
               <Route path="/gerenciar-usuarios" element={
                 <ProtectedRoute requiredRoles={['RH']}>
                   <UsuariosLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/gerenciar-usuarios/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <UsuarioForm />
                 </ProtectedRoute>
               } />
               <Route path="/gerenciar-usuarios/:id/roles" element={
