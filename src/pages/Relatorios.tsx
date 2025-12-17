@@ -365,7 +365,7 @@ const Relatorios = () => {
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                 <div className="flex gap-3">
                   <Button onClick={handleGeneratePDF} disabled={!previewData || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Gerar PDF</Button>
                   <Button variant="outline" onClick={handleGenerateExcel} disabled={!previewData || generating}><FileText className="mr-2 h-4 w-4" />Gerar Excel</Button>
@@ -373,7 +373,7 @@ const Relatorios = () => {
                 {previewData?.qtdPendentes > 0 && (
                   <div className="flex items-center space-x-2">
                     <Checkbox id="includePendentes" checked={includePendentes} onCheckedChange={(c) => setIncludePendentes(!!c)} />
-                    <Label htmlFor="includePendentes" className="font-normal text-sm">Incluir pendentes no relatório</Label>
+                    <Label htmlFor="includePendentes" className="font-normal text-sm whitespace-nowrap">Incluir pendentes no relatório</Label>
                   </div>
                 )}
               </div>
