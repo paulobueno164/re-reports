@@ -26,34 +26,53 @@ export const getExportData = async (
   periodoId: string,
   fechamentoId?: string
 ): Promise<ExportDataRow[]> => {
-  // Buscar lançamentos válidos com eventos de folha
+  // Buscar eventos de folha cadastrados por componente
+  const eventosResult = await query(
+    'SELECT componente, codigo_evento, descricao_evento FROM tipos_despesas_eventos'
+  );
+  
+  const eventosMap = new Map<string, { codigo: string; descricao: string }>();
+  for (const e of eventosResult.rows) {
+    eventosMap.set(e.componente, { codigo: e.codigo_evento, descricao: e.descricao_evento });
+  }
+
+  // Buscar lançamentos válidos (todos vão para Cesta de Benefícios)
+  const cestaEvento = eventosMap.get('cesta_beneficios') || { codigo: 'CESTA', descricao: 'Cesta de Benefícios' };
+  
   const lancamentosResult = await query(
     `SELECT 
       c.matricula,
       c.nome,
       c.departamento,
-      tde.codigo_evento,
-      tde.descricao_evento,
       l.valor_considerado as valor,
       cp.periodo
     FROM lancamentos l
     JOIN colaboradores_elegiveis c ON c.id = l.colaborador_id
-    JOIN tipos_despesas td ON td.id = l.tipo_despesa_id
-    JOIN tipos_despesas_eventos tde ON tde.tipo_despesa_id = td.id
     JOIN calendario_periodos cp ON cp.id = l.periodo_id
     WHERE l.periodo_id = $1 AND l.status = 'valido'
-    ORDER BY c.nome, tde.codigo_evento`,
+    ORDER BY c.nome`,
     [periodoId]
   );
 
+  // Map lancamentos to export format with cesta evento
+  const lancamentosData = lancamentosResult.rows.map(row => ({
+    matricula: row.matricula,
+    nome: row.nome,
+    departamento: row.departamento,
+    codigo_evento: cestaEvento.codigo,
+    descricao_evento: cestaEvento.descricao,
+    valor: parseFloat(row.valor),
+    periodo: row.periodo,
+  }));
+
   // Buscar eventos PIDA
+  const pidaEvento = eventosMap.get('pida') || { codigo: 'PIDA', descricao: 'Propriedade Intelectual / Direitos Autorais' };
+  
   const pidaResult = await query(
     `SELECT 
       c.matricula,
       c.nome,
       c.departamento,
-      'PIDA' as codigo_evento,
-      'Propriedade Intelectual / Direitos Autorais' as descricao_evento,
       ep.valor_total_pida as valor,
       cp.periodo
     FROM eventos_pida ep
@@ -64,8 +83,18 @@ export const getExportData = async (
     [periodoId]
   );
 
+  const pidaData = pidaResult.rows.map(row => ({
+    matricula: row.matricula,
+    nome: row.nome,
+    departamento: row.departamento,
+    codigo_evento: pidaEvento.codigo,
+    descricao_evento: pidaEvento.descricao,
+    valor: parseFloat(row.valor),
+    periodo: row.periodo,
+  }));
+
   // Combinar e agrupar por colaborador + evento
-  const allData = [...lancamentosResult.rows, ...pidaResult.rows];
+  const allData = [...lancamentosData, ...pidaData];
 
   // Agrupar por matricula + codigo_evento
   const grouped = new Map<string, ExportDataRow>();
@@ -75,17 +104,9 @@ export const getExportData = async (
     const existing = grouped.get(key);
 
     if (existing) {
-      existing.valor += parseFloat(row.valor);
+      existing.valor += row.valor;
     } else {
-      grouped.set(key, {
-        matricula: row.matricula,
-        nome: row.nome,
-        departamento: row.departamento,
-        codigo_evento: row.codigo_evento,
-        descricao_evento: row.descricao_evento,
-        valor: parseFloat(row.valor),
-        periodo: row.periodo,
-      });
+      grouped.set(key, { ...row });
     }
   }
 

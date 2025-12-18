@@ -13,9 +13,18 @@ export interface CreateTipoDespesaInput {
 
 export interface UpdateTipoDespesaInput extends Partial<CreateTipoDespesaInput> {}
 
-export interface TipoDespesaEvento {
+// Componentes de remuneração (exceto Salário Base)
+export type ComponenteRemuneracao = 
+  | 'vale_alimentacao' 
+  | 'vale_refeicao' 
+  | 'ajuda_custo' 
+  | 'mobilidade' 
+  | 'cesta_beneficios' 
+  | 'pida';
+
+export interface EventoFolha {
   id: string;
-  tipo_despesa_id: string;
+  componente: ComponenteRemuneracao;
   codigo_evento: string;
   descricao_evento: string;
   created_at: string;
@@ -113,54 +122,61 @@ export const deleteTipoDespesa = async (id: string): Promise<boolean> => {
   return (result.rowCount ?? 0) > 0;
 };
 
-// Eventos de Folha
-export const getTipoDespesaEvento = async (tipoDespesaId: string): Promise<TipoDespesaEvento | null> => {
+// Eventos de Folha (nova estrutura por componente de remuneração)
+export const getEventoByComponente = async (componente: ComponenteRemuneracao): Promise<EventoFolha | null> => {
   const result = await query(
-    'SELECT * FROM tipos_despesas_eventos WHERE tipo_despesa_id = $1',
-    [tipoDespesaId]
+    'SELECT * FROM tipos_despesas_eventos WHERE componente = $1',
+    [componente]
   );
   return result.rows[0] || null;
 };
 
-export const getAllEventosFolha = async (): Promise<(TipoDespesaEvento & { tipo_despesa_nome: string })[]> => {
+export const getEventoById = async (id: string): Promise<EventoFolha | null> => {
   const result = await query(
-    `SELECT tde.*, td.nome as tipo_despesa_nome
-     FROM tipos_despesas_eventos tde
-     JOIN tipos_despesas td ON td.id = tde.tipo_despesa_id
-     ORDER BY tde.codigo_evento`
+    'SELECT * FROM tipos_despesas_eventos WHERE id = $1',
+    [id]
+  );
+  return result.rows[0] || null;
+};
+
+export const getAllEventosFolha = async (): Promise<EventoFolha[]> => {
+  const result = await query(
+    'SELECT * FROM tipos_despesas_eventos ORDER BY componente'
   );
   return result.rows;
 };
 
-export const createOrUpdateEvento = async (
-  tipoDespesaId: string,
+export const createEvento = async (
+  componente: ComponenteRemuneracao,
   codigoEvento: string,
   descricaoEvento: string
-): Promise<TipoDespesaEvento> => {
-  const existing = await getTipoDespesaEvento(tipoDespesaId);
-
-  if (existing) {
-    const result = await query(
-      `UPDATE tipos_despesas_eventos 
-       SET codigo_evento = $1, descricao_evento = $2 
-       WHERE tipo_despesa_id = $3 RETURNING *`,
-      [codigoEvento, descricaoEvento, tipoDespesaId]
-    );
-    return result.rows[0];
-  } else {
-    const result = await query(
-      `INSERT INTO tipos_despesas_eventos (id, tipo_despesa_id, codigo_evento, descricao_evento, created_at)
-       VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-      [uuidv4(), tipoDespesaId, codigoEvento, descricaoEvento]
-    );
-    return result.rows[0];
-  }
+): Promise<EventoFolha> => {
+  const result = await query(
+    `INSERT INTO tipos_despesas_eventos (id, componente, codigo_evento, descricao_evento, created_at)
+     VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
+    [uuidv4(), componente, codigoEvento, descricaoEvento]
+  );
+  return result.rows[0];
 };
 
-export const deleteEvento = async (tipoDespesaId: string): Promise<boolean> => {
+export const updateEvento = async (
+  id: string,
+  codigoEvento: string,
+  descricaoEvento: string
+): Promise<EventoFolha | null> => {
   const result = await query(
-    'DELETE FROM tipos_despesas_eventos WHERE tipo_despesa_id = $1',
-    [tipoDespesaId]
+    `UPDATE tipos_despesas_eventos 
+     SET codigo_evento = $1, descricao_evento = $2 
+     WHERE id = $3 RETURNING *`,
+    [codigoEvento, descricaoEvento, id]
+  );
+  return result.rows[0] || null;
+};
+
+export const deleteEvento = async (id: string): Promise<boolean> => {
+  const result = await query(
+    'DELETE FROM tipos_despesas_eventos WHERE id = $1',
+    [id]
   );
   return (result.rowCount ?? 0) > 0;
 };

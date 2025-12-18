@@ -94,6 +94,7 @@ DO $$ BEGIN CREATE TYPE public.expense_classification AS ENUM ('fixo', 'variavel
 DO $$ BEGIN CREATE TYPE public.expense_origin AS ENUM ('proprio', 'conjuge', 'filhos'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE public.expense_status AS ENUM ('enviado', 'em_analise', 'valido', 'invalido'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN CREATE TYPE public.period_status AS ENUM ('aberto', 'fechado'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TYPE public.componente_remuneracao AS ENUM ('vale_alimentacao', 'vale_refeicao', 'ajuda_custo', 'mobilidade', 'cesta_beneficios', 'pida'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- =====================================================
 -- TABELAS PRINCIPAIS
@@ -138,9 +139,10 @@ CREATE TABLE IF NOT EXISTS public.tipos_despesas (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
+-- Eventos de Folha por componente de remuneração (não mais por tipo de despesa)
 CREATE TABLE IF NOT EXISTS public.tipos_despesas_eventos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tipo_despesa_id UUID NOT NULL REFERENCES public.tipos_despesas(id) ON DELETE CASCADE UNIQUE,
+    componente public.componente_remuneracao NOT NULL UNIQUE,
     codigo_evento TEXT NOT NULL,
     descricao_evento TEXT NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()

@@ -14,10 +14,22 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
-interface ExpenseType {
-  id: string;
-  nome: string;
-}
+// Componentes de remuneração disponíveis (exceto Salário Base)
+const COMPONENTES_REMUNERACAO = [
+  { value: 'vale_alimentacao', label: 'Vale Alimentação' },
+  { value: 'vale_refeicao', label: 'Vale Refeição' },
+  { value: 'ajuda_custo', label: 'Ajuda de Custo' },
+  { value: 'mobilidade', label: 'Mobilidade' },
+  { value: 'cesta_beneficios', label: 'Cesta de Benefícios' },
+  { value: 'pida', label: 'PI/DA' },
+] as const;
+
+type ComponenteRemuneracao = typeof COMPONENTES_REMUNERACAO[number]['value'];
+
+const getComponenteLabel = (componente: string): string => {
+  const found = COMPONENTES_REMUNERACAO.find(c => c.value === componente);
+  return found?.label || componente;
+};
 
 const EventoFolhaForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,12 +37,12 @@ const EventoFolhaForm = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [unlinkedTypes, setUnlinkedTypes] = useState<ExpenseType[]>([]);
-  const [currentTypeName, setCurrentTypeName] = useState('');
+  const [availableComponentes, setAvailableComponentes] = useState<typeof COMPONENTES_REMUNERACAO[number][]>([]);
+  const [currentComponenteLabel, setCurrentComponenteLabel] = useState('');
   const isEditing = !!id;
 
   const [formData, setFormData] = useState({
-    tipoDespesaId: '',
+    componente: '' as ComponenteRemuneracao | '',
     codigoEvento: '',
     descricaoEvento: '',
   });
@@ -42,35 +54,23 @@ const EventoFolhaForm = () => {
   const fetchData = async () => {
     setLoading(true);
 
-    // Fetch all linked type IDs
+    // Fetch all used components
     const { data: eventsData } = await supabase
       .from('tipos_despesas_eventos')
-      .select('tipo_despesa_id');
+      .select('componente');
 
-    const linkedIds = eventsData?.map((e) => e.tipo_despesa_id) || [];
+    const usedComponentes = eventsData?.map((e) => e.componente) || [];
 
-    // Fetch unlinked types
-    const { data: typesData } = await supabase
-      .from('tipos_despesas')
-      .select('id, nome')
-      .eq('ativo', true)
-      .order('nome');
-
-    if (typesData) {
-      setUnlinkedTypes(typesData.filter((t) => !linkedIds.includes(t.id)));
-    }
+    // Filter available components (not yet used)
+    setAvailableComponentes(
+      COMPONENTES_REMUNERACAO.filter((c) => !usedComponentes.includes(c.value))
+    );
 
     // If editing, fetch event data
     if (id) {
       const { data, error } = await supabase
         .from('tipos_despesas_eventos')
-        .select(`
-          id,
-          tipo_despesa_id,
-          codigo_evento,
-          descricao_evento,
-          tipos_despesas (nome)
-        `)
+        .select('id, componente, codigo_evento, descricao_evento')
         .eq('id', id)
         .maybeSingle();
 
@@ -79,13 +79,13 @@ const EventoFolhaForm = () => {
         navigate('/eventos-folha');
       } else if (data) {
         setFormData({
-          tipoDespesaId: data.tipo_despesa_id,
+          componente: data.componente as ComponenteRemuneracao,
           codigoEvento: data.codigo_evento,
           descricaoEvento: data.descricao_evento,
         });
-        setCurrentTypeName((data as any).tipos_despesas?.nome || '');
+        setCurrentComponenteLabel(getComponenteLabel(data.componente));
       } else {
-        toast({ title: 'Erro', description: 'Vínculo não encontrado', variant: 'destructive' });
+        toast({ title: 'Erro', description: 'Evento não encontrado', variant: 'destructive' });
         navigate('/eventos-folha');
       }
     }
@@ -94,14 +94,14 @@ const EventoFolhaForm = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.tipoDespesaId || !formData.codigoEvento || !formData.descricaoEvento) {
+    if (!formData.componente || !formData.codigoEvento || !formData.descricaoEvento) {
       toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios.', variant: 'destructive' });
       return;
     }
 
     setSaving(true);
     const dbData = {
-      tipo_despesa_id: formData.tipoDespesaId,
+      componente: formData.componente as ComponenteRemuneracao,
       codigo_evento: formData.codigoEvento,
       descricao_evento: formData.descricaoEvento,
     };
@@ -113,11 +113,11 @@ const EventoFolhaForm = () => {
           .update(dbData)
           .eq('id', id);
         if (error) throw error;
-        toast({ title: 'Vínculo atualizado', description: 'Os dados foram salvos com sucesso.' });
+        toast({ title: 'Evento atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
         const { error } = await supabase.from('tipos_despesas_eventos').insert([dbData]);
         if (error) throw error;
-        toast({ title: 'Vínculo criado', description: 'O vínculo foi cadastrado com sucesso.' });
+        toast({ title: 'Evento criado', description: 'O evento foi cadastrado com sucesso.' });
       }
       navigate('/eventos-folha');
     } catch (error: any) {
@@ -137,8 +137,8 @@ const EventoFolhaForm = () => {
 
   return (
     <PageFormLayout
-      title={isEditing ? 'Editar Vínculo' : 'Novo Vínculo'}
-      description="Vincule um tipo de despesa a um evento de folha de pagamento"
+      title={isEditing ? 'Editar Evento' : 'Novo Evento'}
+      description="Configure o código de evento da folha para um componente de remuneração"
       backTo="/eventos-folha"
       backLabel="Voltar"
       onSave={handleSave}
@@ -147,31 +147,31 @@ const EventoFolhaForm = () => {
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <Label>Tipo de Despesa</Label>
+          <Label>Componente de Remuneração</Label>
           <Select
-            value={formData.tipoDespesaId}
-            onValueChange={(value) => setFormData({ ...formData, tipoDespesaId: value })}
+            value={formData.componente}
+            onValueChange={(value) => setFormData({ ...formData, componente: value as ComponenteRemuneracao })}
             disabled={isEditing}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione o tipo de despesa" />
+              <SelectValue placeholder="Selecione o componente" />
             </SelectTrigger>
             <SelectContent>
               {isEditing ? (
-                <SelectItem value={formData.tipoDespesaId}>
-                  {currentTypeName}
+                <SelectItem value={formData.componente}>
+                  {currentComponenteLabel}
                 </SelectItem>
               ) : (
-                unlinkedTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.nome}
+                availableComponentes.map((comp) => (
+                  <SelectItem key={comp.value} value={comp.value}>
+                    {comp.label}
                   </SelectItem>
                 ))
               )}
             </SelectContent>
           </Select>
-          {!isEditing && unlinkedTypes.length === 0 && (
-            <p className="text-xs text-warning">Todos os tipos de despesa já possuem vínculo.</p>
+          {!isEditing && availableComponentes.length === 0 && (
+            <p className="text-xs text-warning">Todos os componentes já possuem evento cadastrado.</p>
           )}
         </div>
 
@@ -193,7 +193,7 @@ const EventoFolhaForm = () => {
           <Input
             value={formData.descricaoEvento}
             onChange={(e) => setFormData({ ...formData, descricaoEvento: e.target.value })}
-            placeholder="Ex: Equipamentos de uso"
+            placeholder="Ex: Vale Alimentação"
           />
           <p className="text-xs text-muted-foreground">Nome do evento conforme cadastrado na folha</p>
         </div>

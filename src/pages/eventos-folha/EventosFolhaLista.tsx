@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Loader2, Link2, MoreVertical } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Loader2, MoreVertical } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,25 +16,35 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+// Componentes de remuneração disponíveis (exceto Salário Base)
+const COMPONENTES_REMUNERACAO = [
+  { value: 'vale_alimentacao', label: 'Vale Alimentação' },
+  { value: 'vale_refeicao', label: 'Vale Refeição' },
+  { value: 'ajuda_custo', label: 'Ajuda de Custo' },
+  { value: 'mobilidade', label: 'Mobilidade' },
+  { value: 'cesta_beneficios', label: 'Cesta de Benefícios' },
+  { value: 'pida', label: 'PI/DA' },
+] as const;
+
+type ComponenteRemuneracao = typeof COMPONENTES_REMUNERACAO[number]['value'];
+
 interface PayrollEvent {
   id: string;
-  tipoDespesaId: string;
-  tipoDespesaNome: string;
+  componente: ComponenteRemuneracao;
+  componenteLabel: string;
   codigoEvento: string;
   descricaoEvento: string;
 }
 
-interface ExpenseType {
-  id: string;
-  nome: string;
-  hasEvent: boolean;
-}
+const getComponenteLabel = (componente: string): string => {
+  const found = COMPONENTES_REMUNERACAO.find(c => c.value === componente);
+  return found?.label || componente;
+};
 
 const EventosFolhaLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [events, setEvents] = useState<PayrollEvent[]>([]);
-  const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -47,42 +57,19 @@ const EventosFolhaLista = () => {
 
     const { data: eventsData, error: eventsError } = await supabase
       .from('tipos_despesas_eventos')
-      .select(`
-        id,
-        tipo_despesa_id,
-        codigo_evento,
-        descricao_evento,
-        tipos_despesas (id, nome)
-      `)
-      .order('codigo_evento');
+      .select('id, componente, codigo_evento, descricao_evento')
+      .order('componente');
 
     if (eventsError) {
       toast({ title: 'Erro', description: eventsError.message, variant: 'destructive' });
     } else if (eventsData) {
       setEvents(
-        eventsData.map((e: any) => ({
+        eventsData.map((e) => ({
           id: e.id,
-          tipoDespesaId: e.tipo_despesa_id,
-          tipoDespesaNome: e.tipos_despesas?.nome || '',
+          componente: e.componente as ComponenteRemuneracao,
+          componenteLabel: getComponenteLabel(e.componente),
           codigoEvento: e.codigo_evento,
           descricaoEvento: e.descricao_evento,
-        }))
-      );
-    }
-
-    const { data: typesData } = await supabase
-      .from('tipos_despesas')
-      .select('id, nome')
-      .eq('ativo', true)
-      .order('nome');
-
-    if (typesData) {
-      const linkedIds = eventsData?.map((e: any) => e.tipo_despesa_id) || [];
-      setExpenseTypes(
-        typesData.map((t) => ({
-          id: t.id,
-          nome: t.nome,
-          hasEvent: linkedIds.includes(t.id),
         }))
       );
     }
@@ -93,16 +80,18 @@ const EventosFolhaLista = () => {
   const filteredEvents = events.filter((event) => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      event.tipoDespesaNome?.toLowerCase().includes(searchLower) ||
+      event.componenteLabel.toLowerCase().includes(searchLower) ||
       event.codigoEvento.toLowerCase().includes(searchLower) ||
       event.descricaoEvento.toLowerCase().includes(searchLower)
     );
   });
 
-  const unlinkedExpenseTypes = expenseTypes.filter((t) => !t.hasEvent);
+  // Componentes que ainda não têm evento cadastrado
+  const usedComponentes = events.map(e => e.componente);
+  const unusedComponentes = COMPONENTES_REMUNERACAO.filter(c => !usedComponentes.includes(c.value));
 
   const handleDelete = async (event: PayrollEvent) => {
-    if (!confirm(`Deseja realmente excluir o vínculo para "${event.tipoDespesaNome}"?`)) return;
+    if (!confirm(`Deseja realmente excluir o evento para "${event.componenteLabel}"?`)) return;
 
     const { error } = await supabase
       .from('tipos_despesas_eventos')
@@ -112,20 +101,17 @@ const EventosFolhaLista = () => {
     if (error) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } else {
-      toast({ title: 'Vínculo excluído', description: 'O vínculo foi removido com sucesso.' });
+      toast({ title: 'Evento excluído', description: 'O evento foi removido com sucesso.' });
       fetchData();
     }
   };
 
   const columns = [
     { 
-      key: 'tipoDespesaNome', 
-      header: 'Tipo',
+      key: 'componenteLabel', 
+      header: 'Componente',
       render: (item: PayrollEvent) => (
-        <div className="flex items-center gap-2">
-          <Link2 className="h-4 w-4 text-primary flex-shrink-0" />
-          <span className="truncate max-w-[100px] sm:max-w-none">{item.tipoDespesaNome}</span>
-        </div>
+        <span className="font-medium">{item.componenteLabel}</span>
       ),
     },
     { key: 'codigoEvento', header: 'Código', className: 'font-mono text-primary' },
@@ -180,11 +166,11 @@ const EventosFolhaLista = () => {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Eventos de Folha de Pagamento"
-        description="Vincule os tipos de despesas aos códigos de eventos da folha de pagamento"
+        description="Configure os códigos de eventos da folha para cada componente de remuneração"
       >
-        <Button onClick={() => navigate('/eventos-folha/novo')} disabled={unlinkedExpenseTypes.length === 0}>
+        <Button onClick={() => navigate('/eventos-folha/novo')} disabled={unusedComponentes.length === 0}>
           <Plus className="mr-2 h-4 w-4" />
-          Novo Vínculo
+          Novo Evento
         </Button>
       </PageHeader>
 
@@ -193,24 +179,24 @@ const EventosFolhaLista = () => {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total de Vínculos
+              Eventos Cadastrados
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{events.length}</p>
-            <p className="text-xs text-muted-foreground">tipos de despesa vinculados</p>
+            <p className="text-xs text-muted-foreground">de {COMPONENTES_REMUNERACAO.length} componentes</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tipos sem Vínculo
+              Pendentes
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-warning">{unlinkedExpenseTypes.length}</p>
-            <p className="text-xs text-muted-foreground">pendentes de configuração</p>
+            <p className="text-3xl font-bold text-warning">{unusedComponentes.length}</p>
+            <p className="text-xs text-muted-foreground">sem código configurado</p>
           </CardContent>
         </Card>
 
@@ -222,11 +208,9 @@ const EventosFolhaLista = () => {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-primary">
-              {expenseTypes.length > 0 
-                ? Math.round((events.length / expenseTypes.length) * 100) 
-                : 0}%
+              {Math.round((events.length / COMPONENTES_REMUNERACAO.length) * 100)}%
             </p>
-            <p className="text-xs text-muted-foreground">dos tipos vinculados</p>
+            <p className="text-xs text-muted-foreground">dos componentes configurados</p>
           </CardContent>
         </Card>
       </div>
@@ -238,17 +222,16 @@ const EventosFolhaLista = () => {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           <p>
-            Este cadastro vincula cada tipo de despesa ao código de evento correspondente no sistema
-            de Folha de Pagamentos. Esses códigos são utilizados na exportação mensal para integração
-            com a folha.
+            Configure o código e descrição de evento da folha de pagamento para cada componente de remuneração.
+            Esses códigos são utilizados na exportação mensal para integração com a folha.
           </p>
-          {unlinkedExpenseTypes.length > 0 && (
+          {unusedComponentes.length > 0 && (
             <div className="mt-3">
-              <p className="text-warning font-medium mb-2">Tipos sem vínculo:</p>
+              <p className="text-warning font-medium mb-2">Componentes sem evento:</p>
               <div className="flex flex-wrap gap-2">
-                {unlinkedExpenseTypes.map((type) => (
-                  <Badge key={type.id} variant="outline" className="text-warning border-warning">
-                    {type.nome}
+                {unusedComponentes.map((comp) => (
+                  <Badge key={comp.value} variant="outline" className="text-warning border-warning">
+                    {comp.label}
                   </Badge>
                 ))}
               </div>
@@ -262,7 +245,7 @@ const EventosFolhaLista = () => {
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por tipo, código ou descrição..."
+            placeholder="Buscar por componente, código ou descrição..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
@@ -271,7 +254,7 @@ const EventosFolhaLista = () => {
       </div>
 
       {/* Table */}
-      <DataTable data={filteredEvents} columns={columns} emptyMessage="Nenhum vínculo cadastrado" />
+      <DataTable data={filteredEvents} columns={columns} emptyMessage="Nenhum evento cadastrado" />
     </div>
   );
 };

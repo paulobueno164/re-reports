@@ -232,10 +232,7 @@ const Fechamento = () => {
           valor_considerado,
           colaborador_id,
           colaboradores_elegiveis (id, matricula, nome, departamento, cesta_beneficios_teto, tem_pida, pida_teto),
-          tipos_despesas (id, nome),
-          tipos_despesas_eventos:tipos_despesas!inner (
-            tipos_despesas_eventos (codigo_evento, descricao_evento)
-          )
+          tipos_despesas (id, nome)
         `)
         .eq('periodo_id', selectedPeriod)
         .eq('status', 'valido');
@@ -378,14 +375,21 @@ const Fechamento = () => {
       if (!period) return;
 
       // Fetch lancamentos
+      // Fetch eventos de folha (todos os componentes cadastrados)
+      const { data: eventosFolha } = await supabase
+        .from('tipos_despesas_eventos')
+        .select('componente, codigo_evento, descricao_evento');
+
+      const eventosMap = new Map(
+        (eventosFolha || []).map((e: any) => [e.componente, { codigo: e.codigo_evento, descricao: e.descricao_evento }])
+      );
+
+      // Fetch lancamentos (Cesta de Benefícios)
       const { data: lancamentos } = await supabase
         .from('lancamentos')
         .select(`
           valor_considerado,
-          colaboradores_elegiveis (matricula, nome, departamento),
-          tipos_despesas!inner (
-            tipos_despesas_eventos (codigo_evento, descricao_evento)
-          )
+          colaboradores_elegiveis (matricula, nome, departamento)
         `)
         .eq('periodo_id', period.id)
         .eq('status', 'valido');
@@ -410,24 +414,26 @@ const Fechamento = () => {
         return;
       }
 
-      // Map regular expenses
+      // Map regular expenses (Cesta de Benefícios)
+      const cestaEvento = eventosMap.get('cesta_beneficios');
       const exportData = (lancamentos || []).map((l: any) => ({
         matricula: l.colaboradores_elegiveis?.matricula || '',
         nome: l.colaboradores_elegiveis?.nome || '',
         departamento: l.colaboradores_elegiveis?.departamento || '',
-        codigoEvento: l.tipos_despesas?.tipos_despesas_eventos?.[0]?.codigo_evento || '',
-        descricaoEvento: l.tipos_despesas?.tipos_despesas_eventos?.[0]?.descricao_evento || '',
+        codigoEvento: cestaEvento?.codigo || 'CESTA',
+        descricaoEvento: cestaEvento?.descricao || 'Cesta de Benefícios',
         valor: Number(l.valor_considerado),
         periodo: log.periodo,
       }));
 
       // Add PI/DA events
+      const pidaEvento = eventosMap.get('pida');
       const pidaExportData = (eventosPida || []).map((e: any) => ({
         matricula: e.colaboradores_elegiveis?.matricula || '',
         nome: e.colaboradores_elegiveis?.nome || '',
         departamento: e.colaboradores_elegiveis?.departamento || '',
-        codigoEvento: 'PIDA',
-        descricaoEvento: 'PI/DA - Propriedade Intelectual / Direitos Autorais',
+        codigoEvento: pidaEvento?.codigo || 'PIDA',
+        descricaoEvento: pidaEvento?.descricao || 'PI/DA - Propriedade Intelectual / Direitos Autorais',
         valor: Number(e.valor_total_pida),
         periodo: log.periodo,
       }));
