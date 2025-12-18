@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { z } from 'zod';
 import onsetLogo from '@/assets/onset-logo.png';
 
@@ -21,10 +21,15 @@ const Auth = () => {
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [view, setView] = useState<'login' | 'forgot-password'>('login');
   
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
+  
+  // Forgot password form state
+  const [recoveryEmail, setRecoveryEmail] = useState('');
 
   // Redirect if already logged in
   if (!loading && user) {
@@ -64,6 +69,40 @@ const Auth = () => {
     setIsLoading(false);
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+    
+    if (!recoveryEmail || !z.string().email().safeParse(recoveryEmail).success) {
+      setError('Por favor, informe um e-mail válido');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    // TODO: Integrar com backend/Supabase para envio de e-mail de recuperação
+    // Por enquanto, apenas simula o envio
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    setSuccessMessage('Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.');
+    setIsLoading(false);
+  };
+
+  const switchToLogin = () => {
+    setView('login');
+    setError(null);
+    setSuccessMessage(null);
+    setRecoveryEmail('');
+  };
+
+  const switchToForgotPassword = () => {
+    setView('forgot-password');
+    setError(null);
+    setSuccessMessage(null);
+    setRecoveryEmail(loginEmail);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -91,49 +130,116 @@ const Auth = () => {
 
         <Card>
           <CardHeader className="text-center">
-            <CardTitle>Bem-vindo</CardTitle>
-            <CardDescription>
-              Faça login para acessar o sistema
-            </CardDescription>
+            {view === 'login' ? (
+              <>
+                <CardTitle>Bem-vindo</CardTitle>
+                <CardDescription>
+                  Faça login para acessar o sistema
+                </CardDescription>
+              </>
+            ) : (
+              <>
+                <CardTitle>Recuperar Senha</CardTitle>
+                <CardDescription>
+                  Informe seu e-mail para receber as instruções de recuperação
+                </CardDescription>
+              </>
+            )}
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="login-email">E-mail</Label>
-                <Input
-                  id="login-email"
-                  type="email"
-                  placeholder="seu@email.com"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Senha</Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Entrar
-              </Button>
-            </form>
+            {view === 'login' ? (
+              <form onSubmit={handleLogin} className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">E-mail</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Senha</Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    placeholder="••••••••"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Entrar
+                </Button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={switchToForgotPassword}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Esqueci minha senha
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                
+                {successMessage && (
+                  <Alert className="border-green-500 bg-green-50 text-green-800">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    <AlertDescription className="text-green-800">{successMessage}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="recovery-email">E-mail</Label>
+                  <Input
+                    id="recovery-email"
+                    type="email"
+                    placeholder="seu@email.com"
+                    value={recoveryEmail}
+                    onChange={(e) => setRecoveryEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Enviar Instruções
+                </Button>
+
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={switchToLogin}
+                    className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+                  >
+                    <ArrowLeft className="h-3 w-3" />
+                    Voltar ao login
+                  </button>
+                </div>
+              </form>
+            )}
           </CardContent>
         </Card>
         
