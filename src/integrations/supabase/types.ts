@@ -558,34 +558,26 @@ export type Database = {
       tipos_despesas_eventos: {
         Row: {
           codigo_evento: string
+          componente: Database["public"]["Enums"]["componente_remuneracao"]
           created_at: string
           descricao_evento: string
           id: string
-          tipo_despesa_id: string
         }
         Insert: {
           codigo_evento: string
+          componente: Database["public"]["Enums"]["componente_remuneracao"]
           created_at?: string
           descricao_evento: string
           id?: string
-          tipo_despesa_id: string
         }
         Update: {
           codigo_evento?: string
+          componente?: Database["public"]["Enums"]["componente_remuneracao"]
           created_at?: string
           descricao_evento?: string
           id?: string
-          tipo_despesa_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "tipos_despesas_eventos_tipo_despesa_id_fkey"
-            columns: ["tipo_despesa_id"]
-            isOneToOne: true
-            referencedRelation: "tipos_despesas"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       user_roles: {
         Row: {
@@ -624,6 +616,13 @@ export type Database = {
     }
     Enums: {
       app_role: "FINANCEIRO" | "COLABORADOR" | "RH"
+      componente_remuneracao:
+        | "vale_alimentacao"
+        | "vale_refeicao"
+        | "ajuda_custo"
+        | "mobilidade"
+        | "cesta_beneficios"
+        | "pida"
       expense_classification: "fixo" | "variavel"
       expense_origin: "proprio" | "conjuge" | "filhos"
       expense_status: "enviado" | "em_analise" | "valido" | "invalido"
@@ -756,6 +755,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["FINANCEIRO", "COLABORADOR", "RH"],
+      componente_remuneracao: [
+        "vale_alimentacao",
+        "vale_refeicao",
+        "ajuda_custo",
+        "mobilidade",
+        "cesta_beneficios",
+        "pida",
+      ],
       expense_classification: ["fixo", "variavel"],
       expense_origin: ["proprio", "conjuge", "filhos"],
       expense_status: ["enviado", "em_analise", "valido", "invalido"],
