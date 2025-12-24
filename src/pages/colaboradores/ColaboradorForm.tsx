@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, Download, FileText, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Loader2, Download, FileText, UserCheck, UserX, UserPlus, Key, Mail, Eye, EyeOff } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
+import { authService } from '@/services/auth.service';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 import { ExpenseTypesManager, ExpenseTypesManagerRef, ExpenseTypeSelection } from '@/components/colaboradores/ExpenseTypesManager';
@@ -103,47 +104,39 @@ const ColaboradorForm = () => {
   const fetchColaborador = async () => {
     if (!id) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-      navigate('/colaboradores');
-    } else if (data) {
-      const colaboradorData = data as any;
+    try {
+      const data = await colaboradoresService.getById(id);
       setFormData({
-        matricula: colaboradorData.matricula,
-        nome: colaboradorData.nome,
-        email: colaboradorData.email,
-        departamento: colaboradorData.departamento,
-        salarioBase: Number(colaboradorData.salario_base),
-        valeAlimentacao: Number(colaboradorData.vale_alimentacao),
-        valeRefeicao: Number(colaboradorData.vale_refeicao),
-        ajudaCusto: Number(colaboradorData.ajuda_custo),
-        mobilidade: Number(colaboradorData.mobilidade),
-        cestaBeneficiosTeto: Number(colaboradorData.cesta_beneficios_teto),
-        temPida: colaboradorData.tem_pida,
-        pidaTeto: Number(colaboradorData.pida_teto),
-        ativo: colaboradorData.ativo,
-        feriasInicio: colaboradorData.ferias_inicio || '',
-        feriasFim: colaboradorData.ferias_fim || '',
-        beneficioProporcional: colaboradorData.beneficio_proporcional || false,
+        matricula: data.matricula,
+        nome: data.nome,
+        email: data.email,
+        departamento: data.departamento,
+        salarioBase: data.salario_base,
+        valeAlimentacao: data.vale_alimentacao,
+        valeRefeicao: data.vale_refeicao,
+        ajudaCusto: data.ajuda_custo,
+        mobilidade: data.mobilidade,
+        cestaBeneficiosTeto: data.cesta_beneficios_teto,
+        temPida: data.tem_pida,
+        pidaTeto: data.pida_teto,
+        ativo: data.ativo,
+        feriasInicio: data.ferias_inicio || '',
+        feriasFim: data.ferias_fim || '',
+        beneficioProporcional: data.beneficio_proporcional,
       });
       if (data.user_id) {
         setLinkedUserId(data.user_id);
         // Fetch linked user info
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, nome, email')
-          .eq('id', data.user_id)
-          .single();
-        if (profile) {
-          setFoundUser(profile);
+        try {
+          const userInfo = await authService.getUserById(data.user_id);
+          setFoundUser({ id: userInfo.id, nome: userInfo.nome, email: userInfo.email });
+        } catch (e) {
+          // User might not exist anymore
         }
       }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      navigate('/colaboradores');
     }
     setLoading(false);
   };
@@ -164,20 +157,15 @@ const ColaboradorForm = () => {
 
     setProcessingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', {
-        body: {
-          action: 'create',
-          email: formData.email.toLowerCase().trim(),
-          password: newUserPassword,
-          nome: formData.nome,
-        },
+      const result = await authService.createUser({
+        email: formData.email.toLowerCase().trim(),
+        password: newUserPassword,
+        nome: formData.nome,
+        role: 'COLABORADOR',
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      setLinkedUserId(data.userId);
-      setFoundUser({ id: data.userId, nome: formData.nome, email: formData.email });
+      setLinkedUserId(result.id);
+      setFoundUser({ id: result.id, nome: formData.nome, email: formData.email });
       setShowCreateUserDialog(false);
       setNewUserPassword('');
       setConfirmPassword('');
@@ -202,17 +190,7 @@ const ColaboradorForm = () => {
 
     setProcessingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', {
-        body: {
-          action: 'update_password',
-          userId: linkedUserId,
-          password: newUserPassword,
-        },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
+      await authService.updateUserPassword(linkedUserId, newUserPassword);
       setShowChangePasswordDialog(false);
       setNewUserPassword('');
       setConfirmPassword('');
@@ -233,17 +211,7 @@ const ColaboradorForm = () => {
 
     setProcessingUser(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', {
-        body: {
-          action: 'update_email',
-          userId: linkedUserId,
-          email: newEmail.toLowerCase().trim(),
-        },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
+      await authService.updateUserEmail(linkedUserId, newEmail.toLowerCase().trim());
       setFormData({ ...formData, email: newEmail });
       if (foundUser) {
         setFoundUser({ ...foundUser, email: newEmail });
@@ -271,7 +239,7 @@ const ColaboradorForm = () => {
     }
 
     setSaving(true);
-    const dbData: any = {
+    const dbData = {
       matricula: formData.matricula,
       nome: formData.nome,
       email: formData.email,
@@ -285,44 +253,28 @@ const ColaboradorForm = () => {
       tem_pida: formData.temPida,
       pida_teto: formData.pidaTeto,
       ativo: formData.ativo,
-      user_id: linkedUserId || null,
-      ferias_inicio: formData.feriasInicio || null,
-      ferias_fim: formData.feriasFim || null,
+      user_id: linkedUserId || undefined,
+      ferias_inicio: formData.feriasInicio || undefined,
+      ferias_fim: formData.feriasFim || undefined,
       beneficio_proporcional: formData.beneficioProporcional,
     };
 
     try {
-      if (isEditing) {
-        const { error } = await supabase
-          .from('colaboradores_elegiveis')
-          .update(dbData)
-          .eq('id', id);
-        if (error) throw error;
+      if (isEditing && id) {
+        await colaboradoresService.update(id, dbData);
         toast({ title: 'Colaborador atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
-        const { data: newColaborador, error } = await supabase
-          .from('colaboradores_elegiveis')
-          .insert([dbData])
-          .select('id')
-          .single();
-        if (error) throw error;
+        const newColaborador = await colaboradoresService.create(dbData);
         
         // Save expense types for new colaborador
         const expenseTypesToSave = expenseTypesRef.current?.getSelectedTypes() || pendingExpenseTypes;
         if (expenseTypesToSave.length > 0 && newColaborador) {
-          const expenseTypeLinks = expenseTypesToSave.map(et => ({
-            colaborador_id: newColaborador.id,
-            tipo_despesa_id: et.tipo_despesa_id,
-            ativo: true,
-          }));
-          
-          const { error: linkError } = await supabase
-            .from('colaborador_tipos_despesas')
-            .insert(expenseTypeLinks);
-          
-          if (linkError) {
-            console.error('Erro ao vincular tipos de despesa:', linkError);
-            // Don't fail the whole operation, just log the error
+          for (const et of expenseTypesToSave) {
+            try {
+              await colaboradoresService.linkTipoDespesa(newColaborador.id, et.tipo_despesa_id);
+            } catch (e) {
+              console.error('Erro ao vincular tipo de despesa:', e);
+            }
           }
         }
         
@@ -598,7 +550,7 @@ const ColaboradorForm = () => {
                 <Switch
                   id="temPida"
                   checked={formData.temPida}
-                  onCheckedChange={(checked) => setFormData({ ...formData, temPida: checked })}
+                  onCheckedChange={handleTemPidaChange}
                 />
                 <Label htmlFor="temPida">Possui PI/DA (Propriedade Intelectual / Direitos Autorais)</Label>
               </div>
