@@ -171,4 +171,109 @@ router.get('/audit-logs', requireRole('RH', 'FINANCEIRO'), async (req, res) => {
   res.json(result);
 });
 
+// Eventos de Folha
+router.get('/eventos-folha', async (req, res) => {
+  const result = await tipoDespesaService.getAllEventosFolha();
+  res.json(result);
+});
+
+router.get('/eventos-folha/:id', async (req, res) => {
+  const result = await tipoDespesaService.getEventoById(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Evento não encontrado' });
+  res.json(result);
+});
+
+router.post('/eventos-folha', requireRole('RH'), async (req, res) => {
+  try {
+    const { componente, codigo_evento, descricao_evento } = req.body;
+    const result = await tipoDespesaService.createEvento(componente, codigo_evento, descricao_evento);
+    res.status(201).json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/eventos-folha/:id', requireRole('RH'), async (req, res) => {
+  try {
+    const { codigo_evento, descricao_evento } = req.body;
+    const result = await tipoDespesaService.updateEvento(req.params.id, codigo_evento, descricao_evento);
+    res.json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/eventos-folha/:id', requireRole('RH'), async (req, res) => {
+  try {
+    await tipoDespesaService.deleteEvento(req.params.id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Colaborador Tipos Despesas (vínculos)
+router.get('/colaboradores/:id/tipos-despesas', async (req, res) => {
+  const result = await tipoDespesaService.getColaboradorTiposDespesas(req.params.id);
+  res.json(result);
+});
+
+router.post('/colaboradores/:id/tipos-despesas', requireRole('RH'), async (req, res) => {
+  try {
+    const { tipo_despesa_id, teto_individual } = req.body;
+    const result = await tipoDespesaService.linkTipoDespesaToColaborador(req.params.id, tipo_despesa_id, teto_individual);
+    res.status(201).json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/colaboradores/:colaboradorId/tipos-despesas/:tipoDespesaId', requireRole('RH'), async (req, res) => {
+  try {
+    await tipoDespesaService.unlinkTipoDespesaFromColaborador(req.params.colaboradorId, req.params.tipoDespesaId);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Link/Unlink colaborador to user
+router.put('/colaboradores/:id/link-user', requireRole('RH'), async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    await colaboradorService.linkColaboradorToUser(req.params.id, user_id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/colaboradores/:id/unlink-user', requireRole('RH'), async (req, res) => {
+  try {
+    await colaboradorService.unlinkColaboradorFromUser(req.params.id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Departamentos
+router.get('/departamentos', async (req, res) => {
+  const result = await colaboradorService.getDepartamentos();
+  res.json(result);
+});
+
+// Iniciar análise de lançamento
+router.post('/lancamentos/:id/iniciar-analise', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const lancamentoService = await import('../services/lancamentoService');
+    const result = await lancamentoService.iniciarAnalise(req.params.id, req.user!.id, req.user!.nome);
+    res.json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Tipos de despesas - delete
+router.delete('/tipos-despesas/:id', requireRole('RH'), async (req, res) => {
+  try {
+    await tipoDespesaService.deleteTipoDespesa(req.params.id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Eventos PIDA
+router.get('/eventos-pida', requireRole('RH', 'FINANCEIRO'), async (req, res) => {
+  const fechamentoService = await import('../services/fechamentoService');
+  const result = await fechamentoService.getEventosPida(
+    req.query.periodo_id as string,
+    req.query.fechamento_id as string
+  );
+  res.json(result);
+});
+
 export default router;
