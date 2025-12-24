@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/auth.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -55,7 +56,7 @@ const Auth = () => {
     const { error } = await signIn(loginEmail, loginPassword);
     
     if (error) {
-      if (error.message.includes('Invalid login credentials')) {
+      if (error.message.includes('Invalid login credentials') || error.message.includes('Credenciais')) {
         setError('E-mail ou senha incorretos');
       } else if (error.message.includes('Email not confirmed')) {
         setError('Por favor, confirme seu e-mail antes de fazer login');
@@ -81,11 +82,14 @@ const Auth = () => {
     
     setIsLoading(true);
     
-    // TODO: Integrar com backend/Supabase para envio de e-mail de recuperação
-    // Por enquanto, apenas simula o envio
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      await authService.requestPasswordReset(recoveryEmail);
+      setSuccessMessage('Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.');
+    } catch (error: any) {
+      // Não mostramos erro específico por segurança
+      setSuccessMessage('Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.');
+    }
     
-    setSuccessMessage('Se o e-mail estiver cadastrado, você receberá as instruções de recuperação.');
     setIsLoading(false);
   };
 

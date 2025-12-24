@@ -1,6 +1,6 @@
 import apiClient from '@/lib/api-client';
 
-export interface ColaboradorElegivel {
+export interface Colaborador {
   id: string;
   user_id: string | null;
   nome: string;
@@ -23,6 +23,9 @@ export interface ColaboradorElegivel {
   created_at: string;
   updated_at: string;
 }
+
+// Alias for backwards compatibility
+export type ColaboradorElegivel = Colaborador;
 
 export interface CreateColaboradorInput {
   nome: string;
@@ -69,26 +72,26 @@ export interface ColaboradorTipoDespesa {
 }
 
 export const colaboradoresService = {
-  async getAll(filters?: ColaboradorFilters): Promise<ColaboradorElegivel[]> {
+  async getAll(filters?: ColaboradorFilters): Promise<Colaborador[]> {
     const params = new URLSearchParams();
     if (filters?.ativo !== undefined) params.append('ativo', String(filters.ativo));
     if (filters?.departamento) params.append('departamento', filters.departamento);
     if (filters?.search) params.append('search', filters.search);
     
     const query = params.toString();
-    return apiClient.get<ColaboradorElegivel[]>(`/api/colaboradores${query ? `?${query}` : ''}`);
+    return apiClient.get<Colaborador[]>(`/api/colaboradores${query ? `?${query}` : ''}`);
   },
 
-  async getById(id: string): Promise<ColaboradorElegivel> {
-    return apiClient.get<ColaboradorElegivel>(`/api/colaboradores/${id}`);
+  async getById(id: string): Promise<Colaborador> {
+    return apiClient.get<Colaborador>(`/api/colaboradores/${id}`);
   },
 
-  async create(data: CreateColaboradorInput): Promise<ColaboradorElegivel> {
-    return apiClient.post<ColaboradorElegivel>('/api/colaboradores', data);
+  async create(data: CreateColaboradorInput): Promise<Colaborador> {
+    return apiClient.post<Colaborador>('/api/colaboradores', data);
   },
 
-  async update(id: string, data: UpdateColaboradorInput): Promise<ColaboradorElegivel> {
-    return apiClient.put<ColaboradorElegivel>(`/api/colaboradores/${id}`, data);
+  async update(id: string, data: UpdateColaboradorInput): Promise<Colaborador> {
+    return apiClient.put<Colaborador>(`/api/colaboradores/${id}`, data);
   },
 
   async delete(id: string): Promise<void> {

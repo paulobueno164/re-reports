@@ -20,27 +20,10 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
 import { formatCurrency } from '@/lib/expense-validation';
 import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
 import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
-
-interface Colaborador {
-  id: string;
-  matricula: string;
-  nome: string;
-  email: string;
-  departamento: string;
-  salarioBase: number;
-  valeAlimentacao: number;
-  valeRefeicao: number;
-  ajudaCusto: number;
-  mobilidade: number;
-  transporte: number;
-  temPida: boolean;
-  pidaTeto: number;
-  ativo: boolean;
-}
 
 const departments = [
   'Tecnologia da Informação',
@@ -67,32 +50,11 @@ const ColaboradoresLista = () => {
 
   const fetchEmployees = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('*')
-      .order('nome');
-
-    if (error) {
+    try {
+      const data = await colaboradoresService.getAll();
+      setEmployees(data);
+    } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else if (data) {
-      setEmployees(
-        data.map((e) => ({
-          id: e.id,
-          matricula: e.matricula,
-          nome: e.nome,
-          email: e.email,
-          departamento: e.departamento,
-          salarioBase: Number(e.salario_base),
-          valeAlimentacao: Number(e.vale_alimentacao),
-          valeRefeicao: Number(e.vale_refeicao),
-          ajudaCusto: Number(e.ajuda_custo),
-          mobilidade: Number(e.mobilidade),
-          transporte: Number(e.transporte),
-          temPida: e.tem_pida,
-          pidaTeto: Number(e.pida_teto),
-          ativo: e.ativo,
-        }))
-      );
     }
     setLoading(false);
   };
@@ -110,13 +72,12 @@ const ColaboradoresLista = () => {
   const handleDelete = async (employee: Colaborador) => {
     if (!confirm(`Deseja realmente excluir o colaborador ${employee.nome}?`)) return;
 
-    const { error } = await supabase.from('colaboradores_elegiveis').delete().eq('id', employee.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      await colaboradoresService.delete(employee.id);
       toast({ title: 'Colaborador excluído', description: `${employee.nome} foi removido.` });
       fetchEmployees();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -142,11 +103,11 @@ const ColaboradoresLista = () => {
     },
     { key: 'departamento', header: 'Depto', hideOnMobile: true },
     {
-      key: 'temPida',
+      key: 'tem_pida',
       header: 'PI/DA',
       hideOnMobile: true,
       render: (item: Colaborador) =>
-        item.temPida ? (
+        item.tem_pida ? (
           <span className="text-success font-medium">Sim</span>
         ) : (
           <span className="text-muted-foreground">Não</span>

@@ -126,7 +126,7 @@ const Perfil = () => {
               <Label className="text-muted-foreground text-sm">Nome</Label>
               <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
                 <User className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">{user?.user_metadata?.nome || 'Não informado'}</span>
+                <span className="font-medium">{user?.nome || 'Não informado'}</span>
               </div>
             </div>
 

@@ -8,28 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 import { ExpenseTypesManager } from '@/components/colaboradores/ExpenseTypesManager';
-
-interface Colaborador {
-  id: string;
-  matricula: string;
-  nome: string;
-  email: string;
-  departamento: string;
-  salarioBase: number;
-  valeAlimentacao: number;
-  valeRefeicao: number;
-  ajudaCusto: number;
-  mobilidade: number;
-  cestaBeneficiosTeto: number;
-  temPida: boolean;
-  pidaTeto: number;
-  ativo: boolean;
-  userId: string | null;
-}
 
 const ColaboradorDetalhe = () => {
   const { toast } = useToast();
@@ -46,45 +28,13 @@ const ColaboradorDetalhe = () => {
   const fetchColaborador = async () => {
     if (!id) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
+    try {
+      const data = await colaboradoresService.getById(id);
+      setColaborador(data);
+      // TODO: Fetch linked user name from profiles if needed
+    } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/colaboradores');
-    } else if (data) {
-      const colaboradorData = data as any;
-      setColaborador({
-        id: colaboradorData.id,
-        matricula: colaboradorData.matricula,
-        nome: colaboradorData.nome,
-        email: colaboradorData.email,
-        departamento: colaboradorData.departamento,
-        salarioBase: Number(colaboradorData.salario_base),
-        valeAlimentacao: Number(colaboradorData.vale_alimentacao),
-        valeRefeicao: Number(colaboradorData.vale_refeicao),
-        ajudaCusto: Number(colaboradorData.ajuda_custo),
-        mobilidade: Number(colaboradorData.mobilidade),
-        cestaBeneficiosTeto: Number(colaboradorData.cesta_beneficios_teto),
-        temPida: colaboradorData.tem_pida,
-        pidaTeto: Number(colaboradorData.pida_teto),
-        ativo: colaboradorData.ativo,
-        userId: colaboradorData.user_id,
-      });
-
-      if (colaboradorData.user_id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('nome')
-          .eq('id', colaboradorData.user_id)
-          .single();
-        if (profile) {
-          setLinkedUserName(profile.nome);
-        }
-      }
     }
     setLoading(false);
   };
@@ -92,13 +42,13 @@ const ColaboradorDetalhe = () => {
   const calculateRendimentoTotal = () => {
     if (!colaborador) return 0;
     return (
-      colaborador.salarioBase +
-      colaborador.valeAlimentacao +
-      colaborador.valeRefeicao +
-      colaborador.ajudaCusto +
+      colaborador.salario_base +
+      colaborador.vale_alimentacao +
+      colaborador.vale_refeicao +
+      colaborador.ajuda_custo +
       colaborador.mobilidade +
-      colaborador.cestaBeneficiosTeto +
-      colaborador.pidaTeto
+      colaborador.cesta_beneficios_teto +
+      colaborador.pida_teto
     );
   };
 
@@ -132,7 +82,7 @@ const ColaboradorDetalhe = () => {
         <Badge variant={colaborador.ativo ? 'default' : 'secondary'}>
           {colaborador.ativo ? 'Ativo' : 'Inativo'}
         </Badge>
-        {colaborador.temPida && (
+        {colaborador.tem_pida && (
           <Badge variant="outline">PI/DA Habilitado</Badge>
         )}
         {linkedUserName && (
@@ -175,10 +125,10 @@ const ColaboradorDetalhe = () => {
             <h3 className="text-sm font-semibold text-foreground">Componentes Fixos</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
-                { label: 'Salário Base', value: colaborador.salarioBase },
-                { label: 'Vale Alimentação', value: colaborador.valeAlimentacao },
-                { label: 'Vale Refeição', value: colaborador.valeRefeicao },
-                { label: 'Ajuda de Custo', value: colaborador.ajudaCusto },
+                { label: 'Salário Base', value: colaborador.salario_base },
+                { label: 'Vale Alimentação', value: colaborador.vale_alimentacao },
+                { label: 'Vale Refeição', value: colaborador.vale_refeicao },
+                { label: 'Ajuda de Custo', value: colaborador.ajuda_custo },
                 { label: 'Mobilidade', value: colaborador.mobilidade },
               ].map((item) => (
                 <div key={item.label} className="space-y-1">
@@ -196,12 +146,12 @@ const ColaboradorDetalhe = () => {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Cesta de Benefícios - Teto</p>
-                <p className="font-mono font-medium">{formatCurrency(colaborador.cestaBeneficiosTeto)}</p>
+                <p className="font-mono font-medium">{formatCurrency(colaborador.cesta_beneficios_teto)}</p>
               </div>
-              {colaborador.temPida && (
+              {colaborador.tem_pida && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">PI/DA - Teto</p>
-                  <p className="font-mono font-medium">{formatCurrency(colaborador.pidaTeto)}</p>
+                  <p className="font-mono font-medium">{formatCurrency(colaborador.pida_teto)}</p>
                 </div>
               )}
             </div>
@@ -221,13 +171,13 @@ const ColaboradorDetalhe = () => {
                       const simulationData = {
                         colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
                         componentes: [
-                          { nome: 'Salário Base', valor: colaborador.salarioBase, tipo: 'Fixo' },
-                          { nome: 'Vale Alimentação', valor: colaborador.valeAlimentacao, tipo: 'Fixo' },
-                          { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
-                          { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
+                          { nome: 'Salário Base', valor: colaborador.salario_base, tipo: 'Fixo' },
+                          { nome: 'Vale Alimentação', valor: colaborador.vale_alimentacao, tipo: 'Fixo' },
+                          { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
+                          { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                          ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
+                          { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                          ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
                       };
@@ -245,13 +195,13 @@ const ColaboradorDetalhe = () => {
                       const simulationData = {
                         colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
                         componentes: [
-                          { nome: 'Salário Base', valor: colaborador.salarioBase, tipo: 'Fixo' },
-                          { nome: 'Vale Alimentação', valor: colaborador.valeAlimentacao, tipo: 'Fixo' },
-                          { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
-                          { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
+                          { nome: 'Salário Base', valor: colaborador.salario_base, tipo: 'Fixo' },
+                          { nome: 'Vale Alimentação', valor: colaborador.vale_alimentacao, tipo: 'Fixo' },
+                          { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
+                          { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                          ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
+                          { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                          ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
                       };
@@ -273,13 +223,13 @@ const ColaboradorDetalhe = () => {
                   <span className="text-right">Tipo</span>
                 </div>
                   {[
-                    { nome: 'Salário Base', valor: colaborador.salarioBase, tipo: 'Fixo' },
-                    { nome: 'Vale Alimentação', valor: colaborador.valeAlimentacao, tipo: 'Fixo' },
-                    { nome: 'Vale Refeição', valor: colaborador.valeRefeicao, tipo: 'Fixo' },
-                    { nome: 'Ajuda de Custo', valor: colaborador.ajudaCusto, tipo: 'Fixo' },
+                    { nome: 'Salário Base', valor: colaborador.salario_base, tipo: 'Fixo' },
+                    { nome: 'Vale Alimentação', valor: colaborador.vale_alimentacao, tipo: 'Fixo' },
+                    { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
+                    { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
                     { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                    { nome: 'Cesta de Benefícios', valor: colaborador.cestaBeneficiosTeto, tipo: 'Teto Variável' },
-                    ...(colaborador.temPida ? [{ nome: 'PI/DA', valor: colaborador.pidaTeto, tipo: 'Teto Variável' }] : []),
+                    { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                    ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
                   ].map((item) => (
                   <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
                     <span>{item.nome}</span>
