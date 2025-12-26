@@ -8,28 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer';
 import { ExpenseTimeline } from '@/components/lancamentos/ExpenseTimeline';
-import { createAuditLog } from '@/lib/audit-log';
-
-interface Expense {
-  id: string;
-  colaboradorId: string;
-  colaboradorNome: string;
-  tipoDespesaNome: string;
-  departamento: string;
-  origem: string;
-  valorLancado: number;
-  valorConsiderado: number;
-  valorNaoConsiderado: number;
-  descricaoFatoGerador: string;
-  status: string;
-  createdAt: Date;
-  motivoInvalidacao?: string;
-}
+import lancamentosService, { Lancamento } from '@/services/lancamentos.service';
 
 const originLabels: Record<string, string> = {
   proprio: 'Próprio',
@@ -42,7 +25,7 @@ const ValidacaoDetalhe = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const [expense, setExpense] = useState<Expense | null>(null);
+  const [expense, setExpense] = useState<Lancamento | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
@@ -52,97 +35,45 @@ const ValidacaoDetalhe = () => {
   }, [id]);
 
   const fetchExpense = async () => {
+    if (!id) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('lancamentos')
-      .select(`
-        id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, created_at, motivo_invalidacao, colaborador_id,
-        colaboradores_elegiveis (id, nome, departamento),
-        tipos_despesas (nome)
-      `)
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) {
+    try {
+      const data = await lancamentosService.getById(id);
+      setExpense(data);
+    } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else if (data) {
-      setExpense({
-        id: data.id,
-        colaboradorId: data.colaboradores_elegiveis?.id || data.colaborador_id || '',
-        colaboradorNome: data.colaboradores_elegiveis?.nome || '',
-        tipoDespesaNome: data.tipos_despesas?.nome || '',
-        departamento: data.colaboradores_elegiveis?.departamento || '',
-        origem: data.origem,
-        valorLancado: Number(data.valor_lancado),
-        valorConsiderado: Number(data.valor_considerado),
-        valorNaoConsiderado: Number(data.valor_nao_considerado),
-        descricaoFatoGerador: data.descricao_fato_gerador,
-        status: data.status,
-        createdAt: new Date(data.created_at),
-        motivoInvalidacao: data.motivo_invalidacao || undefined,
-      });
-    } else {
-      toast({ title: 'Erro', description: 'Lançamento não encontrado', variant: 'destructive' });
       navigate('/validacao');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleStartAnalysis = async () => {
     if (!expense) return;
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'em_analise' })
-      .eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
-      await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'iniciar_analise',
-        entityType: 'lancamento',
-        entityId: expense.id,
-        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
-        oldValues: { status: expense.status },
-        newValues: { status: 'em_analise' },
-      });
+    try {
+      await lancamentosService.iniciarAnalise(expense.id);
       toast({ title: 'Análise iniciada' });
       fetchExpense();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleApprove = async () => {
     if (!expense) return;
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'valido', validado_por: user?.id, validado_em: new Date().toISOString() })
-      .eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
-      await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'aprovar',
-        entityType: 'lancamento',
-        entityId: expense.id,
-        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
-        oldValues: { status: expense.status },
-        newValues: { status: 'valido' },
-      });
+    try {
+      await lancamentosService.aprovar(expense.id);
       toast({ title: 'Despesa aprovada' });
       navigate('/validacao');
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleReject = async () => {
@@ -152,29 +83,15 @@ const ValidacaoDetalhe = () => {
     }
 
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'invalido', motivo_invalidacao: rejectionReason, validado_por: user?.id, validado_em: new Date().toISOString() })
-      .eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
-      await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'rejeitar',
-        entityType: 'lancamento',
-        entityId: expense.id,
-        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
-        oldValues: { status: expense.status },
-        newValues: { status: 'invalido', motivo: rejectionReason },
-      });
+    try {
+      await lancamentosService.rejeitar(expense.id, rejectionReason);
       toast({ title: 'Despesa invalidada' });
       navigate('/validacao');
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   if (loading) {
@@ -188,6 +105,9 @@ const ValidacaoDetalhe = () => {
   if (!expense) return null;
 
   const canValidate = expense.status === 'enviado' || expense.status === 'em_analise';
+  const colaboradorNome = expense.colaborador?.nome || '';
+  const tipoDespesaNome = expense.tipo_despesa?.nome || '';
+  const departamento = expense.colaborador?.departamento || '';
 
   return (
     <PageFormLayout
@@ -237,15 +157,15 @@ const ValidacaoDetalhe = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Label className="text-muted-foreground">Colaborador</Label>
-            <p className="font-medium">{expense.colaboradorNome}</p>
+            <p className="font-medium">{colaboradorNome}</p>
           </div>
           <div>
             <Label className="text-muted-foreground">Data do Lançamento</Label>
-            <p className="font-medium">{formatDate(expense.createdAt)}</p>
+            <p className="font-medium">{formatDate(new Date(expense.created_at))}</p>
           </div>
           <div>
             <Label className="text-muted-foreground">Tipo de Despesa</Label>
-            <p className="font-medium">{expense.tipoDespesaNome}</p>
+            <p className="font-medium">{tipoDespesaNome}</p>
           </div>
           <div>
             <Label className="text-muted-foreground">Origem</Label>
@@ -253,7 +173,7 @@ const ValidacaoDetalhe = () => {
           </div>
           <div>
             <Label className="text-muted-foreground">Valor Lançado</Label>
-            <p className="font-mono text-lg font-bold">{formatCurrency(expense.valorLancado)}</p>
+            <p className="font-mono text-lg font-bold">{formatCurrency(expense.valor_lancado)}</p>
           </div>
           <div>
             <Label className="text-muted-foreground">Status Atual</Label>
@@ -267,7 +187,7 @@ const ValidacaoDetalhe = () => {
 
         <div>
           <Label className="text-muted-foreground">Descrição do Fato Gerador</Label>
-          <p className="mt-1 p-3 bg-muted rounded-lg text-sm">{expense.descricaoFatoGerador}</p>
+          <p className="mt-1 p-3 bg-muted rounded-lg text-sm">{expense.descricao_fato_gerador}</p>
         </div>
 
         {/* Attachments */}
@@ -296,10 +216,10 @@ const ValidacaoDetalhe = () => {
           </div>
         )}
 
-        {expense.status === 'invalido' && expense.motivoInvalidacao && (
+        {expense.status === 'invalido' && expense.motivo_invalidacao && (
           <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
             <Label className="text-destructive">Motivo da Invalidação</Label>
-            <p className="mt-1 text-sm">{expense.motivoInvalidacao}</p>
+            <p className="mt-1 text-sm">{expense.motivo_invalidacao}</p>
           </div>
         )}
       </div>

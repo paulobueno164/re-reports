@@ -5,15 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-interface ExpenseType {
-  id: string;
-  nome: string;
-  grupo: string;
-  classificacao: string;
-}
+import tiposDespesasService, { TipoDespesa } from '@/services/tipos-despesas.service';
+import { colaboradoresService } from '@/services/colaboradores.service';
 
 interface ColaboradorTipoDespesa {
   id: string;
@@ -40,7 +34,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
   ({ colaboradorId, disabled = false, standalone = false, onSelectionChange }, ref) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [expenseTypes, setExpenseTypes] = useState<ExpenseType[]>([]);
+    const [expenseTypes, setExpenseTypes] = useState<TipoDespesa[]>([]);
     const [linkedTypes, setLinkedTypes] = useState<Map<string, ColaboradorTipoDespesa>>(new Map());
     const [changes, setChanges] = useState<Map<string, boolean>>(new Map());
     const [searchTerm, setSearchTerm] = useState('');
@@ -76,53 +70,39 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     const fetchData = async () => {
       setLoading(true);
 
-      // Fetch all variable expense types
-      const { data: types, error: typesError } = await supabase
-        .from('tipos_despesas')
-        .select('id, nome, grupo, classificacao')
-        .eq('ativo', true)
-        .eq('classificacao', 'variavel')
-        .order('grupo', { ascending: true })
-        .order('nome', { ascending: true });
+      try {
+        // Fetch all variable expense types
+        const types = await tiposDespesasService.getAll({ ativo: true, classificacao: 'variavel' });
 
-      if (typesError) {
-        toast.error('Erro ao carregar tipos de despesa');
-        setLoading(false);
-        return;
-      }
+        let linkedMap = new Map<string, ColaboradorTipoDespesa>();
 
-      let linkedMap = new Map<string, ColaboradorTipoDespesa>();
-
-      // Only fetch linked types if we have a colaboradorId
-      if (colaboradorId) {
-        const { data: links, error: linksError } = await supabase
-          .from('colaborador_tipos_despesas')
-          .select('id, tipo_despesa_id, ativo')
-          .eq('colaborador_id', colaboradorId);
-
-        if (linksError) {
-          toast.error('Erro ao carregar vínculos');
-          setLoading(false);
-          return;
+        // Only fetch linked types if we have a colaboradorId
+        if (colaboradorId) {
+          const links = await colaboradoresService.getTiposDespesas(colaboradorId);
+          links.forEach(link => {
+            linkedMap.set(link.tipo_despesa_id, {
+              id: link.id,
+              tipo_despesa_id: link.tipo_despesa_id,
+              ativo: link.ativo,
+            });
+          });
         }
 
-        links?.forEach(link => {
-          linkedMap.set(link.tipo_despesa_id, link);
+        setExpenseTypes(types);
+        setLinkedTypes(linkedMap);
+
+        // Initialize changes with current state
+        const initialChanges = new Map<string, boolean>();
+        types.forEach(type => {
+          const link = linkedMap.get(type.id);
+          initialChanges.set(type.id, !!link?.ativo);
         });
+        setChanges(initialChanges);
+      } catch (error: any) {
+        toast.error('Erro ao carregar tipos de despesa: ' + error.message);
+      } finally {
+        setLoading(false);
       }
-
-      setExpenseTypes(types || []);
-      setLinkedTypes(linkedMap);
-
-      // Initialize changes with current state
-      const initialChanges = new Map<string, boolean>();
-      types?.forEach(type => {
-        const link = linkedMap.get(type.id);
-        initialChanges.set(type.id, !!link?.ativo);
-      });
-      setChanges(initialChanges);
-
-      setLoading(false);
     };
 
     const handleToggleType = (typeId: string, checked: boolean) => {
@@ -151,34 +131,11 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       setSaving(true);
 
       try {
-        for (const [typeId, selected] of changes.entries()) {
-          const existingLink = linkedTypes.get(typeId);
-
-          if (selected) {
-            if (existingLink) {
-              // Update existing link
-              await supabase
-                .from('colaborador_tipos_despesas')
-                .update({ ativo: true })
-                .eq('id', existingLink.id);
-            } else {
-              // Create new link
-              await supabase
-                .from('colaborador_tipos_despesas')
-                .insert({
-                  colaborador_id: colaboradorId,
-                  tipo_despesa_id: typeId,
-                  ativo: true,
-                });
-            }
-          } else if (existingLink) {
-            // Deactivate existing link
-            await supabase
-              .from('colaborador_tipos_despesas')
-              .update({ ativo: false })
-              .eq('id', existingLink.id);
-          }
-        }
+        const selectedTypeIds = Array.from(changes.entries())
+          .filter(([_, selected]) => selected)
+          .map(([typeId]) => typeId);
+        
+        await colaboradoresService.updateTiposDespesas(colaboradorId, selectedTypeIds);
 
         toast.success('Tipos de despesa atualizados com sucesso');
         await fetchData();
@@ -201,7 +158,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
         if (!acc[type.grupo]) acc[type.grupo] = [];
         acc[type.grupo].push(type);
         return acc;
-      }, {} as Record<string, ExpenseType[]>);
+      }, {} as Record<string, TipoDespesa[]>);
     }, [expenseTypes, searchTerm]);
 
     if (loading) {
