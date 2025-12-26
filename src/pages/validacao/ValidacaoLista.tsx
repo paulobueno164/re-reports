@@ -28,13 +28,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { BatchApprovalPanel } from '@/components/validation/BatchApprovalPanel';
-import { createAuditLog } from '@/lib/audit-log';
 import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
 import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
+import lancamentosService, { Lancamento } from '@/services/lancamentos.service';
+import { colaboradoresService } from '@/services/colaboradores.service';
 
 interface Expense {
   id: string;
@@ -89,32 +89,31 @@ const ValidacaoLista = () => {
   }, [filterStatus]);
 
   const fetchDepartments = async () => {
-    const { data } = await supabase.from('colaboradores_elegiveis').select('departamento');
-    if (data) setDepartments([...new Set(data.map((d) => d.departamento))]);
+    try {
+      const depts = await colaboradoresService.getDepartamentos();
+      setDepartments(depts);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
   };
 
   const fetchExpenses = async () => {
     setLoading(true);
-    let query = supabase
-      .from('lancamentos')
-      .select(`
-        id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-        descricao_fato_gerador, status, created_at, motivo_invalidacao, colaborador_id,
-        colaboradores_elegiveis (id, nome, departamento),
-        tipos_despesas (nome)
-      `)
-      .order('created_at', { ascending: false });
+    try {
+      let statusFilter: 'enviado' | 'em_analise' | undefined;
+      if (filterStatus === 'enviado') statusFilter = 'enviado';
+      else if (filterStatus === 'em_analise') statusFilter = 'em_analise';
 
-    if (filterStatus === 'pending') query = query.in('status', ['enviado', 'em_analise']);
-    else if (filterStatus === 'enviado') query = query.eq('status', 'enviado');
-    else if (filterStatus === 'em_analise') query = query.eq('status', 'em_analise');
+      const data = await lancamentosService.getAll({ status: statusFilter });
+      
+      // Filter pending if needed
+      let filtered = data;
+      if (filterStatus === 'pending') {
+        filtered = data.filter(l => l.status === 'enviado' || l.status === 'em_analise');
+      }
 
-    const { data, error } = await query;
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else if (data) {
       const now = new Date();
-      const mapped = data.map((e: any) => {
+      const mapped: Expense[] = filtered.map((e) => {
         const createdAt = new Date(e.created_at);
         const diffMs = now.getTime() - createdAt.getTime();
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -130,10 +129,10 @@ const ValidacaoLista = () => {
 
         return {
           id: e.id,
-          colaboradorId: e.colaboradores_elegiveis?.id || e.colaborador_id || '',
-          colaboradorNome: e.colaboradores_elegiveis?.nome || '',
-          tipoDespesaNome: e.tipos_despesas?.nome || '',
-          departamento: e.colaboradores_elegiveis?.departamento || '',
+          colaboradorId: e.colaborador?.id || e.colaborador_id || '',
+          colaboradorNome: e.colaborador?.nome || '',
+          tipoDespesaNome: e.tipo_despesa?.nome || '',
+          departamento: e.colaborador?.departamento || '',
           origem: e.origem,
           valorLancado: Number(e.valor_lancado),
           valorConsiderado: Number(e.valor_considerado),
@@ -141,7 +140,7 @@ const ValidacaoLista = () => {
           descricaoFatoGerador: e.descricao_fato_gerador,
           status: e.status,
           createdAt,
-          motivoInvalidacao: e.motivo_invalidacao,
+          motivoInvalidacao: e.motivo_invalidacao || undefined,
           tempoEmAnalise,
           horasEmAnalise: diffHours,
         };
@@ -163,8 +162,11 @@ const ValidacaoLista = () => {
         rejectedToday: mapped.filter((e) => e.status === 'invalido' && new Date(e.createdAt) >= today).length,
         slaViolations,
       });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredExpenses = expenses.filter((exp) => {
@@ -196,56 +198,28 @@ const ValidacaoLista = () => {
 
   const handleStartAnalysis = async (expense: Expense) => {
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'em_analise' })
-      .eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
-      await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'iniciar_analise',
-        entityType: 'lancamento',
-        entityId: expense.id,
-        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
-        oldValues: { status: expense.status },
-        newValues: { status: 'em_analise' },
-      });
+    try {
+      await lancamentosService.iniciarAnalise(expense.id);
       toast({ title: 'Análise iniciada', description: `Lançamento de ${expense.colaboradorNome} está em análise.` });
       fetchExpenses();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const handleApprove = async (expense: Expense) => {
     setProcessing(true);
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({ status: 'valido', validado_por: user?.id, validado_em: new Date().toISOString() })
-      .eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
-      const { data: profile } = await supabase.from('profiles').select('nome').eq('id', user?.id).maybeSingle();
-      await createAuditLog({
-        userId: user?.id || '',
-        userName: profile?.nome || user?.email || '',
-        action: 'aprovar',
-        entityType: 'lancamento',
-        entityId: expense.id,
-        entityDescription: `${expense.colaboradorNome} - ${expense.tipoDespesaNome} - ${formatCurrency(expense.valorLancado)}`,
-        oldValues: { status: expense.status },
-        newValues: { status: 'valido' },
-      });
+    try {
+      await lancamentosService.aprovar(expense.id);
       toast({ title: 'Despesa aprovada', description: `Lançamento de ${expense.colaboradorNome} foi marcado como válido.` });
       fetchExpenses();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const columns = [
@@ -451,147 +425,117 @@ const ValidacaoLista = () => {
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold text-destructive">{stats.rejectedToday}</p>
-            <p className="text-xs text-muted-foreground">despesas invalidadas</p>
+            <p className="text-xs text-muted-foreground">despesas rejeitadas</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* SLA Alert */}
+      {/* SLA Violation Warning */}
       {stats.slaViolations > 0 && (
-        <Alert variant="destructive" className="animate-pulse">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Alerta de SLA</AlertTitle>
+          <AlertTitle>Atenção: SLA Violado</AlertTitle>
           <AlertDescription>
-            {stats.slaViolations} despesa(s) estão há mais de 48h sem validação. Priorize a análise desses itens.
+            {stats.slaViolations} despesa(s) estão aguardando análise há mais de 48 horas.
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Search and Filters */}
-      <div className="space-y-4">
-        <div className="flex flex-row gap-4 items-end flex-wrap">
-          <div className="space-y-1.5 flex-1 min-w-[200px] max-w-md">
-            <Label className="text-xs text-muted-foreground">Buscar</Label>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por colaborador ou tipo..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Status</Label>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Todos Pendentes</SelectItem>
-                <SelectItem value="enviado">Aguardando Análise</SelectItem>
-                <SelectItem value="em_analise">Em Análise</SelectItem>
-                <SelectItem value="all">Todos</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground invisible">Ação</Label>
-            <Button variant="outline" onClick={() => setShowFilters(!showFilters)} className="h-10">
-              <Filter className="h-4 w-4 sm:mr-2" />
-              <span className="hidden sm:inline">Filtros Avançados</span>
-            </Button>
-          </div>
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por colaborador ou tipo..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9"
+          />
         </div>
-
-        <Collapsible open={showFilters} onOpenChange={setShowFilters}>
-          <CollapsibleContent>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                  <div className="space-y-2">
-                    <Label>Departamento</Label>
-                    <Select value={filterDepartment} onValueChange={setFilterDepartment}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Data Inicial</Label>
-                    <Input
-                      type="date"
-                      value={filterDateStart}
-                      onChange={(e) => setFilterDateStart(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Data Final</Label>
-                    <Input
-                      type="date"
-                      value={filterDateEnd}
-                      onChange={(e) => setFilterDateEnd(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Valor Mínimo</Label>
-                    <Input
-                      type="number"
-                      placeholder="0,00"
-                      value={filterValueMin}
-                      onChange={(e) => setFilterValueMin(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Valor Máximo</Label>
-                    <Input
-                      type="number"
-                      placeholder="0,00"
-                      value={filterValueMax}
-                      onChange={(e) => setFilterValueMax(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end mt-4">
-                  <Button variant="ghost" onClick={() => {
-                    setFilterDepartment('all');
-                    setFilterDateStart('');
-                    setFilterDateEnd('');
-                    setFilterValueMin('');
-                    setFilterValueMax('');
-                  }}>
-                    Limpar Filtros
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
+        <div className="flex gap-2">
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Pendentes</SelectItem>
+              <SelectItem value="enviado">Aguardando</SelectItem>
+              <SelectItem value="em_analise">Em Análise</SelectItem>
+              <SelectItem value="all">Todos</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+            <Filter className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Batch Approval Panel */}
-      <BatchApprovalPanel
-        expenses={filteredExpenses}
-        selectedIds={selectedIds}
-        onSelectionChange={setSelectedIds}
-        onComplete={() => {
-          setSelectedIds([]);
-          fetchExpenses();
-        }}
-      />
+      {/* Advanced Filters */}
+      <Collapsible open={showFilters}>
+        <CollapsibleContent>
+          <Card className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label>Departamento</Label>
+                <Select value={filterDepartment} onValueChange={setFilterDepartment}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Data Inicial</Label>
+                <Input
+                  type="date"
+                  value={filterDateStart}
+                  onChange={(e) => setFilterDateStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data Final</Label>
+                <Input
+                  type="date"
+                  value={filterDateEnd}
+                  onChange={(e) => setFilterDateEnd(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Valor Mínimo</Label>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  value={filterValueMin}
+                  onChange={(e) => setFilterValueMin(e.target.value)}
+                />
+              </div>
+            </div>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
 
-      {/* Table */}
+      {/* Batch Approval Panel */}
+      {selectedIds.length > 0 && (
+        <BatchApprovalPanel
+          selectedIds={selectedIds}
+          onComplete={() => {
+            setSelectedIds([]);
+            fetchExpenses();
+          }}
+        />
+      )}
+
+      {/* Data Table */}
       <DataTable
         data={filteredExpenses}
         columns={columns}
-        emptyMessage="Nenhum lançamento pendente de validação"
+        emptyMessage="Nenhuma despesa encontrada"
       />
     </div>
   );

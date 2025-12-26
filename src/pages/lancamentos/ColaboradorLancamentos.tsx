@@ -1,12 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Eye, Edit, Trash2, Loader2, Lock, MoreVertical, Calendar, Filter, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Plus, Search, Eye, Loader2, Lock, Calendar, Filter, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -37,11 +31,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, validarPeriodoLancamento, verificarBloqueioAposLimite } from '@/lib/expense-validation';
 import { findCurrentPeriod } from '@/lib/utils';
 import { exportColaboradorExpenses } from '@/lib/excel-export';
+import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
+import { periodosService } from '@/services/periodos.service';
+import lancamentosService, { Lancamento } from '@/services/lancamentos.service';
 
 interface Expense {
   id: string;
@@ -69,14 +65,6 @@ interface CalendarPeriod {
   dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
-}
-
-interface Colaborador {
-  id: string;
-  nome: string;
-  matricula: string;
-  departamento: string;
-  userId: string | null;
 }
 
 const ColaboradorLancamentos = () => {
@@ -113,21 +101,18 @@ const ColaboradorLancamentos = () => {
   const [batchRejectionReason, setBatchRejectionReason] = useState('');
   const [processing, setProcessing] = useState(false);
 
-  const isOwnProfile = colaborador?.userId === user?.id;
-  const canEdit = hasRole('RH') || isOwnProfile; // FINANCEIRO cannot edit
-  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO'); // For viewing
-  const canApprove = hasRole('RH'); // Only RH can approve/reject
+  const isOwnProfile = colaborador?.user_id === user?.id;
+  const canEdit = hasRole('RH') || isOwnProfile;
+  const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
+  const canApprove = hasRole('RH');
   
-  // Pending expenses for batch operations
   const pendingExpenses = useMemo(() => 
     expenses.filter(e => e.status === 'enviado' || e.status === 'em_analise'),
     [expenses]
   );
   
-  // Count pending validation items
   const pendingValidation = pendingExpenses.length;
 
-  // Status counts
   const statusCounts = useMemo(() => ({
     enviado: expenses.filter(e => e.status === 'enviado').length,
     em_analise: expenses.filter(e => e.status === 'em_analise').length,
@@ -135,44 +120,6 @@ const ColaboradorLancamentos = () => {
     invalido: expenses.filter(e => e.status === 'invalido').length,
   }), [expenses]);
 
-  // Export function
-  const handleExportExcel = () => {
-    if (!colaborador || !selectedPeriod || expenses.length === 0) {
-      toast({ title: 'Nenhum dado para exportar', variant: 'destructive' });
-      return;
-    }
-
-    const origemLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
-    
-    exportColaboradorExpenses({
-      colaborador: {
-        nome: colaborador.nome,
-        matricula: colaborador.matricula,
-        departamento: colaborador.departamento,
-      },
-      periodo: selectedPeriod.periodo,
-      expenses: expenses.map(e => ({
-        data: formatDate(e.createdAt),
-        tipoDespesa: e.tipoDespesaNome,
-        origem: origemLabels[e.origem] || e.origem,
-        valorLancado: e.valorLancado,
-        valorConsiderado: e.valorConsiderado,
-        valorNaoConsiderado: e.valorNaoConsiderado,
-        status: e.status,
-        descricao: e.descricaoFatoGerador,
-      })),
-      totais: {
-        total: expenses.reduce((sum, e) => sum + e.valorLancado, 0),
-        totalConsiderado: totalUsado,
-        cestaTeto: 0, // Cesta removed
-      },
-      statusCounts,
-    });
-
-    toast({ title: 'Exportação concluída', description: 'Arquivo Excel gerado com sucesso.' });
-  };
-
-  // Get current and next period for validation
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
   const nextPeriod = periods.find((p, idx) => {
     if (!selectedPeriod) return false;
@@ -187,7 +134,6 @@ const ColaboradorLancamentos = () => {
   useEffect(() => {
     if (selectedPeriodId) {
       fetchExpenses();
-      // Update URL param
       setSearchParams({ periodo: selectedPeriodId });
     }
   }, [selectedPeriodId]);
@@ -219,34 +165,12 @@ const ColaboradorLancamentos = () => {
     if (!id) return;
     setLoading(true);
 
-    // Fetch collaborator data
-    const { data: colabData, error: colabError } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, departamento, user_id')
-      .eq('id', id)
-      .single();
+    try {
+      const colabData = await colaboradoresService.getById(id);
+      setColaborador(colabData);
+      setTetoCesta(colabData.cesta_beneficios_teto);
 
-    if (colabError || !colabData) {
-      toast({ title: 'Erro', description: 'Colaborador não encontrado', variant: 'destructive' });
-      navigate('/lancamentos');
-      return;
-    }
-
-    setColaborador({
-      id: colabData.id,
-      nome: colabData.nome,
-      matricula: colabData.matricula,
-      departamento: colabData.departamento,
-      userId: colabData.user_id,
-    });
-
-    // Fetch periods
-    const { data: periodsData } = await supabase
-      .from('calendario_periodos')
-      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
-      .order('data_inicio', { ascending: false });
-
-    if (periodsData) {
+      const periodsData = await periodosService.getAll();
       const mapped: CalendarPeriod[] = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
@@ -258,64 +182,38 @@ const ColaboradorLancamentos = () => {
       }));
       setPeriods(mapped);
       
-      // Set default period
       if (!selectedPeriodId && mapped.length > 0) {
         const urlPeriod = searchParams.get('periodo');
-        
-        // For COLABORADOR: always use current period based on date
-        // For RH/FINANCEIRO: allow URL param or default to current
         if (urlPeriod && mapped.some(p => p.id === urlPeriod)) {
           setSelectedPeriodId(urlPeriod);
         } else {
-          // Find current period based on today's date using shared utility
           const currentPeriod = findCurrentPeriod(mapped);
           setSelectedPeriodId(currentPeriod?.id || mapped[0].id);
         }
       }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      navigate('/lancamentos');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const fetchExpenses = async () => {
     if (!id || !selectedPeriodId) return;
 
-    // Fetch expenses and cesta teto in parallel
-    const [expensesRes, cestaRes] = await Promise.all([
-      supabase
-        .from('lancamentos')
-        .select(`
-          id, origem, valor_lancado, valor_considerado, valor_nao_considerado,
-          descricao_fato_gerador, status, motivo_invalidacao, created_at,
-          calendario_periodos (id, periodo),
-          tipos_despesas (id, nome)
-        `)
-        .eq('colaborador_id', id)
-        .eq('periodo_id', selectedPeriodId)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('colaboradores_elegiveis')
-        .select('cesta_beneficios_teto')
-        .eq('id', id)
-        .single()
-    ]);
+    try {
+      const expensesData = await lancamentosService.getAll({
+        colaborador_id: id,
+        periodo_id: selectedPeriodId,
+      });
 
-    if (expensesRes.error) {
-      toast({ title: 'Erro', description: 'Erro ao carregar lançamentos', variant: 'destructive' });
-      return;
-    }
-
-    // Get cesta teto from colaboradores_elegiveis
-    const totalTetoCesta = Number((cestaRes.data as any)?.cesta_beneficios_teto || 0);
-    setTetoCesta(totalTetoCesta);
-
-    if (expensesRes.data) {
-      const mapped = expensesRes.data.map((e: any) => ({
+      const mapped = expensesData.map((e) => ({
         id: e.id,
-        periodoId: e.calendario_periodos?.id,
-        periodo: e.calendario_periodos?.periodo || '',
-        tipoDespesaId: e.tipos_despesas?.id,
-        tipoDespesaNome: e.tipos_despesas?.nome || '',
+        periodoId: e.periodo?.id || e.periodo_id,
+        periodo: e.periodo?.periodo || '',
+        tipoDespesaId: e.tipo_despesa?.id || e.tipo_despesa_id,
+        tipoDespesaNome: e.tipo_despesa?.nome || '',
         origem: e.origem,
         valorLancado: Number(e.valor_lancado),
         valorConsiderado: Number(e.valor_considerado),
@@ -328,7 +226,6 @@ const ColaboradorLancamentos = () => {
 
       setExpenses(mapped);
 
-      // Calculate totals (only approved expenses count as used)
       const usado = mapped
         .filter(e => e.status === 'valido')
         .reduce((sum, e) => sum + e.valorConsiderado, 0);
@@ -339,9 +236,8 @@ const ColaboradorLancamentos = () => {
       setTotalUsado(usado);
       setTotalPendente(pendente);
       
-      // Calculate saldo and percentage based on cesta teto
-      const saldo = Math.max(0, totalTetoCesta - usado);
-      const percentual = totalTetoCesta > 0 ? (usado / totalTetoCesta) * 100 : 0;
+      const saldo = Math.max(0, tetoCesta - usado);
+      const percentual = tetoCesta > 0 ? (usado / tetoCesta) * 100 : 0;
       setSaldoDisponivel(saldo);
       setPercentualUsado(Math.min(100, percentual));
 
@@ -349,19 +245,20 @@ const ColaboradorLancamentos = () => {
         mapped.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
       );
       setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
   const handleDelete = async (expense: Expense) => {
     if (!confirm('Deseja realmente excluir este lançamento?')) return;
 
-    const { error } = await supabase.from('lancamentos').delete().eq('id', expense.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      await lancamentosService.delete(expense.id);
       toast({ title: 'Sucesso', description: 'Lançamento excluído.' });
       fetchExpenses();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -381,7 +278,6 @@ const ColaboradorLancamentos = () => {
     navigate('/lancamentos/novo');
   };
 
-  // Batch approval handlers
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(pendingExpenses.map((e) => e.id));
@@ -398,62 +294,79 @@ const ColaboradorLancamentos = () => {
 
   const handleBatchApprove = async () => {
     if (selectedIds.length === 0) return;
-
     setProcessing(true);
-    const now = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({
-        status: 'valido',
-        validado_por: user?.id,
-        validado_em: now,
-      })
-      .in('id', selectedIds);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      const result = await lancamentosService.aprovarEmLote(selectedIds);
       toast({
         title: 'Aprovação em lote concluída',
-        description: `${selectedIds.length} despesa(s) foram aprovadas com sucesso.`,
+        description: `${result.aprovados || selectedIds.length} despesa(s) foram aprovadas com sucesso.`,
       });
       setSelectedIds([]);
       fetchExpenses();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+      setShowApproveDialog(false);
     }
-    setProcessing(false);
-    setShowApproveDialog(false);
   };
 
   const handleBatchReject = async () => {
     if (selectedIds.length === 0 || !batchRejectionReason.trim()) return;
-
     setProcessing(true);
-    const now = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({
-        status: 'invalido',
-        motivo_invalidacao: batchRejectionReason,
-        validado_por: user?.id,
-        validado_em: now,
-      })
-      .in('id', selectedIds);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      const result = await lancamentosService.rejeitarEmLote(selectedIds, batchRejectionReason);
       toast({
         title: 'Rejeição em lote concluída',
-        description: `${selectedIds.length} despesa(s) foram rejeitadas.`,
+        description: `${result.rejeitados || selectedIds.length} despesa(s) foram rejeitadas.`,
       });
       setSelectedIds([]);
       setBatchRejectionReason('');
       fetchExpenses();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setProcessing(false);
+      setShowRejectDialog(false);
     }
-    setProcessing(false);
-    setShowRejectDialog(false);
+  };
+
+  const handleExportExcel = () => {
+    if (!colaborador || !selectedPeriod || expenses.length === 0) {
+      toast({ title: 'Nenhum dado para exportar', variant: 'destructive' });
+      return;
+    }
+
+    const origemLabels: Record<string, string> = { proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' };
+    
+    exportColaboradorExpenses({
+      colaborador: {
+        nome: colaborador.nome,
+        matricula: colaborador.matricula,
+        departamento: colaborador.departamento,
+      },
+      periodo: selectedPeriod.periodo,
+      expenses: expenses.map(e => ({
+        data: formatDate(e.createdAt),
+        tipoDespesa: e.tipoDespesaNome,
+        origem: origemLabels[e.origem] || e.origem,
+        valorLancado: e.valorLancado,
+        valorConsiderado: e.valorConsiderado,
+        valorNaoConsiderado: e.valorNaoConsiderado,
+        status: e.status,
+        descricao: e.descricaoFatoGerador,
+      })),
+      totais: {
+        total: expenses.reduce((sum, e) => sum + e.valorLancado, 0),
+        totalConsiderado: totalUsado,
+        cestaTeto: 0,
+      },
+      statusCounts,
+    });
+
+    toast({ title: 'Exportação concluída', description: 'Arquivo Excel gerado com sucesso.' });
   };
 
   const selectedTotal = useMemo(() => 
@@ -461,7 +374,6 @@ const ColaboradorLancamentos = () => {
     [pendingExpenses, selectedIds]
   );
 
-  // Filtered expenses with status filter
   const filteredExpenses = useMemo(() => {
     return expenses.filter((exp) => {
       const matchesSearch = exp.tipoDespesaNome?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -486,7 +398,6 @@ const ColaboradorLancamentos = () => {
   }, [expenses, searchTerm, statusFilter]);
 
   const columns = [
-    // Checkbox column for RH batch selection (only for pending items)
     ...(canApprove && pendingExpenses.length > 0 ? [{
       key: 'select',
       header: (
@@ -556,7 +467,7 @@ const ColaboradorLancamentos = () => {
       }
     >
       <div className="space-y-6">
-        {/* Period Selector - Only for RH/FINANCEIRO */}
+        {/* Period Selector */}
         {isRHorFinanceiro ? (
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1 sm:max-w-[250px]">
@@ -576,7 +487,6 @@ const ColaboradorLancamentos = () => {
             </div>
           </div>
         ) : (
-          /* Period Badge - For COLABORADOR */
           selectedPeriod && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Período vigente:</span>
@@ -654,7 +564,6 @@ const ColaboradorLancamentos = () => {
                 </CardContent>
               </Card>
 
-              {/* Pending Validation Card - RH/FINANCEIRO only */}
               {isRHorFinanceiro && (
                 <Card className={pendingValidation > 0 ? 'border-warning/50' : ''}>
                   <CardHeader className="pb-2">
@@ -671,7 +580,6 @@ const ColaboradorLancamentos = () => {
                 </Card>
               )}
 
-              {/* Período Selecionado Card - RH/FINANCEIRO only */}
               {isRHorFinanceiro && (
                 <Card>
                   <CardHeader className="pb-2">
@@ -687,7 +595,6 @@ const ColaboradorLancamentos = () => {
               )}
             </div>
 
-            {/* Export Button */}
             {expenses.length > 0 && (
               <div className="flex justify-end">
                 <Button variant="outline" size="sm" onClick={handleExportExcel}>
@@ -730,7 +637,7 @@ const ColaboradorLancamentos = () => {
           </div>
         </div>
 
-        {/* Batch Approval Controls - RH only */}
+        {/* Batch Approval Controls */}
         {canApprove && selectedIds.length > 0 && (
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border">
             <div className="text-sm text-muted-foreground">
