@@ -121,6 +121,10 @@ export const colaboradoresService = {
     await apiClient.delete(`/api/colaboradores/${colaboradorId}/tipos-despesas/${tipoDespesaId}`);
   },
 
+  async updateTiposDespesas(colaboradorId: string, tiposDespesasIds: string[]): Promise<void> {
+    await apiClient.put(`/api/colaboradores/${colaboradorId}/tipos-despesas`, { tipos_despesas_ids: tiposDespesasIds });
+  },
+
   async getDepartamentos(): Promise<string[]> {
     return apiClient.get<string[]>('/api/departamentos');
   },
