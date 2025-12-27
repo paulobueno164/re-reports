@@ -521,15 +521,12 @@ const ValidacaoLista = () => {
       </Collapsible>
 
       {/* Batch Approval Panel */}
-      {selectedIds.length > 0 && (
-        <BatchApprovalPanel
-          selectedIds={selectedIds}
-          onComplete={() => {
-            setSelectedIds([]);
-            fetchExpenses();
-          }}
-        />
-      )}
+      <BatchApprovalPanel
+        expenses={filteredExpenses}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+        onComplete={fetchExpenses}
+      />
 
       {/* Data Table */}
       <DataTable
