@@ -13,7 +13,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { tiposDespesasService } from '@/services/tipos-despesas.service';
 
 const expenseGroups = ['Equipamentos', 'Seguros', 'Educação', 'Saúde', 'Cultura'];
 
@@ -42,16 +42,8 @@ const TipoDespesaForm = () => {
 
   const fetchExpenseType = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('tipos_despesas')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-      navigate('/tipos-despesas');
-    } else if (data) {
+    try {
+      const data = await tiposDespesasService.getById(id!);
       const origens = data.origem_permitida as string[];
       setFormData({
         nome: data.nome,
@@ -63,8 +55,8 @@ const TipoDespesaForm = () => {
         origemFilhos: origens.includes('filhos'),
         ativo: data.ativo,
       });
-    } else {
-      toast({ title: 'Erro', description: 'Tipo de despesa não encontrado', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/tipos-despesas');
     }
     setLoading(false);
@@ -98,12 +90,10 @@ const TipoDespesaForm = () => {
 
     try {
       if (isEditing) {
-        const { error } = await supabase.from('tipos_despesas').update(dbData).eq('id', id);
-        if (error) throw error;
+        await tiposDespesasService.update(id!, dbData);
         toast({ title: 'Tipo atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
-        const { error } = await supabase.from('tipos_despesas').insert([dbData]);
-        if (error) throw error;
+        await tiposDespesasService.create(dbData);
         toast({ title: 'Tipo criado', description: 'O tipo de despesa foi cadastrado.' });
       }
       navigate('/tipos-despesas');

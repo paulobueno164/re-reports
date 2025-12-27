@@ -12,9 +12,8 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { eventosFolhaService, ComponenteRemuneracao } from '@/services/eventos-folha.service';
 
-// Componentes de remuneração disponíveis (exceto Salário Base)
 const COMPONENTES_REMUNERACAO = [
   { value: 'vale_alimentacao', label: 'Vale Alimentação' },
   { value: 'vale_refeicao', label: 'Vale Refeição' },
@@ -23,8 +22,6 @@ const COMPONENTES_REMUNERACAO = [
   { value: 'cesta_beneficios', label: 'Cesta de Benefícios' },
   { value: 'pida', label: 'PI/DA' },
 ] as const;
-
-type ComponenteRemuneracao = typeof COMPONENTES_REMUNERACAO[number]['value'];
 
 const getComponenteLabel = (componente: string): string => {
   const found = COMPONENTES_REMUNERACAO.find(c => c.value === componente);
@@ -53,43 +50,27 @@ const EventoFolhaForm = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    try {
+      const eventsData = await eventosFolhaService.getAll();
+      const usedComponentes = eventsData.map((e) => e.componente);
 
-    // Fetch all used components
-    const { data: eventsData } = await supabase
-      .from('tipos_despesas_eventos')
-      .select('componente');
+      setAvailableComponentes(
+        COMPONENTES_REMUNERACAO.filter((c) => !usedComponentes.includes(c.value))
+      );
 
-    const usedComponentes = eventsData?.map((e) => e.componente) || [];
-
-    // Filter available components (not yet used)
-    setAvailableComponentes(
-      COMPONENTES_REMUNERACAO.filter((c) => !usedComponentes.includes(c.value))
-    );
-
-    // If editing, fetch event data
-    if (id) {
-      const { data, error } = await supabase
-        .from('tipos_despesas_eventos')
-        .select('id, componente, codigo_evento, descricao_evento')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error) {
-        toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-        navigate('/eventos-folha');
-      } else if (data) {
+      if (id) {
+        const data = await eventosFolhaService.getById(id);
         setFormData({
-          componente: data.componente as ComponenteRemuneracao,
+          componente: data.componente,
           codigoEvento: data.codigo_evento,
           descricaoEvento: data.descricao_evento,
         });
         setCurrentComponenteLabel(getComponenteLabel(data.componente));
-      } else {
-        toast({ title: 'Erro', description: 'Evento não encontrado', variant: 'destructive' });
-        navigate('/eventos-folha');
       }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      navigate('/eventos-folha');
     }
-
     setLoading(false);
   };
 
@@ -100,23 +81,19 @@ const EventoFolhaForm = () => {
     }
 
     setSaving(true);
-    const dbData = {
-      componente: formData.componente as ComponenteRemuneracao,
-      codigo_evento: formData.codigoEvento,
-      descricao_evento: formData.descricaoEvento,
-    };
-
     try {
       if (isEditing) {
-        const { error } = await supabase
-          .from('tipos_despesas_eventos')
-          .update(dbData)
-          .eq('id', id);
-        if (error) throw error;
+        await eventosFolhaService.update(id!, {
+          codigo_evento: formData.codigoEvento,
+          descricao_evento: formData.descricaoEvento,
+        });
         toast({ title: 'Evento atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
-        const { error } = await supabase.from('tipos_despesas_eventos').insert([dbData]);
-        if (error) throw error;
+        await eventosFolhaService.create({
+          componente: formData.componente as ComponenteRemuneracao,
+          codigo_evento: formData.codigoEvento,
+          descricao_evento: formData.descricaoEvento,
+        });
         toast({ title: 'Evento criado', description: 'O evento foi cadastrado com sucesso.' });
       }
       navigate('/eventos-folha');

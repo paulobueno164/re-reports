@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { periodosService, CalendarioPeriodo } from "@/services/periodos.service";
 import { formatDate } from "@/lib/expense-validation";
 
 interface CalendarPeriod {
@@ -38,14 +38,8 @@ const CalendarioLista = () => {
 
   const fetchPeriods = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("calendario_periodos")
-      .select("*")
-      .order("periodo", { ascending: false });
-
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } else if (data) {
+    try {
+      const data = await periodosService.getAll();
       setPeriods(
         data.map((p) => ({
           id: p.id,
@@ -57,6 +51,8 @@ const CalendarioLista = () => {
           status: p.status as "aberto" | "fechado",
         })),
       );
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
     setLoading(false);
   };
@@ -66,13 +62,12 @@ const CalendarioLista = () => {
   const handleDelete = async (period: CalendarPeriod) => {
     if (!confirm(`Deseja realmente excluir o período ${period.periodo}?`)) return;
 
-    const { error } = await supabase.from("calendario_periodos").delete().eq("id", period.id);
-
-    if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
-    } else {
+    try {
+      await periodosService.delete(period.id);
       toast({ title: "Período excluído", description: `Período ${period.periodo} foi removido.` });
       fetchPeriods();
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
   };
 
