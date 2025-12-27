@@ -21,8 +21,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
+import { tiposDespesasService, TipoDespesa } from '@/services/tipos-despesas.service';
 
 interface ExpenseType {
   id: string;
@@ -43,7 +42,6 @@ const TiposDespesasLista = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrupo, setFilterGrupo] = useState('all');
-  
 
   useEffect(() => {
     fetchExpenseTypes();
@@ -51,14 +49,8 @@ const TiposDespesasLista = () => {
 
   const fetchExpenseTypes = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('tipos_despesas')
-      .select('*')
-      .order('nome');
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else if (data) {
+    try {
+      const data = await tiposDespesasService.getAll();
       setExpenseTypes(
         data.map((t) => ({
           id: t.id,
@@ -70,6 +62,8 @@ const TiposDespesasLista = () => {
           ativo: t.ativo,
         }))
       );
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
     setLoading(false);
   };
@@ -91,13 +85,12 @@ const TiposDespesasLista = () => {
   const handleDelete = async (type: ExpenseType) => {
     if (!confirm(`Deseja realmente excluir o tipo de despesa "${type.nome}"?`)) return;
 
-    const { error } = await supabase.from('tipos_despesas').delete().eq('id', type.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      await tiposDespesasService.delete(type.id);
       toast({ title: 'Tipo excluído', description: `"${type.nome}" foi removido.` });
       fetchExpenseTypes();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 

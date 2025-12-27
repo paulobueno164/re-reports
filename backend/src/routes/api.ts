@@ -43,6 +43,11 @@ router.get('/periodos/current', async (req, res) => {
   const result = await periodoService.getCurrentPeriodo();
   res.json(result);
 });
+router.get('/periodos/:id', async (req, res) => {
+  const result = await periodoService.getPeriodoById(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Período não encontrado' });
+  res.json(result);
+});
 router.post('/periodos', requireRole('RH'), async (req, res) => {
   const result = await periodoService.createPeriodo(req.body);
   res.status(201).json(result);
@@ -51,10 +56,21 @@ router.put('/periodos/:id', requireRole('RH'), async (req, res) => {
   const result = await periodoService.updatePeriodo(req.params.id, req.body);
   res.json(result);
 });
+router.delete('/periodos/:id', requireRole('RH'), async (req, res) => {
+  try {
+    await periodoService.deletePeriodo(req.params.id);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
 
 // Tipos de Despesas
 router.get('/tipos-despesas', async (req, res) => {
   const result = await tipoDespesaService.getAllTiposDespesas(req.query as any);
+  res.json(result);
+});
+router.get('/tipos-despesas/:id', async (req, res) => {
+  const result = await tipoDespesaService.getTipoDespesaById(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Tipo de despesa não encontrado' });
   res.json(result);
 });
 router.post('/tipos-despesas', requireRole('RH'), async (req, res) => {
@@ -223,6 +239,13 @@ router.post('/colaboradores/:id/tipos-despesas', requireRole('RH'), async (req, 
 router.delete('/colaboradores/:colaboradorId/tipos-despesas/:tipoDespesaId', requireRole('RH'), async (req, res) => {
   try {
     await tipoDespesaService.unlinkTipoDespesaFromColaborador(req.params.colaboradorId, req.params.tipoDespesaId);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/colaboradores/:id/tipos-despesas', requireRole('RH'), async (req, res) => {
+  try {
+    await tipoDespesaService.updateColaboradorTiposDespesas(req.params.id, req.body.tipos_despesas_ids);
     res.json({ success: true });
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });

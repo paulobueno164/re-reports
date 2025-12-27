@@ -56,6 +56,10 @@ export const periodosService = {
   async update(id: string, data: UpdatePeriodoInput): Promise<CalendarioPeriodo> {
     return apiClient.put<CalendarioPeriodo>(`/api/periodos/${id}`, data);
   },
+
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(`/api/periodos/${id}`);
+  },
 };
 
 export default periodosService;

@@ -5,7 +5,7 @@ import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { periodosService } from '@/services/periodos.service';
 
 const PeriodoForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -29,16 +29,8 @@ const PeriodoForm = () => {
 
   const fetchPeriod = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('calendario_periodos')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-      navigate('/calendario');
-    } else if (data) {
+    try {
+      const data = await periodosService.getById(id!);
       setFormData({
         periodo: data.periodo,
         dataInicio: new Date(data.data_inicio).toISOString().split('T')[0],
@@ -46,8 +38,8 @@ const PeriodoForm = () => {
         abreLancamento: new Date(data.abre_lancamento).toISOString().split('T')[0],
         fechaLancamento: new Date(data.fecha_lancamento).toISOString().split('T')[0],
       });
-    } else {
-      toast({ title: 'Erro', description: 'Período não encontrado', variant: 'destructive' });
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/calendario');
     }
     setLoading(false);
@@ -71,12 +63,10 @@ const PeriodoForm = () => {
 
     try {
       if (isEditing) {
-        const { error } = await supabase.from('calendario_periodos').update(dbData).eq('id', id);
-        if (error) throw error;
+        await periodosService.update(id!, dbData);
         toast({ title: 'Período atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
-        const { error } = await supabase.from('calendario_periodos').insert([dbData]);
-        if (error) throw error;
+        await periodosService.create(dbData);
         toast({ title: 'Período criado', description: 'O período foi cadastrado.' });
       }
       navigate('/calendario');

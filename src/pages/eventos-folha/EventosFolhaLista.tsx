@@ -14,9 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { eventosFolhaService, EventoFolha, ComponenteRemuneracao } from '@/services/eventos-folha.service';
 
-// Componentes de remuneração disponíveis (exceto Salário Base)
 const COMPONENTES_REMUNERACAO = [
   { value: 'vale_alimentacao', label: 'Vale Alimentação' },
   { value: 'vale_refeicao', label: 'Vale Refeição' },
@@ -25,8 +24,6 @@ const COMPONENTES_REMUNERACAO = [
   { value: 'cesta_beneficios', label: 'Cesta de Benefícios' },
   { value: 'pida', label: 'PI/DA' },
 ] as const;
-
-type ComponenteRemuneracao = typeof COMPONENTES_REMUNERACAO[number]['value'];
 
 interface PayrollEvent {
   id: string;
@@ -54,26 +51,20 @@ const EventosFolhaLista = () => {
 
   const fetchData = async () => {
     setLoading(true);
-
-    const { data: eventsData, error: eventsError } = await supabase
-      .from('tipos_despesas_eventos')
-      .select('id, componente, codigo_evento, descricao_evento')
-      .order('componente');
-
-    if (eventsError) {
-      toast({ title: 'Erro', description: eventsError.message, variant: 'destructive' });
-    } else if (eventsData) {
+    try {
+      const eventsData = await eventosFolhaService.getAll();
       setEvents(
         eventsData.map((e) => ({
           id: e.id,
-          componente: e.componente as ComponenteRemuneracao,
+          componente: e.componente,
           componenteLabel: getComponenteLabel(e.componente),
           codigoEvento: e.codigo_evento,
           descricaoEvento: e.descricao_evento,
         }))
       );
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
-
     setLoading(false);
   };
 
@@ -86,23 +77,18 @@ const EventosFolhaLista = () => {
     );
   });
 
-  // Componentes que ainda não têm evento cadastrado
   const usedComponentes = events.map(e => e.componente);
   const unusedComponentes = COMPONENTES_REMUNERACAO.filter(c => !usedComponentes.includes(c.value));
 
   const handleDelete = async (event: PayrollEvent) => {
     if (!confirm(`Deseja realmente excluir o evento para "${event.componenteLabel}"?`)) return;
 
-    const { error } = await supabase
-      .from('tipos_despesas_eventos')
-      .delete()
-      .eq('id', event.id);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
+    try {
+      await eventosFolhaService.delete(event.id);
       toast({ title: 'Evento excluído', description: 'O evento foi removido com sucesso.' });
       fetchData();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
   };
 
