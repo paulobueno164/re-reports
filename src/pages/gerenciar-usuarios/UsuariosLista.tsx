@@ -31,21 +31,10 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
-
-interface UserWithRoles {
-  id: string;
-  email: string;
-  nome: string;
-  createdAt: string;
-  roles: AppRole[];
-  colaboradorId?: string;
-  colaboradorNome?: string;
-}
+import authService, { AppRole, UserWithRoles } from '@/services/auth.service';
+import colaboradoresService from '@/services/colaboradores.service';
 
 interface ColaboradorSemUsuario {
   id: string;
@@ -55,16 +44,21 @@ interface ColaboradorSemUsuario {
   departamento: string;
 }
 
+interface UserDisplay extends UserWithRoles {
+  colaboradorId?: string;
+  colaboradorNome?: string;
+}
+
 const UsuariosLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [users, setUsers] = useState<UserWithRoles[]>([]);
+  const [users, setUsers] = useState<UserDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   // Change password dialog
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserDisplay | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -87,40 +81,19 @@ const UsuariosLista = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email, nome, created_at')
-        .order('nome');
-
-      if (profilesError) throw profilesError;
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      // Fetch colaboradores to link users
-      const { data: colaboradores } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('id, user_id, nome');
-
-      const usersWithRoles: UserWithRoles[] = (profiles || []).map((profile) => {
-        const colab = (colaboradores || []).find(c => c.user_id === profile.id);
+      const usersData = await authService.getAllUsers();
+      const colaboradores = await colaboradoresService.getAll();
+      
+      const usersWithColab: UserDisplay[] = usersData.map(user => {
+        const colab = colaboradores.find(c => c.user_id === user.id);
         return {
-          id: profile.id,
-          email: profile.email,
-          nome: profile.nome,
-          createdAt: profile.created_at,
-          roles: (roles || [])
-            .filter((r) => r.user_id === profile.id)
-            .map((r) => r.role as AppRole),
+          ...user,
           colaboradorId: colab?.id,
           colaboradorNome: colab?.nome,
         };
       });
 
-      setUsers(usersWithRoles);
+      setUsers(usersWithColab);
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     } finally {
@@ -129,19 +102,22 @@ const UsuariosLista = () => {
   };
 
   const fetchColaboradoresSemUsuario = async () => {
-    const { data, error } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, email, departamento')
-      .is('user_id', null)
-      .eq('ativo', true)
-      .order('nome');
-
-    if (!error && data) {
-      setColaboradoresSemUsuario(data);
+    try {
+      const data = await colaboradoresService.getAll({ ativo: true });
+      const semUsuario = data.filter(c => !c.user_id);
+      setColaboradoresSemUsuario(semUsuario.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        matricula: c.matricula,
+        email: c.email,
+        departamento: c.departamento,
+      })));
+    } catch (error) {
+      console.error('Erro ao buscar colaboradores:', error);
     }
   };
 
-  const handleOpenPasswordDialog = (user: UserWithRoles) => {
+  const handleOpenPasswordDialog = (user: UserDisplay) => {
     setSelectedUser(user);
     setNewPassword('');
     setConfirmPassword('');
@@ -163,17 +139,7 @@ const UsuariosLista = () => {
 
     setChangingPassword(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-user', {
-        body: {
-          action: 'update_password',
-          userId: selectedUser.id,
-          password: newPassword,
-        },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
+      await authService.updateUserPassword(selectedUser.id, newPassword);
       toast({ title: 'Sucesso', description: 'Senha alterada com sucesso.' });
       setShowPasswordDialog(false);
     } catch (error: any) {
@@ -183,7 +149,7 @@ const UsuariosLista = () => {
     }
   };
 
-  const handleOpenLinkDialog = async (user: UserWithRoles) => {
+  const handleOpenLinkDialog = async (user: UserDisplay) => {
     setSelectedUser(user);
     setSelectedColaboradorId('');
     await fetchColaboradoresSemUsuario();
@@ -195,13 +161,7 @@ const UsuariosLista = () => {
 
     setLinking(true);
     try {
-      const { error } = await supabase
-        .from('colaboradores_elegiveis')
-        .update({ user_id: selectedUser.id })
-        .eq('id', selectedColaboradorId);
-
-      if (error) throw error;
-
+      await colaboradoresService.update(selectedColaboradorId, { user_id: selectedUser.id });
       toast({ title: 'Sucesso', description: 'Colaborador vinculado com sucesso.' });
       setShowLinkDialog(false);
       fetchUsers();
@@ -212,7 +172,7 @@ const UsuariosLista = () => {
     }
   };
 
-  const handleOpenUnlinkDialog = (user: UserWithRoles) => {
+  const handleOpenUnlinkDialog = (user: UserDisplay) => {
     setSelectedUser(user);
     setShowUnlinkDialog(true);
   };
@@ -222,13 +182,7 @@ const UsuariosLista = () => {
 
     setUnlinking(true);
     try {
-      const { error } = await supabase
-        .from('colaboradores_elegiveis')
-        .update({ user_id: null })
-        .eq('id', selectedUser.colaboradorId);
-
-      if (error) throw error;
-
+      await colaboradoresService.update(selectedUser.colaboradorId, { user_id: null });
       toast({ title: 'Sucesso', description: 'Colaborador desvinculado com sucesso.' });
       setShowUnlinkDialog(false);
       fetchUsers();
@@ -264,7 +218,7 @@ const UsuariosLista = () => {
     { 
       key: 'nome', 
       header: 'Nome',
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         <div className="font-medium truncate max-w-[120px] sm:max-w-none">{item.nome}</div>
       )
     },
@@ -272,14 +226,14 @@ const UsuariosLista = () => {
       key: 'email', 
       header: 'E-mail',
       hideOnMobile: true,
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         <div className="text-muted-foreground">{item.email}</div>
       )
     },
     {
       key: 'roles',
       header: 'Roles',
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         <div className="flex flex-wrap gap-1">
           {item.roles.length === 0 ? (
             <span className="text-muted-foreground text-sm">Sem roles</span>
@@ -297,7 +251,7 @@ const UsuariosLista = () => {
       key: 'vinculo',
       header: 'Colaborador',
       hideOnMobile: true,
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         item.colaboradorId ? (
           <Badge variant="outline" className="text-success border-success/30">
             Vinculado
@@ -311,9 +265,9 @@ const UsuariosLista = () => {
       key: 'createdAt',
       header: 'Cadastro',
       hideOnMobile: true,
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         <span className="text-muted-foreground text-sm">
-          {format(new Date(item.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+          {format(new Date(item.created_at), 'dd/MM/yyyy', { locale: ptBR })}
         </span>
       ),
     },
@@ -321,7 +275,7 @@ const UsuariosLista = () => {
       key: 'actions',
       header: '',
       className: 'text-right',
-      render: (item: UserWithRoles) => (
+      render: (item: UserDisplay) => (
         <div className="flex justify-end gap-1">
           {/* Desktop: Icon buttons with tooltips */}
           <div className="hidden sm:flex gap-1">
@@ -514,7 +468,6 @@ const UsuariosLista = () => {
                 </Button>
               </div>
             </div>
-            
             <div className="space-y-2">
               <Label>Confirmar Senha</Label>
               <Input
@@ -531,7 +484,7 @@ const UsuariosLista = () => {
               Cancelar
             </Button>
             <Button onClick={handleChangePassword} disabled={changingPassword}>
-              {changingPassword && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {changingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Alterar Senha
             </Button>
           </DialogFooter>
@@ -548,7 +501,7 @@ const UsuariosLista = () => {
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-4">
+          <div className="py-4">
             {colaboradoresSemUsuario.length === 0 ? (
               <Alert>
                 <AlertDescription>
@@ -557,7 +510,7 @@ const UsuariosLista = () => {
               </Alert>
             ) : (
               <div className="space-y-2">
-                <Label>Selecione o Colaborador</Label>
+                <Label>Colaborador</Label>
                 <Select value={selectedColaboradorId} onValueChange={setSelectedColaboradorId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um colaborador" />
@@ -565,7 +518,7 @@ const UsuariosLista = () => {
                   <SelectContent>
                     {colaboradoresSemUsuario.map((colab) => (
                       <SelectItem key={colab.id} value={colab.id}>
-                        {colab.nome} - {colab.matricula} ({colab.departamento})
+                        {colab.nome} - {colab.matricula}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -578,11 +531,8 @@ const UsuariosLista = () => {
             <Button variant="outline" onClick={() => setShowLinkDialog(false)} disabled={linking}>
               Cancelar
             </Button>
-            <Button 
-              onClick={handleLinkColaborador} 
-              disabled={linking || !selectedColaboradorId || colaboradoresSemUsuario.length === 0}
-            >
-              {linking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button onClick={handleLinkColaborador} disabled={linking || !selectedColaboradorId}>
+              {linking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Vincular
             </Button>
           </DialogFooter>
@@ -595,26 +545,17 @@ const UsuariosLista = () => {
           <DialogHeader>
             <DialogTitle>Desvincular Colaborador</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja desvincular o colaborador <strong>{selectedUser?.colaboradorNome}</strong> do usuário <strong>{selectedUser?.nome}</strong>?
+              Tem certeza que deseja desvincular o colaborador {selectedUser?.colaboradorNome} do usuário {selectedUser?.nome}?
+              O colaborador perderá o acesso ao sistema.
             </DialogDescription>
           </DialogHeader>
-          
-          <Alert variant="destructive" className="my-4">
-            <AlertDescription>
-              O colaborador perderá o acesso ao sistema até que seja vinculado a outro usuário.
-            </AlertDescription>
-          </Alert>
           
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowUnlinkDialog(false)} disabled={unlinking}>
               Cancelar
             </Button>
-            <Button 
-              variant="destructive"
-              onClick={handleUnlinkColaborador} 
-              disabled={unlinking}
-            >
-              {unlinking && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button variant="destructive" onClick={handleUnlinkColaborador} disabled={unlinking}>
+              {unlinking && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Desvincular
             </Button>
           </DialogFooter>

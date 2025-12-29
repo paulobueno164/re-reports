@@ -7,8 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import anexosService, { Anexo } from '@/services/anexos.service';
 
 interface Attachment {
   id: string;
@@ -40,12 +40,8 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
 
   const fetchAttachments = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('anexos')
-      .select('*')
-      .eq('lancamento_id', lancamentoId);
-
-    if (!error && data) {
+    try {
+      const data = await anexosService.getByLancamentoId(lancamentoId);
       setAttachments(
         data.map((a) => ({
           id: a.id,
@@ -55,17 +51,16 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
           storagePath: a.storage_path,
         }))
       );
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
     }
     setLoading(false);
   };
 
   const handleDownload = async (attachment: Attachment) => {
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .download(attachment.storagePath);
-
-    if (!error && data) {
-      const url = URL.createObjectURL(data);
+    try {
+      const blob = await anexosService.download(attachment.storagePath);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = attachment.nomeArquivo;
@@ -73,6 +68,8 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading attachment:', error);
     }
   };
 
@@ -82,23 +79,23 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
     setZoom(100);
     setRotation(0);
 
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .createSignedUrl(attachment.storagePath, 60 * 10); // 10 min expiry
-
-    if (!error && data) {
+    try {
+      const url = anexosService.getFileUrl(attachment.storagePath);
+      
       if (attachment.tipoArquivo.startsWith('image/')) {
         setPreviewType('image');
-        setPreviewUrl(data.signedUrl);
+        setPreviewUrl(url);
         setPreviewOpen(true);
       } else if (attachment.tipoArquivo === 'application/pdf') {
         setPreviewType('pdf');
-        setPreviewUrl(data.signedUrl);
+        setPreviewUrl(url);
         setPreviewOpen(true);
       } else {
         // For other files, download directly
-        window.open(data.signedUrl, '_blank');
+        window.open(url, '_blank');
       }
+    } catch (error) {
+      console.error('Error getting preview URL:', error);
     }
     setLoadingPreview(false);
   };
@@ -270,12 +267,11 @@ function AttachmentThumbnail({
   }, [attachment.storagePath]);
 
   const loadThumbnail = async () => {
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .createSignedUrl(attachment.storagePath, 60 * 5);
-
-    if (!error && data) {
-      setThumbnailUrl(data.signedUrl);
+    try {
+      const url = anexosService.getFileUrl(attachment.storagePath);
+      setThumbnailUrl(url);
+    } catch (error) {
+      console.error('Error loading thumbnail:', error);
     }
     setLoading(false);
   };

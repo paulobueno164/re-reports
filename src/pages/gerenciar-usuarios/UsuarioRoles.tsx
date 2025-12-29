@@ -5,9 +5,7 @@ import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-
-type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
+import authService, { AppRole } from '@/services/auth.service';
 
 interface UserProfile {
   id: string;
@@ -53,33 +51,24 @@ const UsuarioRoles = () => {
   const fetchUserData = async () => {
     setLoading(true);
     try {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, nome, email')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (profileError) throw profileError;
-      if (!profile) {
+      const userData = await authService.getUserById(id!);
+      
+      if (!userData) {
         toast({ title: 'Erro', description: 'Usuário não encontrado', variant: 'destructive' });
         navigate('/gerenciar-usuarios');
         return;
       }
 
-      setUser(profile);
-
-      const { data: roles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', id);
-
-      if (rolesError) throw rolesError;
-
-      const userRoles = (roles || []).map((r) => r.role as AppRole);
-      setCurrentRoles(userRoles);
-      setSelectedRoles([...userRoles]);
+      setUser({
+        id: userData.id,
+        nome: userData.nome,
+        email: userData.email,
+      });
+      setCurrentRoles(userData.roles);
+      setSelectedRoles([...userData.roles]);
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      navigate('/gerenciar-usuarios');
     } finally {
       setLoading(false);
     }
@@ -99,22 +88,12 @@ const UsuarioRoles = () => {
       const rolesToAdd = selectedRoles.filter((role) => !currentRoles.includes(role));
       const rolesToRemove = currentRoles.filter((role) => !selectedRoles.includes(role));
 
-      if (rolesToAdd.length > 0) {
-        const { error: insertError } = await supabase
-          .from('user_roles')
-          .insert(rolesToAdd.map((role) => ({ user_id: user.id, role })));
-
-        if (insertError) throw insertError;
+      for (const role of rolesToAdd) {
+        await authService.addUserRole(user.id, role);
       }
 
-      if (rolesToRemove.length > 0) {
-        const { error: deleteError } = await supabase
-          .from('user_roles')
-          .delete()
-          .eq('user_id', user.id)
-          .in('role', rolesToRemove);
-
-        if (deleteError) throw deleteError;
+      for (const role of rolesToRemove) {
+        await authService.removeUserRole(user.id, role);
       }
 
       toast({

@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import authService from '@/services/auth.service';
+import colaboradoresService from '@/services/colaboradores.service';
 
 interface ColaboradorSemUsuario {
   id: string;
@@ -45,15 +46,15 @@ const UsuarioForm = () => {
   const fetchColaboradoresSemUsuario = async () => {
     setLoadingColaboradores(true);
     try {
-      const { data, error } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('id, nome, matricula, email, departamento')
-        .is('user_id', null)
-        .eq('ativo', true)
-        .order('nome');
-
-      if (error) throw error;
-      setColaboradoresSemUsuario(data || []);
+      const data = await colaboradoresService.getAll({ ativo: true });
+      const semUsuario = data.filter(c => !c.user_id);
+      setColaboradoresSemUsuario(semUsuario.map(c => ({
+        id: c.id,
+        nome: c.nome,
+        matricula: c.matricula,
+        email: c.email,
+        departamento: c.departamento,
+      })));
     } catch (error: any) {
       console.error('Erro ao buscar colaboradores:', error);
     } finally {
@@ -84,44 +85,16 @@ const UsuarioForm = () => {
 
     setSaving(true);
     try {
-      // Check if email already exists
-      const { data: existingProfile, error: checkError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', email.toLowerCase().trim())
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-      
-      if (existingProfile) {
-        toast({ title: 'Erro', description: 'Já existe um usuário com este e-mail.', variant: 'destructive' });
-        setSaving(false);
-        return;
-      }
-
-      // 1. Create user via edge function
-      const { data: userData, error: userError } = await supabase.functions.invoke('manage-user', {
-        body: {
-          action: 'create',
-          email: email.toLowerCase().trim(),
-          password: password,
-          nome: nome.trim(),
-        },
+      // Create user via API
+      const userData = await authService.createUser({
+        email: email.toLowerCase().trim(),
+        password: password,
+        nome: nome.trim(),
       });
 
-      if (userError) throw userError;
-      if (userData?.error) throw new Error(userData.error);
-
-      const userId = userData.userId;
-
-      // 2. If collaborator selected, link them
-      if (selectedColaborador) {
-        const { error: linkError } = await supabase
-          .from('colaboradores_elegiveis')
-          .update({ user_id: userId })
-          .eq('id', selectedColaborador.id);
-
-        if (linkError) throw linkError;
+      // If collaborator selected, link them
+      if (selectedColaborador && userData.id) {
+        await colaboradoresService.update(selectedColaborador.id, { user_id: userData.id });
       }
 
       toast({ 
