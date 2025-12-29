@@ -16,10 +16,12 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
 import { cn, findCurrentPeriod as findCurrentPeriodUtil } from '@/lib/utils';
+import periodosService, { Periodo } from '@/services/periodos.service';
+import colaboradoresService from '@/services/colaboradores.service';
+import lancamentosService from '@/services/lancamentos.service';
 
 interface CalendarPeriod {
   id: string;
@@ -64,12 +66,10 @@ const LancamentosLista = () => {
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
-  // Determine current period based on today's date using shared utility
   const getCurrentPeriod = (periodsData: CalendarPeriod[]) => {
     return findCurrentPeriodUtil(periodsData) || periodsData[0];
   };
 
-  // Toggle sort
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -79,7 +79,6 @@ const LancamentosLista = () => {
     }
   };
 
-  // Sort icon component
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
       return <ArrowUpDown className="ml-1 h-3 w-3 opacity-50" />;
@@ -89,21 +88,18 @@ const LancamentosLista = () => {
       : <ArrowDown className="ml-1 h-3 w-3" />;
   };
 
-  // Redirect COLABORADOR users to their own expenses page
   useEffect(() => {
     const checkAndRedirect = async () => {
       if (!user || isRHorFinanceiro) return;
       
-      // COLABORADOR role - redirect to own expenses
-      const { data: colabData } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (colabData) {
-        setRedirecting(true);
-        navigate(`/lancamentos/colaborador/${colabData.id}`, { replace: true });
+      try {
+        const colaborador = await colaboradoresService.getByUserId(user.id);
+        if (colaborador) {
+          setRedirecting(true);
+          navigate(`/lancamentos/colaborador/${colaborador.id}`, { replace: true });
+        }
+      } catch (error) {
+        // User not linked to colaborador
       }
     };
     
@@ -123,17 +119,8 @@ const LancamentosLista = () => {
   }, [selectedPeriodId]);
 
   const fetchPeriods = async () => {
-    const { data: periodsData, error } = await supabase
-      .from('calendario_periodos')
-      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
-      .order('periodo', { ascending: false });
-
-    if (error) {
-      toast({ title: 'Erro', description: 'Erro ao carregar períodos', variant: 'destructive' });
-      return;
-    }
-
-    if (periodsData) {
+    try {
+      const periodsData = await periodosService.getAll();
       const mapped: CalendarPeriod[] = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
@@ -145,73 +132,55 @@ const LancamentosLista = () => {
       }));
       setPeriods(mapped);
       
-      // Set default to current period
       const current = getCurrentPeriod(mapped);
       if (current) {
         setSelectedPeriodId(current.id);
       }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: 'Erro ao carregar períodos', variant: 'destructive' });
     }
   };
 
   const fetchColaboradores = async () => {
     setLoading(true);
 
-    // Fetch all eligible collaborators
-    const { data: colabData, error: colabError } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('id, nome, matricula, departamento')
-      .eq('ativo', true)
-      .order('nome');
+    try {
+      const colabData = await colaboradoresService.getAll({ ativo: true });
+      
+      const uniqueDepts = [...new Set(colabData.map(c => c.departamento))].sort();
+      setDepartamentos(uniqueDepts);
 
-    if (colabError) {
+      const expensesData = await lancamentosService.getAll({ periodo_id: selectedPeriodId });
+
+      const colaboradoresResumo: ColaboradorResumo[] = colabData.map(colab => {
+        const colabExpenses = expensesData.filter(e => e.colaborador_id === colab.id);
+        const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
+        const totalConsiderado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        const qtdPendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status)).length;
+        const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
+
+        return {
+          id: colab.id,
+          nome: colab.nome,
+          matricula: colab.matricula,
+          departamento: colab.departamento,
+          totalLancado,
+          totalConsiderado,
+          qtdLancamentos: colabExpenses.length,
+          qtdPendentes,
+          qtdValidos,
+        };
+      });
+
+      setColaboradores(colaboradoresResumo);
+    } catch (error: any) {
       toast({ title: 'Erro', description: 'Erro ao carregar colaboradores', variant: 'destructive' });
+    } finally {
       setLoading(false);
-      return;
     }
-
-    // Get unique departments
-    const uniqueDepts = [...new Set(colabData?.map(c => c.departamento) || [])].sort();
-    setDepartamentos(uniqueDepts);
-
-    // Fetch expenses for selected period
-    const { data: expensesData, error: expError } = await supabase
-      .from('lancamentos')
-      .select('colaborador_id, valor_lancado, valor_considerado, status')
-      .eq('periodo_id', selectedPeriodId);
-
-    if (expError) {
-      toast({ title: 'Erro', description: 'Erro ao carregar lançamentos', variant: 'destructive' });
-      setLoading(false);
-      return;
-    }
-
-    // Map collaborators with expense summary
-    const colaboradoresResumo: ColaboradorResumo[] = (colabData || []).map(colab => {
-      const colabExpenses = expensesData?.filter(e => e.colaborador_id === colab.id) || [];
-      const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
-      const totalConsiderado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
-      const qtdPendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status)).length;
-      const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
-
-      return {
-        id: colab.id,
-        nome: colab.nome,
-        matricula: colab.matricula,
-        departamento: colab.departamento,
-        totalLancado,
-        totalConsiderado,
-        qtdLancamentos: colabExpenses.length,
-        qtdPendentes,
-        qtdValidos,
-      };
-    });
-
-    setColaboradores(colaboradoresResumo);
-    setLoading(false);
   };
 
   const filteredAndSortedColaboradores = useMemo(() => {
-    // First filter
     let result = colaboradores.filter(colab => {
       const matchesDept = selectedDepartamento === 'todos' || colab.departamento === selectedDepartamento;
       const matchesSearch = colab.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -220,7 +189,6 @@ const LancamentosLista = () => {
       return matchesDept && matchesSearch && matchesSemLancamentos;
     });
 
-    // Then sort
     result = [...result].sort((a, b) => {
       let comparison = 0;
       
@@ -354,7 +322,6 @@ const LancamentosLista = () => {
     },
   ];
 
-  // Summary stats
   const totalColaboradores = filteredAndSortedColaboradores.length;
   const totalComLancamentos = filteredAndSortedColaboradores.filter(c => c.qtdLancamentos > 0).length;
   const totalSemLancamentos = totalColaboradores - totalComLancamentos;
@@ -383,7 +350,6 @@ const LancamentosLista = () => {
         description={`Visualização por colaborador - Período: ${selectedPeriod?.periodo || 'Selecione'}`}
       />
 
-      {/* Period and Department Filters */}
       <div className="flex flex-row gap-4 items-end flex-wrap">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Período</Label>
@@ -443,7 +409,6 @@ const LancamentosLista = () => {
         </Button>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -504,22 +469,19 @@ const LancamentosLista = () => {
             <p className="text-xl sm:text-2xl font-bold font-mono">
               {formatCurrency(totalValorConsiderado)}
             </p>
-            <p className="text-xs text-muted-foreground">no período</p>
+            <p className="text-xs text-muted-foreground">
+              total aprovado
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        </div>
-      ) : (
-        <DataTable 
-          data={filteredAndSortedColaboradores} 
-          columns={columns} 
-          emptyMessage="Nenhum colaborador encontrado" 
-        />
-      )}
+      <DataTable
+        data={filteredAndSortedColaboradores}
+        columns={columns}
+        emptyMessage="Nenhum colaborador encontrado"
+        onRowClick={(item) => navigate(`/lancamentos/colaborador/${item.id}?periodo=${selectedPeriodId}`)}
+      />
     </div>
   );
 };

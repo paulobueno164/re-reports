@@ -15,9 +15,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
+import lancamentosService from '@/services/lancamentos.service';
 
 interface Expense {
   id: string;
@@ -66,26 +66,17 @@ export function BatchApprovalPanel({
     if (selectedIds.length === 0) return;
 
     setProcessing(true);
-    const now = new Date().toISOString();
+    try {
+      const result = await lancamentosService.aprovarEmLote(selectedIds);
 
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({
-        status: 'valido',
-        validado_por: user?.id,
-        validado_em: now,
-      })
-      .in('id', selectedIds);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
       toast({
         title: 'Aprovação em lote concluída',
-        description: `${selectedIds.length} despesa(s) foram aprovadas com sucesso.`,
+        description: `${result.aprovados || selectedIds.length} despesa(s) foram aprovadas com sucesso.`,
       });
       onSelectionChange([]);
       onComplete();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
     setProcessing(false);
     setShowApproveDialog(false);
@@ -95,28 +86,18 @@ export function BatchApprovalPanel({
     if (selectedIds.length === 0 || !batchRejectionReason.trim()) return;
 
     setProcessing(true);
-    const now = new Date().toISOString();
+    try {
+      const result = await lancamentosService.rejeitarEmLote(selectedIds, batchRejectionReason);
 
-    const { error } = await supabase
-      .from('lancamentos')
-      .update({
-        status: 'invalido',
-        motivo_invalidacao: batchRejectionReason,
-        validado_por: user?.id,
-        validado_em: now,
-      })
-      .in('id', selectedIds);
-
-    if (error) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } else {
       toast({
         title: 'Rejeição em lote concluída',
-        description: `${selectedIds.length} despesa(s) foram rejeitadas.`,
+        description: `${result.rejeitados || selectedIds.length} despesa(s) foram rejeitadas.`,
       });
       onSelectionChange([]);
       setBatchRejectionReason('');
       onComplete();
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
     setProcessing(false);
     setShowRejectDialog(false);

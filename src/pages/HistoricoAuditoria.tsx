@@ -12,24 +12,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/expense-validation';
 import { exportAuditLogsToExcel } from '@/lib/audit-export';
 import { toast } from 'sonner';
-
-interface AuditLog {
-  id: string;
-  created_at: string;
-  user_id: string;
-  user_name: string;
-  action: string;
-  entity_type: string;
-  entity_id: string;
-  entity_description: string | null;
-  old_values: any;
-  new_values: any;
-  metadata: any;
-}
+import auditService, { AuditLog } from '@/services/audit.service';
 
 const actionLabels: Record<string, { label: string; color: string; icon: any }> = {
   aprovar: { label: 'Aprovação', color: 'text-success bg-success/10', icon: CheckCircle },
@@ -62,31 +48,23 @@ const HistoricoAuditoria = () => {
 
   const fetchLogs = async () => {
     setLoading(true);
-    let query = supabase
-      .from('audit_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    try {
+      const filters: any = { limit: 100 };
+      if (filterAction !== 'all') filters.action = filterAction;
+      if (filterEntity !== 'all') filters.entityType = filterEntity;
+      if (filterUser !== 'all') filters.userId = filterUser;
 
-    if (filterAction !== 'all') {
-      query = query.eq('action', filterAction);
-    }
-    if (filterEntity !== 'all') {
-      query = query.eq('entity_type', filterEntity);
-    }
-    if (filterUser !== 'all') {
-      query = query.eq('user_id', filterUser);
-    }
-
-    const { data, error } = await query;
-
-    if (data) {
+      const data = await auditService.getAll(filters);
       setLogs(data);
+      
       // Extract unique users
       const uniqueUsers = [...new Map(data.map((l) => [l.user_id, { id: l.user_id, name: l.user_name }])).values()];
       setUsers(uniqueUsers);
+    } catch (error: any) {
+      toast.error('Erro ao carregar logs: ' + error.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const filteredLogs = logs.filter(

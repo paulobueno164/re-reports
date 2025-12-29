@@ -16,17 +16,20 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { 
   validarLancamentoCesta, 
   formatCurrency, 
-  validarPeriodoLancamento,
   validarOrigemDespesa,
   gerarHashComprovante 
 } from '@/lib/expense-validation';
 import { AttachmentUploadSimple } from '@/components/attachments/AttachmentUploadSimple';
 import { AttachmentList } from '@/components/attachments/AttachmentList';
+import colaboradoresService from '@/services/colaboradores.service';
+import periodosService from '@/services/periodos.service';
+import tiposDespesasService from '@/services/tipos-despesas.service';
+import lancamentosService from '@/services/lancamentos.service';
+import anexosService from '@/services/anexos.service';
 
 interface ExpenseType {
   id: string;
@@ -98,57 +101,47 @@ const LancamentoForm = () => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch colaborador
-    const { data: colabData } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('id, nome, cesta_beneficios_teto')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    try {
+      // Fetch colaborador
+      const colabData = await colaboradoresService.getByUserId(user.id);
+      
+      if (colabData) {
+        setColaborador({
+          id: colabData.id,
+          nome: colabData.nome,
+        });
+        setCestaTeto(Number(colabData.cesta_beneficios_teto) || 0);
 
-    if (colabData) {
-      setColaborador({
-        id: colabData.id,
-        nome: colabData.nome,
-      });
-      setCestaTeto(Number(colabData.cesta_beneficios_teto) || 0);
-    }
+        // Fetch expense types for this colaborador
+        const vinculosData = await colaboradoresService.getTiposDespesas(colabData.id);
+        let typesData: ExpenseType[] = [];
+        
+        if (vinculosData && vinculosData.length > 0) {
+          typesData = vinculosData
+            .filter((v: any) => v.tipo_despesa)
+            .map((v: any) => ({
+              id: v.tipo_despesa.id,
+              nome: v.tipo_despesa.nome,
+              origemPermitida: v.tipo_despesa.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],
+            }));
+        }
 
-    // Fetch expense types
-    let typesData: any[] = [];
-    if (colabData) {
-      const { data: vinculosData } = await supabase
-        .from('colaborador_tipos_despesas')
-        .select(`teto_individual, tipos_despesas (id, nome, origem_permitida)`)
-        .eq('colaborador_id', colabData.id)
-        .eq('ativo', true);
+        if (typesData.length === 0) {
+          const allTypesData = await tiposDespesasService.getAll();
+          typesData = allTypesData
+            .filter(t => t.classificacao === 'variavel' && t.ativo)
+            .map(t => ({
+              id: t.id,
+              nome: t.nome,
+              origemPermitida: t.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],
+            }));
+        }
 
-      if (vinculosData && vinculosData.length > 0) {
-        typesData = vinculosData.map((v: any) => v.tipos_despesas).filter(Boolean);
+        setExpenseTypes(typesData);
       }
-    }
 
-    if (typesData.length === 0) {
-      const { data: allTypesData } = await supabase
-        .from('tipos_despesas')
-        .select('id, nome, origem_permitida')
-        .eq('classificacao', 'variavel')
-        .eq('ativo', true);
-      typesData = allTypesData || [];
-    }
-
-    setExpenseTypes(typesData.map((t: any) => ({
-      id: t.id,
-      nome: t.nome,
-      origemPermitida: t.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],
-    })));
-
-    // Fetch periods
-    const { data: periodsData } = await supabase
-      .from('calendario_periodos')
-      .select('id, periodo, status, abre_lancamento, fecha_lancamento')
-      .order('periodo', { ascending: false });
-
-    if (periodsData) {
+      // Fetch periods
+      const periodsData = await periodosService.getAll();
       const mappedPeriods = periodsData.map(p => ({
         id: p.id,
         periodo: p.periodo,
@@ -163,53 +156,37 @@ const LancamentoForm = () => {
       if (openPeriod && !isEditing) {
         setFormPeriodoId(openPeriod.id);
       }
-    }
 
-    // Fetch existing expense if editing
-    if (isEditing && id) {
-      const { data: expenseData, error } = await supabase
-        .from('lancamentos')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error) {
-        toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-        navigate('/lancamentos');
-      } else if (expenseData) {
-        setFormPeriodoId(expenseData.periodo_id);
-        setFormTipoDespesaId(expenseData.tipo_despesa_id);
-        setFormOrigem(expenseData.origem as 'proprio' | 'conjuge' | 'filhos');
-        setFormValor(expenseData.valor_lancado.toString());
-        setFormDescricao(expenseData.descricao_fato_gerador);
-        setFormNumeroDocumento((expenseData as any).numero_documento || '');
-        setFormParcelamentoAtivo((expenseData as any).parcelamento_ativo || false);
-        setFormParcelamentoValorTotal((expenseData as any).parcelamento_valor_total?.toString() || '');
-        setFormParcelamentoTotalParcelas((expenseData as any).parcelamento_total_parcelas?.toString() || '');
+      // Fetch existing expense if editing
+      if (isEditing && id) {
+        const expenseData = await lancamentosService.getById(id);
+        if (expenseData) {
+          setFormPeriodoId(expenseData.periodo_id);
+          setFormTipoDespesaId(expenseData.tipo_despesa_id);
+          setFormOrigem(expenseData.origem as 'proprio' | 'conjuge' | 'filhos');
+          setFormValor(expenseData.valor_lancado.toString());
+          setFormDescricao(expenseData.descricao_fato_gerador);
+          setFormNumeroDocumento(expenseData.numero_documento || '');
+          setFormParcelamentoAtivo(expenseData.parcelamento_ativo || false);
+          setFormParcelamentoValorTotal(expenseData.parcelamento_valor_total?.toString() || '');
+          setFormParcelamentoTotalParcelas(expenseData.parcelamento_total_parcelas?.toString() || '');
+        }
       }
-    }
 
-    // Calculate totals
-    if (colabData) {
-      const { data: expenses } = await supabase
-        .from('lancamentos')
-        .select('valor_considerado, status')
-        .eq('colaborador_id', colabData.id)
-        .eq('periodo_id', periodsData?.find(p => p.status === 'aberto')?.id || '')
-        .eq('status', 'valido');
+      // Calculate totals
+      if (colabData && openPeriod) {
+        const expenses = await lancamentosService.getAll({
+          colaborador_id: colabData.id,
+          periodo_id: openPeriod.id,
+          status: 'valido',
+        });
 
-      if (expenses) {
         const usado = expenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
         setTotalUsado(usado);
         setSaldoDisponivel((Number(colabData.cesta_beneficios_teto) || 0) - usado);
       }
-
-      // Fetch existing hashes
-      const { data: anexos } = await supabase.from('anexos').select('nome_arquivo, tamanho');
-      if (anexos) {
-        const hashes = new Set(anexos.map(a => gerarHashComprovante(a.nome_arquivo, a.tamanho)));
-        setExistingAttachmentHashes(hashes);
-      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
 
     setLoading(false);
@@ -265,56 +242,35 @@ const LancamentoForm = () => {
       const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
       const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
       
-      const lancamentoData = {
-        colaborador_id: colaborador.id,
-        periodo_id: formPeriodoId,
-        tipo_despesa_id: formTipoDespesaId,
-        origem: formOrigem,
-        valor_lancado: valorLancado,
-        valor_considerado: validation.valorConsiderado,
-        valor_nao_considerado: validation.valorNaoConsiderado,
-        descricao_fato_gerador: formDescricao,
-        numero_documento: formNumeroDocumento || null,
-        status: status,
-        parcelamento_ativo: formParcelamentoAtivo,
-        parcelamento_valor_total: valorTotal,
-        parcelamento_numero_parcela: formParcelamentoAtivo ? 1 : null,
-        parcelamento_total_parcelas: totalParcelas,
-      };
-
       let lancamentoId: string;
 
       if (isEditing && id) {
-        const { error } = await supabase.from('lancamentos').update(lancamentoData).eq('id', id);
-        if (error) throw error;
+        await lancamentosService.update(id, {
+          tipo_despesa_id: formTipoDespesaId,
+          origem: formOrigem,
+          valor_lancado: valorLancado,
+          valor_considerado: validation.valorConsiderado,
+          valor_nao_considerado: validation.valorNaoConsiderado,
+          descricao_fato_gerador: formDescricao,
+        });
         lancamentoId = id;
       } else {
-        const { data, error } = await supabase.from('lancamentos').insert([lancamentoData]).select('id').single();
-        if (error) throw error;
-        lancamentoId = data.id;
+        const result = await lancamentosService.create({
+          colaborador_id: colaborador.id,
+          periodo_id: formPeriodoId,
+          tipo_despesa_id: formTipoDespesaId,
+          origem: formOrigem,
+          descricao_fato_gerador: formDescricao,
+          valor_lancado: valorLancado,
+          valor_considerado: validation.valorConsiderado,
+          valor_nao_considerado: validation.valorNaoConsiderado,
+        });
+        lancamentoId = result.id;
       }
 
       // Upload attachment
       if (formFile && lancamentoId) {
-        const fileExt = formFile.name.split('.').pop();
-        const filePath = `${colaborador.id}/${lancamentoId}/${Date.now()}.${fileExt}`;
-        const buffer = await formFile.arrayBuffer();
-        const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-        const { error: uploadError } = await supabase.storage.from('comprovantes').upload(filePath, formFile);
-
-        if (!uploadError) {
-          await supabase.from('anexos').insert({
-            lancamento_id: lancamentoId,
-            nome_arquivo: formFile.name,
-            storage_path: filePath,
-            tamanho: formFile.size,
-            tipo_arquivo: formFile.type || 'application/octet-stream',
-            hash_comprovante: fileHash,
-          });
-        }
+        await anexosService.upload(lancamentoId, formFile);
       }
 
       toast({
@@ -475,57 +431,41 @@ const LancamentoForm = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Quantidade de Parcelas</Label>
+                <Label>Número de Parcelas</Label>
                 <Input
                   type="number"
-                  min="1"
                   value={formParcelamentoTotalParcelas}
                   onChange={(e) => setFormParcelamentoTotalParcelas(e.target.value)}
                   placeholder="Ex: 12"
                 />
               </div>
-              <div className="col-span-full">
-                <p className="text-xs text-muted-foreground">
-                  O lançamento será criado automaticamente todo mês até completar todas as parcelas informadas.
-                </p>
-              </div>
             </div>
           )}
         </div>
 
-        <div className="space-y-2">
-          <Label>Anexo do Comprovante</Label>
-          <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
-            <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground mb-1">Arraste arquivos ou clique para selecionar</p>
-            <p className="text-xs text-muted-foreground">Formatos aceitos: PDF, XLSX, DOC, DOCX, PNG, JPG (máx. 5MB)</p>
-            <p className="text-xs text-warning mt-1">⚠️ Cada comprovante só pode ser utilizado uma vez</p>
-            <Input type="file" className="hidden" id="file-upload" accept=".pdf,.xlsx,.doc,.docx,.png,.jpg,.jpeg" onChange={(e) => setFormFile(e.target.files?.[0] || null)} />
-            <Button variant="outline" size="sm" className="mt-3" onClick={() => document.getElementById('file-upload')?.click()}>
-              Selecionar Arquivo
-            </Button>
-            {formFile && (
-              <div className="mt-3 flex items-center justify-center gap-2 text-sm">
-                <FileText className="h-4 w-4" />
-                <span>{formFile.name}</span>
-                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setFormFile(null)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </div>
-            )}
-          </div>
+        {/* Attachment Upload */}
+        <div className="space-y-4">
+          <Label>Comprovante</Label>
+          <AttachmentUploadSimple
+            file={formFile}
+            onFileSelect={setFormFile}
+            onFileClear={() => setFormFile(null)}
+          />
+          
+          {isEditing && id && (
+            <div className="mt-4">
+              <Label className="text-sm text-muted-foreground">Comprovantes já anexados:</Label>
+              <AttachmentList lancamentoId={id} key={attachmentRefreshKey} />
+            </div>
+          )}
         </div>
 
-        {isEditing && id && (
-          <div className="space-y-2">
-            <Label>Anexos Existentes</Label>
-            <AttachmentList lancamentoId={id} allowDelete onDeleteComplete={() => setAttachmentRefreshKey(k => k + 1)} />
-          </div>
-        )}
-
-        <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-4 border-t">
-          <Button variant="outline" onClick={() => navigate('/lancamentos')} disabled={saving}>Cancelar</Button>
-          <Button onClick={() => handleSave()} disabled={saving}>
+        {/* Actions */}
+        <div className="flex justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={() => navigate('/lancamentos')} disabled={saving}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !formTipoDespesaId || !formValor}>
             {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Enviar para Análise
           </Button>
