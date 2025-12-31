@@ -10,7 +10,6 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { findCurrentPeriod as findCurrentPeriodUtil } from '@/lib/utils';
@@ -22,6 +21,9 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
+import colaboradoresService from '@/services/colaboradores.service';
+import periodosService from '@/services/periodos.service';
+import lancamentosService from '@/services/lancamentos.service';
 
 interface Expense {
   id: string;
@@ -90,7 +92,6 @@ const DashboardColaborador = () => {
     }
   }, [currentPeriod, colaborador]);
 
-  // Use the shared utility function for finding current period
   const findCurrentPeriod = (periods: Period[]): Period | null => {
     const result = findCurrentPeriodUtil(periods.map(p => ({
       ...p,
@@ -104,113 +105,98 @@ const DashboardColaborador = () => {
     if (!user) return;
     setLoading(true);
 
-    // Fetch colaborador data
-    const { data: colabData, error: colabError } = await supabase
-      .from('colaboradores_elegiveis')
-      .select('*')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    try {
+      const colabData = await colaboradoresService.getByUserId(user.id);
 
-    if (colabError || !colabData) {
+      if (!colabData) {
+        setLoading(false);
+        return;
+      }
+
+      setColaborador({
+        id: colabData.id,
+        nome: colabData.nome,
+        matricula: colabData.matricula,
+        departamento: colabData.departamento,
+        valeAlimentacao: Number(colabData.vale_alimentacao),
+        valeRefeicao: Number(colabData.vale_refeicao),
+        ajudaCusto: Number(colabData.ajuda_custo),
+        mobilidade: Number(colabData.mobilidade),
+        cestaBeneficiosTeto: Number(colabData.cesta_beneficios_teto || 0),
+        temPida: colabData.tem_pida,
+        pidaTeto: Number(colabData.pida_teto),
+      });
+
+      const periodsData = await periodosService.getAll();
+
+      if (periodsData && periodsData.length > 0) {
+        const mapped: Period[] = periodsData.map(p => ({
+          id: p.id,
+          periodo: p.periodo,
+          status: p.status,
+          dataInicio: new Date(p.data_inicio),
+          dataFinal: new Date(p.data_final),
+          abreLancamento: new Date(p.abre_lancamento),
+          fechaLancamento: new Date(p.fecha_lancamento),
+        }));
+        
+        const current = findCurrentPeriod(mapped);
+        setCurrentPeriod(current);
+      }
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setColaborador({
-      id: colabData.id,
-      nome: colabData.nome,
-      matricula: colabData.matricula,
-      departamento: colabData.departamento,
-      valeAlimentacao: Number(colabData.vale_alimentacao),
-      valeRefeicao: Number(colabData.vale_refeicao),
-      ajudaCusto: Number(colabData.ajuda_custo),
-      mobilidade: Number(colabData.mobilidade),
-      cestaBeneficiosTeto: Number((colabData as any).cesta_beneficios_teto || 0),
-      temPida: colabData.tem_pida,
-      pidaTeto: Number(colabData.pida_teto),
-    });
-
-    // Fetch periods
-    const { data: periodsData } = await supabase
-      .from('calendario_periodos')
-      .select('id, periodo, status, data_inicio, data_final, abre_lancamento, fecha_lancamento')
-      .order('data_inicio', { ascending: false });
-
-    if (periodsData && periodsData.length > 0) {
-      const mapped: Period[] = periodsData.map(p => ({
-        id: p.id,
-        periodo: p.periodo,
-        status: p.status,
-        dataInicio: new Date(p.data_inicio),
-        dataFinal: new Date(p.data_final),
-        abreLancamento: new Date(p.abre_lancamento),
-        fechaLancamento: new Date(p.fecha_lancamento),
-      }));
-      
-      // Find current period based on today's date
-      const current = findCurrentPeriod(mapped);
-      setCurrentPeriod(current);
-    }
-
-    setLoading(false);
   };
 
   const fetchExpenses = async () => {
     if (!colaborador || !currentPeriod) return;
 
-    const { data: expensesData } = await supabase
-      .from('lancamentos')
-      .select(`
-        id,
-        valor_lancado,
-        valor_considerado,
-        status,
-        created_at,
-        tipos_despesas (nome)
-      `)
-      .eq('colaborador_id', colaborador.id)
-      .eq('periodo_id', currentPeriod.id)
-      .order('created_at', { ascending: false });
+    try {
+      const expensesData = await lancamentosService.getAll({
+        colaborador_id: colaborador.id,
+        periodo_id: currentPeriod.id,
+      });
 
-    if (expensesData) {
-      const mapped: Expense[] = expensesData.map((e: any) => ({
-        id: e.id,
-        tipoDespesaNome: e.tipos_despesas?.nome || '',
-        valorLancado: Number(e.valor_lancado),
-        valorConsiderado: Number(e.valor_considerado),
-        status: e.status,
-        createdAt: new Date(e.created_at),
-      }));
-      setExpenses(mapped);
+      if (expensesData) {
+        const mapped: Expense[] = expensesData.map((e: any) => ({
+          id: e.id,
+          tipoDespesaNome: e.tipo_despesa?.nome || '',
+          valorLancado: Number(e.valor_lancado),
+          valorConsiderado: Number(e.valor_considerado),
+          status: e.status,
+          createdAt: new Date(e.created_at),
+        }));
+        setExpenses(mapped);
 
-      // Calculate status counts
-      const counts = {
-        enviado: mapped.filter(e => e.status === 'enviado').length,
-        em_analise: mapped.filter(e => e.status === 'em_analise').length,
-        valido: mapped.filter(e => e.status === 'valido').length,
-        invalido: mapped.filter(e => e.status === 'invalido').length,
-      };
-      setStatusCounts(counts);
+        const counts = {
+          enviado: mapped.filter(e => e.status === 'enviado').length,
+          em_analise: mapped.filter(e => e.status === 'em_analise').length,
+          valido: mapped.filter(e => e.status === 'valido').length,
+          invalido: mapped.filter(e => e.status === 'invalido').length,
+        };
+        setStatusCounts(counts);
 
-      // Calculate total used (valido only)
-      const total = mapped
-        .filter(e => e.status === 'valido')
-        .reduce((sum, e) => sum + e.valorConsiderado, 0);
-      setTotalUsado(total);
+        const total = mapped
+          .filter(e => e.status === 'valido')
+          .reduce((sum, e) => sum + e.valorConsiderado, 0);
+        setTotalUsado(total);
 
-      // Calculate total pending (enviado + em_analise)
-      const pendente = mapped
-        .filter(e => e.status === 'enviado' || e.status === 'em_analise')
-        .reduce((sum, e) => sum + e.valorConsiderado, 0);
-      setTotalPendente(pendente);
-    }
+        const pendente = mapped
+          .filter(e => e.status === 'enviado' || e.status === 'em_analise')
+          .reduce((sum, e) => sum + e.valorConsiderado, 0);
+        setTotalPendente(pendente);
+      }
 
-    // Calculate dias restantes (only if period is open)
-    if (currentPeriod.status === 'aberto') {
-      const dias = Math.max(0, Math.ceil((currentPeriod.fechaLancamento.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
-      setDiasRestantes(dias);
-    } else {
-      setDiasRestantes(0);
+      if (currentPeriod.status === 'aberto') {
+        const dias = Math.max(0, Math.ceil((currentPeriod.fechaLancamento.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+        setDiasRestantes(dias);
+      } else {
+        setDiasRestantes(0);
+      }
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
     }
   };
 
@@ -219,7 +205,6 @@ const DashboardColaborador = () => {
 
   const pendentesAnalise = statusCounts.enviado + statusCounts.em_analise;
 
-  // Data for pie chart
   const statusData = [
     { name: 'Enviado', value: statusCounts.enviado, color: STATUS_COLORS.enviado },
     { name: 'Em Análise', value: statusCounts.em_analise, color: STATUS_COLORS.em_analise },
@@ -227,7 +212,6 @@ const DashboardColaborador = () => {
     { name: 'Recusado', value: statusCounts.invalido, color: STATUS_COLORS.invalido },
   ].filter(d => d.value > 0);
 
-  // Remuneration components
   const remunerationComponents = colaborador ? [
     { label: 'Vale Alimentação', value: colaborador.valeAlimentacao },
     { label: 'Vale Refeição', value: colaborador.valeRefeicao },

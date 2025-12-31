@@ -4,12 +4,9 @@ import {
   FileSpreadsheet, 
   DollarSign,
   Clock,
-  CheckCircle,
   AlertTriangle,
   Loader2,
-  FileText,
   TrendingUp,
-  Building2
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +15,6 @@ import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { findCurrentPeriod } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -34,6 +30,11 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import periodosService from '@/services/periodos.service';
+import fechamentoService from '@/services/fechamento.service';
+import lancamentosService from '@/services/lancamentos.service';
+import colaboradoresService from '@/services/colaboradores.service';
+import exportService from '@/services/export.service';
 
 interface Period {
   id: string;
@@ -88,20 +89,20 @@ const DashboardFinanceiro = () => {
 
   useEffect(() => {
     const fetchPeriods = async () => {
-      const { data: allPeriods } = await supabase
-        .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio, data_final')
-        .order('data_inicio', { ascending: false });
+      try {
+        const allPeriods = await periodosService.getAll();
 
-      if (allPeriods && allPeriods.length > 0) {
-        setPeriods(allPeriods);
-        
-        // Set current period based on today's date
-        const currentPeriod = findCurrentPeriod(allPeriods);
-        if (currentPeriod) {
-          setSelectedPeriodId(currentPeriod.id);
-          setCurrentPeriodName(currentPeriod.periodo);
+        if (allPeriods && allPeriods.length > 0) {
+          setPeriods(allPeriods);
+          
+          const currentPeriod = findCurrentPeriod(allPeriods);
+          if (currentPeriod) {
+            setSelectedPeriodId(currentPeriod.id);
+            setCurrentPeriodName(currentPeriod.periodo);
+          }
         }
+      } catch (error) {
+        console.error('Error fetching periods:', error);
       }
     };
     fetchPeriods();
@@ -115,173 +116,137 @@ const DashboardFinanceiro = () => {
   const fetchData = async () => {
     setLoading(true);
 
-    // Update period name
-    if (selectedPeriodId === 'todos') {
-      setCurrentPeriodName('Todos os Períodos');
-    } else {
-      const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
-      if (selectedPeriod) {
-        setCurrentPeriodName(selectedPeriod.periodo);
-      }
-    }
-
-    // Fetch exports
-    let exportsQuery = supabase
-      .from('exportacoes')
-      .select('*, calendario_periodos(periodo)')
-      .order('data_exportacao', { ascending: false });
-
-    if (selectedPeriodId !== 'todos') {
-      exportsQuery = exportsQuery.eq('periodo_id', selectedPeriodId);
-    }
-
-    const { data: exports } = await exportsQuery;
-
-    if (exports) {
-      setRecentExports(exports.slice(0, 10).map(e => ({
-        id: e.id,
-        nome_arquivo: e.nome_arquivo,
-        data_exportacao: e.data_exportacao,
-        qtd_registros: e.qtd_registros,
-        periodo: e.calendario_periodos?.periodo || 'N/A',
-      })));
-
-      const totalRecords = exports.reduce((acc, e) => acc + e.qtd_registros, 0);
-      const lastExport = exports[0]?.data_exportacao ? new Date(exports[0].data_exportacao) : null;
-
-      setMetrics(prev => ({
-        ...prev,
-        totalExports: exports.length,
-        totalRecords,
-        lastExportDate: lastExport,
-      }));
-    }
-
-    // Fetch fechamentos for value calculation
-    let fechamentosQuery = supabase
-      .from('fechamentos')
-      .select('*, calendario_periodos(periodo, data_inicio)')
-      .order('data_processamento', { ascending: false });
-
-    if (selectedPeriodId !== 'todos') {
-      fechamentosQuery = fechamentosQuery.eq('periodo_id', selectedPeriodId);
-    }
-
-    const { data: fechamentos } = await fechamentosQuery;
-
-    if (fechamentos) {
-      const totalValue = fechamentos.reduce((acc, f) => acc + Number(f.valor_total), 0);
-      setMetrics(prev => ({ ...prev, totalValue }));
-
-      // Group by month for chart
-      const monthlyMap: Record<string, number> = {};
-      fechamentos.forEach(f => {
-        const date = new Date(f.data_processamento);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthLabel = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
-        
-        if (!monthlyMap[monthKey]) {
-          monthlyMap[monthKey] = 0;
+    try {
+      if (selectedPeriodId === 'todos') {
+        setCurrentPeriodName('Todos os Períodos');
+      } else {
+        const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
+        if (selectedPeriod) {
+          setCurrentPeriodName(selectedPeriod.periodo);
         }
-        monthlyMap[monthKey] += Number(f.valor_total);
-      });
+      }
 
-      const sortedMonths = Object.entries(monthlyMap)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .slice(-6)
-        .map(([key, value]) => {
-          const [year, month] = key.split('-');
-          const date = new Date(parseInt(year), parseInt(month) - 1);
-          return {
-            month: date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
-            value,
-          };
+      // Fetch exports
+      const exports = await exportService.getAll(selectedPeriodId !== 'todos' ? selectedPeriodId : undefined);
+
+      if (exports) {
+        setRecentExports(exports.slice(0, 10).map(e => ({
+          id: e.id,
+          nome_arquivo: e.nome_arquivo,
+          data_exportacao: e.data_exportacao,
+          qtd_registros: e.qtd_registros,
+          periodo: e.periodo_nome || 'N/A',
+        })));
+
+        const totalRecords = exports.reduce((acc, e) => acc + e.qtd_registros, 0);
+        const lastExport = exports[0]?.data_exportacao ? new Date(exports[0].data_exportacao) : null;
+
+        setMetrics(prev => ({
+          ...prev,
+          totalExports: exports.length,
+          totalRecords,
+          lastExportDate: lastExport,
+        }));
+      }
+
+      // Fetch fechamentos for value calculation
+      const fechamentos = await fechamentoService.getAll(selectedPeriodId !== 'todos' ? selectedPeriodId : undefined);
+
+      if (fechamentos) {
+        const totalValue = fechamentos.reduce((acc, f) => acc + Number(f.valor_total), 0);
+        setMetrics(prev => ({ ...prev, totalValue }));
+
+        const monthlyMap: Record<string, number> = {};
+        fechamentos.forEach(f => {
+          const date = new Date(f.data_processamento);
+          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          
+          if (!monthlyMap[monthKey]) {
+            monthlyMap[monthKey] = 0;
+          }
+          monthlyMap[monthKey] += Number(f.valor_total);
         });
 
-      setMonthlyData(sortedMonths);
-    }
-
-    // Fetch pending periods
-    const { data: periodos } = await supabase
-      .from('calendario_periodos')
-      .select('*')
-      .eq('status', 'aberto')
-      .order('data_inicio', { ascending: false });
-
-    if (periodos) {
-      const pendingList: PendingClosing[] = [];
-      let readyCount = 0;
-      
-      for (const periodo of periodos) {
-        const { data: fechamento } = await supabase
-          .from('fechamentos')
-          .select('*')
-          .eq('periodo_id', periodo.id)
-          .maybeSingle();
-
-        const { count: pendingCount } = await supabase
-          .from('lancamentos')
-          .select('*', { count: 'exact', head: true })
-          .eq('periodo_id', periodo.id)
-          .in('status', ['enviado', 'em_analise']);
-
-        const { data: approvedExpenses } = await supabase
-          .from('lancamentos')
-          .select('valor_considerado')
-          .eq('periodo_id', periodo.id)
-          .eq('status', 'valido');
-
-        const totalApprovedValue = approvedExpenses?.reduce((acc, e) => acc + Number(e.valor_considerado), 0) || 0;
-        const isReady = !pendingCount || pendingCount === 0;
-
-        if (!fechamento || fechamento.status !== 'sucesso') {
-          if (isReady) readyCount++;
-          pendingList.push({
-            id: periodo.id,
-            periodo: periodo.periodo,
-            status: isReady ? 'pronto' : 'pendente_validacao',
-            totalEventos: approvedExpenses?.length || 0,
-            valorTotal: totalApprovedValue,
+        const sortedMonths = Object.entries(monthlyMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-6)
+          .map(([key, value]) => {
+            const [year, month] = key.split('-');
+            const date = new Date(parseInt(year), parseInt(month) - 1);
+            return {
+              month: date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }),
+              value,
+            };
           });
-        }
+
+        setMonthlyData(sortedMonths);
       }
 
-      setPendingClosings(pendingList);
-      setMetrics(prev => ({ 
-        ...prev, 
-        pendingClosings: pendingList.length,
-        readyToExport: readyCount,
-      }));
-    }
+      // Fetch pending periods
+      const openPeriods = periods.filter(p => p.status === 'aberto');
 
-    // Fetch department values
-    let lancamentosQuery = supabase
-      .from('lancamentos')
-      .select('valor_considerado, colaboradores_elegiveis(departamento)')
-      .eq('status', 'valido');
+      if (openPeriods) {
+        const pendingList: PendingClosing[] = [];
+        let readyCount = 0;
+        
+        for (const periodo of openPeriods) {
+          const fechamentos = await fechamentoService.getAll(periodo.id);
+          const fechamento = fechamentos[0];
 
-    if (selectedPeriodId !== 'todos') {
-      lancamentosQuery = lancamentosQuery.eq('periodo_id', selectedPeriodId);
-    }
+          const lancamentos = await lancamentosService.getAll({ periodo_id: periodo.id });
+          const pendingCount = lancamentos.filter(l => ['enviado', 'em_analise'].includes(l.status)).length;
+          const approvedExpenses = lancamentos.filter(l => l.status === 'valido');
 
-    const { data: lancamentos } = await lancamentosQuery;
+          const totalApprovedValue = approvedExpenses.reduce((acc, e) => acc + Number(e.valor_considerado), 0);
+          const isReady = pendingCount === 0;
 
-    if (lancamentos) {
-      const deptMap: Record<string, number> = {};
-      lancamentos.forEach((l: any) => {
-        const dept = l.colaboradores_elegiveis?.departamento || 'Outros';
-        deptMap[dept] = (deptMap[dept] || 0) + Number(l.valor_considerado);
+          if (!fechamento || fechamento.status !== 'sucesso') {
+            if (isReady) readyCount++;
+            pendingList.push({
+              id: periodo.id,
+              periodo: periodo.periodo,
+              status: isReady ? 'pronto' : 'pendente_validacao',
+              totalEventos: approvedExpenses.length,
+              valorTotal: totalApprovedValue,
+            });
+          }
+        }
+
+        setPendingClosings(pendingList);
+        setMetrics(prev => ({ 
+          ...prev, 
+          pendingClosings: pendingList.length,
+          readyToExport: readyCount,
+        }));
+      }
+
+      // Fetch department values
+      const lancamentos = await lancamentosService.getAll({
+        periodo_id: selectedPeriodId !== 'todos' ? selectedPeriodId : undefined,
+        status: 'valido',
       });
+      const colaboradores = await colaboradoresService.getAll();
 
-      const deptData = Object.entries(deptMap)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 5);
+      if (lancamentos) {
+        const deptMap: Record<string, number> = {};
+        lancamentos.forEach((l: any) => {
+          const colab = colaboradores.find(c => c.id === l.colaborador_id);
+          const dept = colab?.departamento || 'Outros';
+          deptMap[dept] = (deptMap[dept] || 0) + Number(l.valor_considerado);
+        });
 
-      setDepartmentValues(deptData);
+        const deptData = Object.entries(deptMap)
+          .map(([name, value]) => ({ name, value }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5);
+
+        setDepartmentValues(deptData);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const pendingColumns = [
@@ -387,7 +352,6 @@ const DashboardFinanceiro = () => {
         <>
           {/* Stats Cards Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Card 1 - Total Exportações */}
             <Card className="bg-card border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
@@ -403,7 +367,6 @@ const DashboardFinanceiro = () => {
               </CardContent>
             </Card>
 
-            {/* Card 2 - Valor Processado (Primary Gradient) */}
             <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
@@ -419,7 +382,6 @@ const DashboardFinanceiro = () => {
               </CardContent>
             </Card>
 
-            {/* Card 3 - Fechamentos Pendentes */}
             <Card className="bg-card border">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
@@ -435,7 +397,6 @@ const DashboardFinanceiro = () => {
               </CardContent>
             </Card>
 
-            {/* Card 4 - Última Exportação */}
             <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
@@ -456,7 +417,6 @@ const DashboardFinanceiro = () => {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Monthly Values */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -498,13 +458,9 @@ const DashboardFinanceiro = () => {
               </CardContent>
             </Card>
 
-            {/* Department Distribution */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Distribuição por Departamento
-                </CardTitle>
+                <CardTitle className="text-lg font-semibold">Valores por Departamento</CardTitle>
               </CardHeader>
               <CardContent>
                 {departmentValues.length > 0 ? (
@@ -514,25 +470,17 @@ const DashboardFinanceiro = () => {
                         data={departmentValues}
                         cx="50%"
                         cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={2}
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={3}
                         dataKey="value"
-                        label={({ name, percent }) => `${name.substring(0, 12)}${name.length > 12 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`}
-                        labelLine={false}
+                        label={(entry) => entry.name}
                       >
                         {departmentValues.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        formatter={(value: number) => [formatCurrency(value), 'Valor']}
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }}
-                      />
+                      <Tooltip formatter={(value: number) => [formatCurrency(value), 'Valor']} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -544,53 +492,38 @@ const DashboardFinanceiro = () => {
             </Card>
           </div>
 
-          {/* Pending Closings */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-warning" />
-                Fechamentos Pendentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {pendingClosings.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <CheckCircle className="h-12 w-12 mx-auto mb-3 text-success opacity-50" />
-                  <p>Todos os períodos foram fechados!</p>
-                </div>
-              ) : (
-                <DataTable 
-                  data={pendingClosings} 
-                  columns={pendingColumns} 
-                  emptyMessage="Nenhum fechamento pendente" 
-                />
-              )}
-            </CardContent>
-          </Card>
+          {/* Tables Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Fechamentos Pendentes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {pendingClosings.length > 0 ? (
+                  <DataTable data={pendingClosings} columns={pendingColumns} />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Todos os períodos foram fechados
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Recent Exports */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Exportações Recentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {recentExports.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileSpreadsheet className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>Nenhuma exportação realizada ainda</p>
-                </div>
-              ) : (
-                <DataTable 
-                  data={recentExports} 
-                  columns={exportColumns} 
-                  emptyMessage="Nenhuma exportação encontrada" 
-                />
-              )}
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Últimas Exportações</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {recentExports.length > 0 ? (
+                  <DataTable data={recentExports} columns={exportColumns} />
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Nenhuma exportação realizada
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

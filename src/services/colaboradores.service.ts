@@ -86,6 +86,14 @@ export const colaboradoresService = {
     return apiClient.get<Colaborador>(`/api/colaboradores/${id}`);
   },
 
+  async getByUserId(userId: string): Promise<Colaborador | null> {
+    try {
+      return apiClient.get<Colaborador>(`/api/colaboradores/user/${userId}`);
+    } catch {
+      return null;
+    }
+  },
+
   async create(data: CreateColaboradorInput): Promise<Colaborador> {
     return apiClient.post<Colaborador>('/api/colaboradores', data);
   },
