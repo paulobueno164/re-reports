@@ -446,11 +446,12 @@ const LancamentoForm = () => {
         {/* Attachment Upload */}
         <div className="space-y-4">
           <Label>Comprovante</Label>
-          <AttachmentUploadSimple
-            file={formFile}
-            onFileSelect={setFormFile}
-            onFileClear={() => setFormFile(null)}
-          />
+          {!isEditing && (
+            <AttachmentUploadSimple
+              lancamentoId="temp"
+              onUploadComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
+            />
+          )}
           
           {isEditing && id && (
             <div className="mt-4">

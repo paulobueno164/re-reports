@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
 import { cn, findCurrentPeriod as findCurrentPeriodUtil } from '@/lib/utils';
-import periodosService, { Periodo } from '@/services/periodos.service';
+import periodosService from '@/services/periodos.service';
 import colaboradoresService from '@/services/colaboradores.service';
 import lancamentosService from '@/services/lancamentos.service';
 

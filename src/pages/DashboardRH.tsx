@@ -6,7 +6,6 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency } from '@/lib/expense-validation';
 import { findCurrentPeriod } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -25,6 +24,9 @@ import {
   LineChart,
   Line,
 } from 'recharts';
+import periodosService from '@/services/periodos.service';
+import colaboradoresService from '@/services/colaboradores.service';
+import lancamentosService from '@/services/lancamentos.service';
 
 interface Period {
   id: string;
@@ -79,30 +81,23 @@ const DashboardRH = () => {
 
   useEffect(() => {
     const fetchInitialData = async () => {
-      const { data: allPeriods } = await supabase
-        .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio, data_final, fecha_lancamento')
-        .order('data_inicio', { ascending: false });
+      try {
+        const allPeriods = await periodosService.getAll();
 
-      if (allPeriods && allPeriods.length > 0) {
-        setPeriods(allPeriods);
-        
-        // Find current period based on today's date
-        const currentPeriod = findCurrentPeriod(allPeriods);
-        if (currentPeriod) {
-          setSelectedPeriodId(currentPeriod.id);
-          setCurrentPeriodName(currentPeriod.periodo);
+        if (allPeriods && allPeriods.length > 0) {
+          setPeriods(allPeriods);
+          
+          const currentPeriod = findCurrentPeriod(allPeriods);
+          if (currentPeriod) {
+            setSelectedPeriodId(currentPeriod.id);
+            setCurrentPeriodName(currentPeriod.periodo);
+          }
         }
-      }
 
-      const { data: colaboradores } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('departamento')
-        .eq('ativo', true);
-
-      if (colaboradores) {
-        const uniqueDepts = [...new Set(colaboradores.map(c => c.departamento))].sort();
-        setDepartments(uniqueDepts);
+        const depts = await colaboradoresService.getDepartamentos();
+        setDepartments(depts);
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
       }
     };
     fetchInitialData();
@@ -124,66 +119,40 @@ const DashboardRH = () => {
         setCurrentPeriodName(selectedPeriod.periodo);
       }
 
-      // Dias para lançamento (colaborador) - até fecha_lancamento
       const diasParaLancamento = selectedPeriod
         ? Math.max(0, Math.ceil((new Date(selectedPeriod.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
       
-      // Dias restantes (RH) - até data_final do período
       const diasRestantes = selectedPeriod
         ? Math.max(0, Math.ceil((new Date(selectedPeriod.data_final).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
-      // Fetch colaboradores
-      let colaboradoresQuery = supabase
-        .from('colaboradores_elegiveis')
-        .select('id, departamento')
-        .eq('ativo', true);
-      
-      if (selectedDepartment !== 'todos') {
-        colaboradoresQuery = colaboradoresQuery.eq('departamento', selectedDepartment);
-      }
-      
-      const { data: colaboradores } = await colaboradoresQuery;
+      const colaboradores = await colaboradoresService.getAll({ 
+        ativo: true,
+        departamento: selectedDepartment !== 'todos' ? selectedDepartment : undefined,
+      });
       const totalColaboradores = colaboradores?.length || 0;
 
-      // Fetch lancamentos
-      const { data: allLancamentos } = await supabase
-        .from('lancamentos')
-        .select(`
-          id,
-          valor_lancado,
-          valor_considerado,
-          status,
-          created_at,
-          colaborador_id,
-          colaboradores_elegiveis (id, nome, departamento),
-          tipos_despesas (id, nome, grupo)
-        `)
-        .eq('periodo_id', selectedPeriodId);
+      const allLancamentos = await lancamentosService.getAll({ periodo_id: selectedPeriodId });
 
       const lancamentos = selectedDepartment === 'todos'
         ? allLancamentos
-        : allLancamentos?.filter((l: any) => l.colaboradores_elegiveis?.departamento === selectedDepartment);
+        : allLancamentos?.filter((l: any) => {
+            const colab = colaboradores.find(c => c.id === l.colaborador_id);
+            return colab?.departamento === selectedDepartment;
+          });
 
-      // Fetch ALL pending lancamentos
-      const { data: allPendingRaw } = await supabase
-        .from('lancamentos')
-        .select('id, status, colaborador_id, colaboradores_elegiveis (departamento)')
-        .in('status', ['enviado', 'em_analise']);
-
-      const pendingLancamentos = selectedDepartment === 'todos'
-        ? allPendingRaw
-        : allPendingRaw?.filter((l: any) => l.colaboradores_elegiveis?.departamento === selectedDepartment);
+      const pendingLancamentos = lancamentos?.filter((l: any) => 
+        ['enviado', 'em_analise'].includes(l.status)
+      );
 
       const totalLancamentosMes = lancamentos?.length || 0;
       const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const pendentesValidacao = pendingLancamentos?.length || 0;
 
-      // Expenses by category
       const categoryMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        const grupo = l.tipos_despesas?.grupo || 'Outros';
+        const grupo = l.tipo_despesa?.grupo || 'Outros';
         categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
       });
       const expensesByCategory = Array.from(categoryMap.entries())
@@ -191,7 +160,6 @@ const DashboardRH = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Expenses by status
       const statusMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
         statusMap.set(l.status, (statusMap.get(l.status) || 0) + 1);
@@ -208,10 +176,10 @@ const DashboardRH = () => {
         color: STATUS_COLORS[status] || '#94a3b8',
       }));
 
-      // Top colaboradores
       const colaboradorMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        const nome = l.colaboradores_elegiveis?.nome || 'Desconhecido';
+        const colab = colaboradores.find(c => c.id === l.colaborador_id);
+        const nome = colab?.nome || 'Desconhecido';
         colaboradorMap.set(nome, (colaboradorMap.get(nome) || 0) + Number(l.valor_considerado));
       });
       const topColaboradores = Array.from(colaboradorMap.entries())
@@ -219,18 +187,11 @@ const DashboardRH = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Utilization - using total expenses instead of cesta teto
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const utilizationPercentage = totalUtilizado > 0 ? 100 : 0;
 
-      // Expenses by month (last 6 months)
-      const { data: allLancamentosMonths } = await supabase
-        .from('lancamentos')
-        .select('valor_considerado, created_at')
-        .gte('created_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString());
-
       const monthMap = new Map<string, number>();
-      allLancamentosMonths?.forEach((l: any) => {
+      lancamentos?.forEach((l: any) => {
         const date = new Date(l.created_at);
         const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
         monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
@@ -320,7 +281,6 @@ const DashboardRH = () => {
         <>
           {/* Stats Cards Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Card 1 - Colaboradores */}
             <Card className="bg-card border">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -336,7 +296,6 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 2 - Lançamentos (Primary Gradient) */}
             <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -352,7 +311,6 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 3 - Pendentes */}
             <Card className="bg-card border">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -368,7 +326,6 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 4 - Dias para Lançamento (prazo de envio dos colaboradores) */}
             <Card className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -384,7 +341,6 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Card 5 - Dias Restantes do Período de Acúmulo */}
             <Card className="bg-gradient-to-br from-slate-800 to-slate-900 text-white border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -403,7 +359,6 @@ const DashboardRH = () => {
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Expenses by Category */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold">Despesas por Categoria</CardTitle>
@@ -445,7 +400,6 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            {/* Status Distribution */}
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold">Distribuição por Status</CardTitle>
@@ -458,25 +412,17 @@ const DashboardRH = () => {
                         data={data.expensesByStatus}
                         cx="50%"
                         cy="50%"
-                        innerRadius={60}
-                        outerRadius={90}
-                        paddingAngle={2}
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={3}
                         dataKey="value"
-                        label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                        labelLine={false}
                       >
                         {data.expensesByStatus.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip
-                        formatter={(value: number, name: string) => [value, name]}
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--background))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px'
-                        }}
-                      />
+                      <Tooltip formatter={(value: number) => [value, 'Lançamentos']} />
+                      <Legend />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -490,14 +436,35 @@ const DashboardRH = () => {
 
           {/* Bottom Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Monthly Evolution */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Top 5 Colaboradores</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.topColaboradores.length > 0 ? (
+                  <div className="space-y-3">
+                    {data.topColaboradores.map((colab, idx) => (
+                      <div key={idx} className="flex items-center justify-between py-2 border-b border-border/50 last:border-0">
+                        <span className="text-sm truncate max-w-[200px]">{colab.name}</span>
+                        <span className="font-mono text-sm font-medium">{formatCurrency(colab.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[180px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold">Evolução Mensal</CardTitle>
               </CardHeader>
               <CardContent>
                 {data.expensesByMonth.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={200}>
                     <LineChart data={data.expensesByMonth} margin={{ left: 0, right: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis 
@@ -518,72 +485,37 @@ const DashboardRH = () => {
                           borderRadius: '8px'
                         }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="value" 
-                        stroke="hsl(var(--primary))" 
-                        strokeWidth={2}
-                        dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2 }}
-                      />
+                      <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-[220px] text-muted-foreground">
+                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">
                     Sem dados para exibir
                   </div>
                 )}
               </CardContent>
             </Card>
-
-            {/* Right Column: Top Colaboradores + Utilização */}
-            <div className="space-y-6">
-              {/* Top Colaboradores */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Top Colaboradores
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {data.topColaboradores.length > 0 ? (
-                    <div className="space-y-3">
-                      {data.topColaboradores.map((colab, index) => (
-                        <div key={colab.name} className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-sm text-muted-foreground w-5">{index + 1}.</span>
-                            <span className="text-sm font-medium truncate max-w-[180px]">{colab.name}</span>
-                          </div>
-                          <span className="text-sm font-mono font-semibold">{formatCurrency(colab.value)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">Sem dados para exibir</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Utilização Geral */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    Utilização Geral
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Cesta de Benefícios</span>
-                      <span className="text-sm font-semibold">{data.utilizationPercentage}%</span>
-                    </div>
-                    <Progress value={data.utilizationPercentage} className="h-2" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
           </div>
+
+          {/* Quick Actions */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg font-semibold">Ações Rápidas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-3">
+                <Button asChild variant="outline">
+                  <Link to="/lancamentos">Ver Lançamentos</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/colaboradores">Gerenciar Colaboradores</Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/fechamento">Ir para Fechamento</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </>
       )}
     </div>
