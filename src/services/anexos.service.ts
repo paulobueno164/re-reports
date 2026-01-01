@@ -30,6 +30,11 @@ export const anexosService = {
     return apiClient.downloadFile(`/api/attachments/download/${encodeURIComponent(storagePath)}`);
   },
 
+  async getPreviewUrl(storagePath: string): Promise<string> {
+    // Return direct URL for preview
+    return apiClient.getFileUrl(storagePath);
+  },
+
   getFileUrl(storagePath: string): string {
     return apiClient.getFileUrl(storagePath);
   },

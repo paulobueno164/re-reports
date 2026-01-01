@@ -77,6 +77,10 @@ export const authService = {
     await apiClient.delete(`/auth/users/${userId}/roles/${role}`);
   },
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    await apiClient.put('/auth/change-password', { currentPassword, newPassword });
+  },
+
   async requestPasswordReset(email: string): Promise<void> {
     await apiClient.post('/auth/forgot-password', { email }, { skipAuth: true });
   },

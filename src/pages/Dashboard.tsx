@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Calendar, Loader2 } from 'lucide-react';
+import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2 } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
@@ -9,9 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
+import { periodosService, CalendarioPeriodo } from '@/services/periodos.service';
+import { colaboradoresService } from '@/services/colaboradores.service';
+import { lancamentosService } from '@/services/lancamentos.service';
+import { findCurrentPeriod } from '@/lib/utils';
 import {
   BarChart,
   Bar,
@@ -23,7 +26,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  Legend,
   LineChart,
   Line,
 } from 'recharts';
@@ -35,13 +37,6 @@ interface Expense {
   valorLancado: number;
   status: string;
   createdAt: Date;
-}
-
-interface Period {
-  id: string;
-  periodo: string;
-  status: string;
-  data_inicio: string;
 }
 
 interface DashboardData {
@@ -70,7 +65,7 @@ const STATUS_COLORS: Record<string, string> = {
 const Dashboard = () => {
   const { user, hasRole } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [periods, setPeriods] = useState<Period[]>([]);
+  const [periods, setPeriods] = useState<CalendarioPeriodo[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('todos');
@@ -92,37 +87,25 @@ const Dashboard = () => {
   // Fetch all periods and departments on mount
   useEffect(() => {
     const fetchInitialData = async () => {
-      // Fetch periods
-      const { data: allPeriods } = await supabase
-        .from('calendario_periodos')
-        .select('id, periodo, status, data_inicio')
-        .order('data_inicio', { ascending: false });
-
-      if (allPeriods && allPeriods.length > 0) {
-        setPeriods(allPeriods);
-        const today = new Date();
-        let closestPeriod = allPeriods[0];
-        let minDiff = Infinity;
-        
-        for (const p of allPeriods) {
-          const diff = Math.abs(new Date(p.data_inicio).getTime() - today.getTime());
-          if (diff < minDiff) {
-            minDiff = diff;
-            closestPeriod = p;
+      try {
+        // Fetch periods
+        const allPeriods = await periodosService.getAll();
+        if (allPeriods && allPeriods.length > 0) {
+          setPeriods(allPeriods);
+          const currentPeriod = findCurrentPeriod(allPeriods);
+          if (currentPeriod) {
+            setSelectedPeriodId(currentPeriod.id);
           }
         }
-        setSelectedPeriodId(closestPeriod.id);
-      }
 
-      // Fetch departments
-      const { data: colaboradores } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('departamento')
-        .eq('ativo', true);
-
-      if (colaboradores) {
-        const uniqueDepts = [...new Set(colaboradores.map(c => c.departamento))].sort();
-        setDepartments(uniqueDepts);
+        // Fetch departments
+        const colaboradores = await colaboradoresService.getAll();
+        if (colaboradores) {
+          const uniqueDepts = [...new Set(colaboradores.filter(c => c.ativo).map(c => c.departamento))].sort();
+          setDepartments(uniqueDepts);
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
       }
     };
     fetchInitialData();
@@ -139,102 +122,54 @@ const Dashboard = () => {
     setLoading(true);
 
     try {
-      // Find the selected period
       const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
       
-      // Fetch full period data for dias restantes calculation
-      const { data: periodData } = await supabase
-        .from('calendario_periodos')
-        .select('*')
-        .eq('id', selectedPeriodId)
-        .single();
-
-      const diasRestantes = periodData
-        ? Math.max(0, Math.ceil((new Date(periodData.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+      // Calculate days remaining
+      const diasRestantes = selectedPeriod
+        ? Math.max(0, Math.ceil((new Date(selectedPeriod.fecha_lancamento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
         : 0;
 
-      // Fetch total colaboradores (filtered by department)
-      let colaboradoresQuery = supabase
-        .from('colaboradores_elegiveis')
-        .select('*', { count: 'exact', head: true })
-        .eq('ativo', true);
-      
-      if (selectedDepartment !== 'todos') {
-        colaboradoresQuery = colaboradoresQuery.eq('departamento', selectedDepartment);
-      }
-      
-      const { count: totalColaboradores } = await colaboradoresQuery;
+      // Fetch colaboradores
+      const allColaboradores = await colaboradoresService.getAll();
+      const filteredColaboradores = selectedDepartment === 'todos' 
+        ? allColaboradores.filter(c => c.ativo)
+        : allColaboradores.filter(c => c.ativo && c.departamento === selectedDepartment);
+      const colaboradorIds = filteredColaboradores.map(c => c.id);
 
-      // Get colaborador IDs for the selected department
-      let colaboradorIdsQuery = supabase
-        .from('colaboradores_elegiveis')
-        .select('id')
-        .eq('ativo', true);
-      
-      if (selectedDepartment !== 'todos') {
-        colaboradorIdsQuery = colaboradorIdsQuery.eq('departamento', selectedDepartment);
-      }
-      
-      const { data: colaboradorIds } = await colaboradorIdsQuery;
-      const ids = colaboradorIds?.map(c => c.id) || [];
-
-      // Fetch lancamentos for the selected period and department
-      let lancamentosQuery = supabase
-        .from('lancamentos')
-        .select(`
-          id,
-          valor_lancado,
-          valor_considerado,
-          status,
-          created_at,
-          colaborador_id,
-          colaboradores_elegiveis (id, nome, departamento, cesta_beneficios_teto),
-          tipos_despesas (id, nome, grupo)
-        `)
-        .eq('periodo_id', selectedPeriodId)
-        .order('created_at', { ascending: false });
-
-      const { data: allLancamentosPeriodo } = await lancamentosQuery;
+      // Fetch lancamentos for the period
+      const allLancamentos = await lancamentosService.getAll({ periodo_id: selectedPeriodId });
       
       // Filter by department if needed
-      const lancamentos = selectedDepartment === 'todos' 
-        ? allLancamentosPeriodo 
-        : allLancamentosPeriodo?.filter((l: any) => 
-            l.colaboradores_elegiveis?.departamento === selectedDepartment
-          );
+      const lancamentos = selectedDepartment === 'todos'
+        ? allLancamentos
+        : allLancamentos.filter((l: any) => colaboradorIds.includes(l.colaborador_id));
 
-      // Fetch ALL pending lancamentos (filtered by department) for the pendentesValidacao count
-      const { data: allPendingLancamentosRaw } = await supabase
-        .from('lancamentos')
-        .select('id, status, colaborador_id, colaboradores_elegiveis (departamento)')
-        .in('status', ['enviado', 'em_analise']);
-      
-      const allPendingLancamentos = selectedDepartment === 'todos'
-        ? allPendingLancamentosRaw
-        : allPendingLancamentosRaw?.filter((l: any) => 
-            l.colaboradores_elegiveis?.departamento === selectedDepartment
-          );
+      // Fetch all pending lancamentos
+      const allPendingLancamentos = await lancamentosService.getAll({ status: 'enviado' });
+      const allEmAnaliseLancamentos = await lancamentosService.getAll({ status: 'em_analise' });
+      const pendingFiltered = [...allPendingLancamentos, ...allEmAnaliseLancamentos].filter((l: any) => 
+        selectedDepartment === 'todos' || colaboradorIds.includes(l.colaborador_id)
+      );
 
       // Calculate totals
-      const totalLancamentosMes = lancamentos?.length || 0;
-      const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
-      // Use ALL pending lancamentos for the card, not just current period
-      const pendentesValidacao = allPendingLancamentos?.length || 0;
+      const totalLancamentosMes = lancamentos.length;
+      const valorTotalMes = lancamentos.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0);
+      const pendentesValidacao = pendingFiltered.length;
 
       // Recent expenses
-      const recentExpenses: Expense[] = (lancamentos || []).slice(0, 5).map((l: any) => ({
+      const recentExpenses: Expense[] = lancamentos.slice(0, 5).map((l: any) => ({
         id: l.id,
-        colaboradorNome: l.colaboradores_elegiveis?.nome || '',
-        tipoDespesaNome: l.tipos_despesas?.nome || '',
+        colaboradorNome: l.colaborador?.nome || '',
+        tipoDespesaNome: l.tipo_despesa?.nome || '',
         valorLancado: Number(l.valor_lancado),
         status: l.status,
         createdAt: new Date(l.created_at),
       }));
 
-      // Expenses by category (group)
+      // Expenses by category
       const categoryMap = new Map<string, number>();
-      lancamentos?.forEach((l: any) => {
-        const grupo = l.tipos_despesas?.grupo || 'Outros';
+      lancamentos.forEach((l: any) => {
+        const grupo = l.tipo_despesa?.grupo || 'Outros';
         categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
       });
       const expensesByCategory = Array.from(categoryMap.entries())
@@ -244,7 +179,7 @@ const Dashboard = () => {
 
       // Expenses by status
       const statusMap = new Map<string, number>();
-      lancamentos?.forEach((l: any) => {
+      lancamentos.forEach((l: any) => {
         statusMap.set(l.status, (statusMap.get(l.status) || 0) + 1);
       });
       const statusLabels: Record<string, string> = {
@@ -261,8 +196,8 @@ const Dashboard = () => {
 
       // Top colaboradores
       const colaboradorMap = new Map<string, number>();
-      lancamentos?.forEach((l: any) => {
-        const nome = l.colaboradores_elegiveis?.nome || 'Desconhecido';
+      lancamentos.forEach((l: any) => {
+        const nome = l.colaborador?.nome || 'Desconhecido';
         colaboradorMap.set(nome, (colaboradorMap.get(nome) || 0) + Number(l.valor_considerado));
       });
       const topColaboradores = Array.from(colaboradorMap.entries())
@@ -270,8 +205,8 @@ const Dashboard = () => {
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
 
-      // Utilization calculation - simplified without cesta_beneficios_teto
-      const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
+      // Utilization
+      const totalUtilizado = lancamentos.filter((l: any) => l.status === 'valido').reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0);
       const utilizationData = {
         used: totalUtilizado,
         available: 0,
@@ -280,16 +215,16 @@ const Dashboard = () => {
       };
 
       // Expenses by month (last 6 months)
-      const { data: allLancamentos } = await supabase
-        .from('lancamentos')
-        .select('valor_considerado, created_at')
-        .gte('created_at', new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString());
-
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const allLancamentosRecent = await lancamentosService.getAll({});
       const monthMap = new Map<string, number>();
-      allLancamentos?.forEach((l: any) => {
+      allLancamentosRecent.forEach((l: any) => {
         const date = new Date(l.created_at);
-        const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
-        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
+        if (date >= sixMonthsAgo) {
+          const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
+          monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
+        }
       });
       const expensesByMonth = Array.from(monthMap.entries())
         .map(([month, value]) => ({ month, value }))
@@ -300,11 +235,11 @@ const Dashboard = () => {
         });
 
       setData({
-        totalColaboradores: totalColaboradores || 0,
+        totalColaboradores: filteredColaboradores.length,
         totalLancamentosMes,
         valorTotalMes,
         pendentesValidacao,
-        periodoAtual: periodData?.periodo || null,
+        periodoAtual: selectedPeriod?.periodo || null,
         diasRestantes,
         recentExpenses,
         expensesByCategory,
