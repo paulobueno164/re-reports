@@ -17,6 +17,11 @@ router.get('/colaboradores', requireRole('RH', 'FINANCEIRO'), async (req, res) =
   const result = await colaboradorService.getAllColaboradores(req.query as any);
   res.json(result);
 });
+router.get('/colaboradores/user/:userId', async (req: AuthenticatedRequest, res) => {
+  const result = await colaboradorService.getColaboradorByUserId(req.params.userId);
+  if (!result) return res.status(404).json({ error: 'Colaborador não encontrado' });
+  res.json(result);
+});
 router.get('/colaboradores/:id', async (req: AuthenticatedRequest, res) => {
   const result = await colaboradorService.getColaboradorById(req.params.id);
   res.json(result);
