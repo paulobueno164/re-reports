@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { authService } from '@/services/auth.service';
 import { z } from 'zod';
 
 const passwordSchema = z.object({
@@ -52,26 +52,7 @@ const Perfil = () => {
     setChangingPassword(true);
 
     try {
-      // First verify the current password by signing in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user?.email || '',
-        password: currentPassword,
-      });
-
-      if (signInError) {
-        setPasswordError('Senha atual incorreta');
-        setChangingPassword(false);
-        return;
-      }
-
-      // Update the password
-      const { error: updateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateError) {
-        throw updateError;
-      }
+      await authService.changePassword(currentPassword, newPassword);
 
       setPasswordSuccess(true);
       setCurrentPassword('');

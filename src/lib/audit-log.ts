@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import apiClient from '@/lib/api-client';
 
 interface AuditLogEntry {
   userId: string;
@@ -13,19 +13,19 @@ interface AuditLogEntry {
 }
 
 export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
-  const { error } = await supabase.from('audit_logs').insert({
-    user_id: entry.userId,
-    user_name: entry.userName,
-    action: entry.action,
-    entity_type: entry.entityType,
-    entity_id: entry.entityId,
-    entity_description: entry.entityDescription,
-    old_values: entry.oldValues,
-    new_values: entry.newValues,
-    metadata: entry.metadata,
-  });
-
-  if (error) {
+  try {
+    await apiClient.post('/api/audit-logs', {
+      user_id: entry.userId,
+      user_name: entry.userName,
+      action: entry.action,
+      entity_type: entry.entityType,
+      entity_id: entry.entityId,
+      entity_description: entry.entityDescription,
+      old_values: entry.oldValues,
+      new_values: entry.newValues,
+      metadata: entry.metadata,
+    });
+  } catch (error) {
     console.error('Failed to create audit log:', error);
   }
 }
@@ -38,29 +38,27 @@ export async function getAuditLogs(options?: {
   endDate?: Date;
   limit?: number;
 }) {
-  let query = supabase
-    .from('audit_logs')
-    .select('*')
-    .order('created_at', { ascending: false });
-
+  const params = new URLSearchParams();
+  
   if (options?.entityType) {
-    query = query.eq('entity_type', options.entityType);
+    params.append('entityType', options.entityType);
   }
   if (options?.entityId) {
-    query = query.eq('entity_id', options.entityId);
+    params.append('entityId', options.entityId);
   }
   if (options?.userId) {
-    query = query.eq('user_id', options.userId);
+    params.append('userId', options.userId);
   }
   if (options?.startDate) {
-    query = query.gte('created_at', options.startDate.toISOString());
+    params.append('startDate', options.startDate.toISOString());
   }
   if (options?.endDate) {
-    query = query.lte('created_at', options.endDate.toISOString());
+    params.append('endDate', options.endDate.toISOString());
   }
   if (options?.limit) {
-    query = query.limit(options.limit);
+    params.append('limit', String(options.limit));
   }
 
-  return query;
+  const query = params.toString();
+  return apiClient.get(`/api/audit-logs${query ? `?${query}` : ''}`);
 }

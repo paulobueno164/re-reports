@@ -9,12 +9,12 @@ import {
   Clock,
   Search,
   Loader2,
-  FileText
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
 import { formatDate } from '@/lib/expense-validation';
+import { auditService, AuditLog } from '@/services/audit.service';
+import { lancamentosService } from '@/services/lancamentos.service';
 
 interface TimelineEvent {
   id: string;
@@ -76,62 +76,57 @@ export const ExpenseTimeline = ({ expenseId }: ExpenseTimelineProps) => {
   const fetchTimeline = async () => {
     setLoading(true);
 
-    // Fetch the expense to get creation info
-    const { data: expense } = await supabase
-      .from('lancamentos')
-      .select('*, colaboradores_elegiveis(nome)')
-      .eq('id', expenseId)
-      .single();
+    try {
+      // Fetch the expense to get creation info
+      const expense = await lancamentosService.getById(expenseId);
 
-    // Fetch audit logs for this expense
-    const { data: logs } = await supabase
-      .from('audit_logs')
-      .select('*')
-      .eq('entity_type', 'lancamento')
-      .eq('entity_id', expenseId)
-      .order('created_at', { ascending: true });
+      // Fetch audit logs for this expense
+      const logs = await auditService.getByEntity('lancamento', expenseId);
 
-    const timelineEvents: TimelineEvent[] = [];
+      const timelineEvents: TimelineEvent[] = [];
 
-    // Add creation event (from expense record itself if no audit log)
-    if (expense) {
-      const hasCreateLog = logs?.some(l => l.action === 'criar');
-      if (!hasCreateLog) {
+      // Add creation event (from expense record itself if no audit log)
+      if (expense) {
+        const hasCreateLog = logs?.some(l => l.action === 'criar');
+        if (!hasCreateLog) {
+          timelineEvents.push({
+            id: 'create-' + expense.id,
+            type: 'criar',
+            timestamp: new Date(expense.created_at),
+            userName: expense.colaborador?.nome || 'Colaborador',
+            description: 'Lançamento criado e enviado para análise',
+          });
+        }
+      }
+
+      // Add audit log events
+      logs?.forEach(log => {
+        let eventType = log.action as TimelineEvent['type'];
+        
+        // Map status changes to appropriate event types
+        const newValues = log.new_values as Record<string, any> | null;
+        if (log.action === 'atualizar' && newValues?.status === 'enviado') {
+          eventType = 'enviar';
+        }
+
         timelineEvents.push({
-          id: 'create-' + expense.id,
-          type: 'criar',
-          timestamp: new Date(expense.created_at),
-          userName: expense.colaboradores_elegiveis?.nome || 'Colaborador',
-          description: 'Lançamento criado e enviado para análise',
+          id: log.id,
+          type: eventType,
+          timestamp: new Date(log.created_at),
+          userName: log.user_name,
+          description: log.entity_description || undefined,
+          oldValues: log.old_values,
+          newValues: log.new_values,
         });
-      }
-    }
-
-    // Add audit log events
-    logs?.forEach(log => {
-      let eventType = log.action as TimelineEvent['type'];
-      
-      // Map status changes to appropriate event types
-      const newValues = log.new_values as Record<string, any> | null;
-      if (log.action === 'atualizar' && newValues?.status === 'enviado') {
-        eventType = 'enviar';
-      }
-
-      timelineEvents.push({
-        id: log.id,
-        type: eventType,
-        timestamp: new Date(log.created_at),
-        userName: log.user_name,
-        description: log.entity_description || undefined,
-        oldValues: log.old_values,
-        newValues: log.new_values,
       });
-    });
 
-    // Sort by timestamp
-    timelineEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+      // Sort by timestamp
+      timelineEvents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-    setEvents(timelineEvents);
+      setEvents(timelineEvents);
+    } catch (error) {
+      console.error('Error fetching timeline:', error);
+    }
     setLoading(false);
   };
 

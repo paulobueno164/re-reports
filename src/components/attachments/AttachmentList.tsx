@@ -18,8 +18,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { anexosService, Anexo } from '@/services/anexos.service';
 
 interface Attachment {
   id: string;
@@ -52,12 +52,8 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
 
   const fetchAttachments = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('anexos')
-      .select('*')
-      .eq('lancamento_id', lancamentoId);
-
-    if (!error && data) {
+    try {
+      const data = await anexosService.getByLancamentoId(lancamentoId);
       const mapped = data.map((a) => ({
         id: a.id,
         nomeArquivo: a.nome_arquivo,
@@ -74,29 +70,27 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       } else {
         setInlinePreviewUrl(null);
       }
+    } catch (error) {
+      console.error('Error fetching attachments:', error);
     }
     setLoading(false);
   };
 
   const loadInlinePreview = async (attachment: Attachment) => {
     setLoadingInlinePreview(true);
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .createSignedUrl(attachment.storagePath, 60 * 10); // 10 min expiry
-
-    if (!error && data) {
-      setInlinePreviewUrl(data.signedUrl);
+    try {
+      const url = anexosService.getFileUrl(attachment.storagePath);
+      setInlinePreviewUrl(url);
+    } catch (error) {
+      console.error('Error loading preview:', error);
     }
     setLoadingInlinePreview(false);
   };
 
   const handleDownload = async (attachment: Attachment) => {
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .download(attachment.storagePath);
-
-    if (!error && data) {
-      const url = URL.createObjectURL(data);
+    try {
+      const blob = await anexosService.download(attachment.storagePath);
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = attachment.nomeArquivo;
@@ -104,34 +98,29 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: 'Erro ao baixar',
+        description: 'Não foi possível baixar o arquivo',
+        variant: 'destructive',
+      });
     }
   };
 
   const handlePreview = async (attachment: Attachment) => {
-    const { data, error } = await supabase.storage
-      .from('comprovantes')
-      .createSignedUrl(attachment.storagePath, 60 * 5);
-
-    if (!error && data) {
-      if (attachment.tipoArquivo.startsWith('image/')) {
-        setPreviewUrl(data.signedUrl);
-        setPreviewOpen(true);
-      } else {
-        window.open(data.signedUrl, '_blank');
-      }
+    const url = anexosService.getFileUrl(attachment.storagePath);
+    if (attachment.tipoArquivo.startsWith('image/')) {
+      setPreviewUrl(url);
+      setPreviewOpen(true);
+    } else {
+      window.open(url, '_blank');
     }
   };
 
   const handleDelete = async (attachment: Attachment) => {
     setDeleting(attachment.id);
     try {
-      // Delete from storage
-      await supabase.storage.from('comprovantes').remove([attachment.storagePath]);
-
-      // Delete from database
-      const { error } = await supabase.from('anexos').delete().eq('id', attachment.id);
-
-      if (error) throw error;
+      await anexosService.delete(attachment.id);
 
       toast({
         title: 'Comprovante removido',
