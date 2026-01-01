@@ -13,13 +13,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/expense-validation';
 import { findCurrentPeriod } from '@/lib/utils';
 import { generatePDFReport } from '@/lib/pdf-export';
 import { exportToExcel } from '@/lib/excel-export';
 import { generateZipWithPDFs } from '@/lib/zip-export';
+import { colaboradoresService } from '@/services/colaboradores.service';
+import { periodosService } from '@/services/periodos.service';
+import { lancamentosService } from '@/services/lancamentos.service';
 
 interface Colaborador {
   id: string;
@@ -62,13 +64,11 @@ const Relatorios = () => {
   const [batchSearch, setBatchSearch] = useState('');
   const [myColaboradorId, setMyColaboradorId] = useState<string | null>(null);
 
-
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
   const canGenerateBatch = hasRole('FINANCEIRO');
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
-  // Memoized options for comboboxes
   const periodOptions: ComboboxOption[] = useMemo(() => 
     periodos.map((p) => ({
       value: p.id,
@@ -98,7 +98,6 @@ const Relatorios = () => {
     }
   }, [selectedPeriod, selectedColaborador]);
 
-  // Auto-select colaborador for COLABORADOR role
   useEffect(() => {
     if (myColaboradorId && !selectedColaborador) {
       setSelectedColaborador(myColaboradorId);
@@ -107,35 +106,33 @@ const Relatorios = () => {
 
   const fetchData = async () => {
     setLoading(true);
-    
-    // For COLABORADOR, first fetch their own colaborador ID
-    if (user && !isRHorFinanceiro) {
-      const { data: myColab } = await supabase
-        .from('colaboradores_elegiveis')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (myColab) {
-        setMyColaboradorId(myColab.id);
-        setSelectedColaborador(myColab.id);
-      }
-    }
-    
-    const [colaboradoresRes, periodosRes] = await Promise.all([
-      supabase.from('colaboradores_elegiveis').select('*').eq('ativo', true).order('nome'),
-      supabase.from('calendario_periodos').select('id, periodo, status, data_inicio, data_final').order('periodo', { ascending: false }),
-    ]);
-    if (colaboradoresRes.data) setColaboradores(colaboradoresRes.data as any);
-    if (periodosRes.data) {
-      setPeriodos(periodosRes.data);
-      // Auto-select current period based on today's date
-      if (!selectedPeriod) {
-        const currentPeriod = findCurrentPeriod(periodosRes.data);
-        if (currentPeriod) {
-          setSelectedPeriod(currentPeriod.id);
+    try {
+      // For COLABORADOR, first fetch their own colaborador ID
+      if (user && !isRHorFinanceiro) {
+        const myColab = await colaboradoresService.getByUserId(user.id);
+        if (myColab) {
+          setMyColaboradorId(myColab.id);
+          setSelectedColaborador(myColab.id);
         }
       }
+      
+      const [colaboradoresData, periodosData] = await Promise.all([
+        colaboradoresService.getAll({ ativo: true }),
+        periodosService.getAll(),
+      ]);
+      
+      if (colaboradoresData) setColaboradores(colaboradoresData as any);
+      if (periodosData) {
+        setPeriodos(periodosData);
+        if (!selectedPeriod) {
+          const currentPeriod = findCurrentPeriod(periodosData);
+          if (currentPeriod) {
+            setSelectedPeriod(currentPeriod.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados:', error);
     }
     setLoading(false);
   };
@@ -145,49 +142,52 @@ const Relatorios = () => {
     if (!colaborador) return;
     const periodo = periodos.find((p) => p.id === selectedPeriod);
 
-    const { data: lancamentos } = await supabase
-      .from('lancamentos')
-      .select('id, valor_lancado, valor_considerado, status, origem, created_at, tipos_despesas (nome, grupo)')
-      .eq('colaborador_id', selectedColaborador)
-      .eq('periodo_id', selectedPeriod);
+    try {
+      const lancamentos = await lancamentosService.getAll({ 
+        colaborador_id: selectedColaborador, 
+        periodo_id: selectedPeriod 
+      });
 
-    const despesas = lancamentos || [];
-    const aprovados = despesas.filter((d: any) => d.status === 'valido');
-    const pendentes = despesas.filter((d: any) => d.status === 'enviado' || d.status === 'em_analise');
-    const categorias: Record<string, number> = {};
-    aprovados.forEach((d: any) => {
-      const grupo = d.tipos_despesas?.grupo || 'Outros';
-      categorias[grupo] = (categorias[grupo] || 0) + Number(d.valor_considerado);
-    });
+      const despesas = lancamentos || [];
+      const aprovados = despesas.filter((d: any) => d.status === 'valido');
+      const pendentes = despesas.filter((d: any) => d.status === 'enviado' || d.status === 'em_analise');
+      const categorias: Record<string, number> = {};
+      aprovados.forEach((d: any) => {
+        const grupo = d.tipo_despesa?.grupo || 'Outros';
+        categorias[grupo] = (categorias[grupo] || 0) + Number(d.valor_considerado);
+      });
 
-    const totalCesta = aprovados.reduce((acc: number, d: any) => acc + Number(d.valor_considerado), 0);
-    const totalPendente = pendentes.reduce((acc: number, d: any) => acc + Number(d.valor_lancado), 0);
+      const totalCesta = aprovados.reduce((acc: number, d: any) => acc + Number(d.valor_considerado), 0);
+      const totalPendente = pendentes.reduce((acc: number, d: any) => acc + Number(d.valor_lancado), 0);
 
-    const resumo = [
-      { componente: 'Salário Base', valorParametrizado: colaborador.salario_base, valorUtilizado: colaborador.salario_base, percentual: 100 },
-      { componente: 'Vale Alimentação', valorParametrizado: colaborador.vale_alimentacao, valorUtilizado: colaborador.vale_alimentacao, percentual: 100 },
-      { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
-      { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
-      { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-      { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
-    ];
+      const resumo = [
+        { componente: 'Salário Base', valorParametrizado: colaborador.salario_base, valorUtilizado: colaborador.salario_base, percentual: 100 },
+        { componente: 'Vale Alimentação', valorParametrizado: colaborador.vale_alimentacao, valorUtilizado: colaborador.vale_alimentacao, percentual: 100 },
+        { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
+        { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
+        { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
+        { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
+      ];
 
-    if (colaborador.tem_pida) {
-      resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
+      if (colaborador.tem_pida) {
+        resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
+      }
+
+      setPreviewData({
+        colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
+        periodo: periodo?.periodo || '',
+        resumo,
+        rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
+        utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, totalPendente, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
+        despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
+        totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor })),
+        totalLancamentos: despesas.length,
+        qtdAprovados: aprovados.length,
+        qtdPendentes: pendentes.length,
+      });
+    } catch (error) {
+      console.error('Erro ao buscar preview:', error);
     }
-
-    setPreviewData({
-      colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
-      periodo: periodo?.periodo || '',
-      resumo,
-      rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
-      utilizacao: { limiteCesta: 0, totalUtilizado: totalCesta, totalPendente, percentual: 0, diferencaPida: 0 },
-      despesas: despesas.map((d: any) => ({ tipo: d.tipos_despesas?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
-      totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor })),
-      totalLancamentos: despesas.length,
-      qtdAprovados: aprovados.length,
-      qtdPendentes: pendentes.length,
-    });
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -204,7 +204,6 @@ const Relatorios = () => {
     if (!previewData) return;
     setGenerating(true);
     try {
-      // Filter despesas based on includePendentes option
       const filteredDespesas = includePendentes 
         ? previewData.despesas 
         : previewData.despesas.filter((d: any) => d.status === 'valido');
@@ -260,38 +259,42 @@ const Relatorios = () => {
     for (const empId of selectedEmployees) {
       const colaborador = colaboradores.find((c) => c.id === empId);
       if (!colaborador || !periodo) continue;
-      const { data: lancamentos } = await supabase.from('lancamentos').select('id, valor_lancado, valor_considerado, status, origem, created_at, tipos_despesas (nome, grupo)').eq('colaborador_id', empId).eq('periodo_id', selectedPeriod);
-      const despesas = lancamentos || [];
-      const aprovados = despesas.filter((d: any) => d.status === 'valido');
-      const totalCesta = aprovados.reduce((acc: number, d: any) => acc + Number(d.valor_considerado), 0);
-      const resumo = [
-        { componente: 'Salário Base', valorParametrizado: colaborador.salario_base, valorUtilizado: colaborador.salario_base, percentual: 100 },
-        { componente: 'Vale Alimentação', valorParametrizado: colaborador.vale_alimentacao, valorUtilizado: colaborador.vale_alimentacao, percentual: 100 },
-        { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
-        { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
-        { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-        { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
-      ];
-      if (colaborador.tem_pida) {
-        resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
+      
+      try {
+        const lancamentos = await lancamentosService.getAll({ colaborador_id: empId, periodo_id: selectedPeriod });
+        const despesas = lancamentos || [];
+        const aprovados = despesas.filter((d: any) => d.status === 'valido');
+        const totalCesta = aprovados.reduce((acc: number, d: any) => acc + Number(d.valor_considerado), 0);
+        const resumo = [
+          { componente: 'Salário Base', valorParametrizado: colaborador.salario_base, valorUtilizado: colaborador.salario_base, percentual: 100 },
+          { componente: 'Vale Alimentação', valorParametrizado: colaborador.vale_alimentacao, valorUtilizado: colaborador.vale_alimentacao, percentual: 100 },
+          { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
+          { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
+          { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
+          { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
+        ];
+        if (colaborador.tem_pida) {
+          resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
+        }
+        const reportData = {
+          colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
+          periodo: periodo.periodo,
+          resumo,
+          rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
+          utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
+          despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
+          totaisPorCategoria: [],
+        };
+        const blob = await generatePDFReport(reportData);
+        pdfFiles.push({
+          name: `Extrato_${colaborador.matricula}_${colaborador.nome.replace(/\s/g, '_')}_${periodo.periodo}.pdf`,
+          blob,
+        });
+      } catch (error) {
+        console.error(`Erro ao gerar PDF para ${colaborador.nome}:`, error);
       }
-      const reportData = {
-        colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
-        periodo: periodo.periodo,
-        resumo,
-        rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
-        utilizacao: { limiteCesta: 0, totalUtilizado: totalCesta, percentual: 0, diferencaPida: 0 },
-        despesas: despesas.map((d: any) => ({ tipo: d.tipos_despesas?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
-        totaisPorCategoria: [],
-      };
-      const blob = await generatePDFReport(reportData);
-      pdfFiles.push({
-        name: `Extrato_${colaborador.matricula}_${colaborador.nome.replace(/\s/g, '_')}_${periodo.periodo}.pdf`,
-        blob,
-      });
     }
     
-    // Generate ZIP with all PDFs
     const zipBlob = await generateZipWithPDFs(pdfFiles);
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -383,7 +386,6 @@ const Relatorios = () => {
             <Card>
               <CardHeader><CardTitle className="text-lg flex items-center justify-between">Prévia do Extrato<span className="text-sm font-normal text-muted-foreground">{previewData.colaborador.nome} - {previewData.periodo}</span></CardTitle></CardHeader>
               <CardContent className="space-y-6">
-                {/* Alert when no expenses in period */}
                 {previewData.totalLancamentos === 0 && (
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
@@ -393,7 +395,6 @@ const Relatorios = () => {
                   </Alert>
                 )}
                 
-                {/* Alert for pending expenses */}
                 {previewData.qtdPendentes > 0 && (
                   <Alert className="border-warning/50 bg-warning/10">
                     <Clock className="h-4 w-4 text-warning" />
@@ -412,7 +413,7 @@ const Relatorios = () => {
                     <table className="w-full text-sm min-w-[400px]">
                       <thead><tr className="bg-muted/50"><th className="text-left px-3 sm:px-4 py-2 font-medium">Componente</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">Parametrizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium">Utilizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">%</th></tr></thead>
                       <tbody>
-                        {previewData.resumo.map((item: any, i: number) => <tr key={i} className="border-t"><td className="px-3 sm:px-4 py-2">{item.componente}</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(item.valorParametrizado)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(item.valorUtilizado)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">{item.percentual > 0 ? `${item.percentual}%` : '-'}</td></tr>)}
+                        {previewData.resumo.map((item: any, i: number) => <tr key={i} className="border-t"><td className="px-3 sm:px-4 py-2">{item.componente}</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(item.valorParametrizado)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(item.valorUtilizado)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">{item.percentual > 0 ? `${Math.round(item.percentual)}%` : '-'}</td></tr>)}
                         <tr className="border-t bg-primary/5 font-bold"><td className="px-3 sm:px-4 py-2">Rendimento Total</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">100%</td></tr>
                       </tbody>
                     </table>
@@ -433,7 +434,6 @@ const Relatorios = () => {
                   <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
                 </div>
                 
-                {/* Detailed expenses list */}
                 {previewData.despesas.length > 0 && (
                   <>
                     <Separator />
