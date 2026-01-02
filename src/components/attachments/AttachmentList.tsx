@@ -79,7 +79,7 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   const loadInlinePreview = async (attachment: Attachment) => {
     setLoadingInlinePreview(true);
     try {
-      const url = anexosService.getFileUrl(attachment.storagePath);
+      const url = anexosService.getViewUrl(attachment.id);
       setInlinePreviewUrl(url);
     } catch (error) {
       console.error('Error loading preview:', error);
@@ -89,7 +89,7 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
 
   const handleDownload = async (attachment: Attachment) => {
     try {
-      const blob = await anexosService.download(attachment.storagePath);
+      const blob = await anexosService.download(attachment.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -108,7 +108,7 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   };
 
   const handlePreview = async (attachment: Attachment) => {
-    const url = anexosService.getFileUrl(attachment.storagePath);
+    const url = anexosService.getViewUrl(attachment.id);
     if (attachment.tipoArquivo.startsWith('image/')) {
       setPreviewUrl(url);
       setPreviewOpen(true);

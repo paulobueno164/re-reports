@@ -194,3 +194,119 @@ export const removeUserRole = async (userId: string, role: AppRole): Promise<voi
     [userId, role]
   );
 };
+
+// Listar todos usuários com profiles e roles
+export interface UserWithRoles {
+  id: string;
+  email: string;
+  nome: string;
+  avatar_url: string | null;
+  roles: AppRole[];
+  created_at: string;
+}
+
+export const getAllUsers = async (): Promise<UserWithRoles[]> => {
+  const result = await query(
+    `SELECT p.id, p.email, p.nome, p.avatar_url, p.created_at,
+            COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') as roles
+     FROM profiles p
+     LEFT JOIN user_roles ur ON ur.user_id = p.id
+     GROUP BY p.id, p.email, p.nome, p.avatar_url, p.created_at
+     ORDER BY p.nome`
+  );
+  return result.rows;
+};
+
+// Trocar senha do próprio usuário (valida senha atual)
+export const changePassword = async (
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> => {
+  // Buscar hash da senha atual
+  const userResult = await query(
+    'SELECT password_hash FROM auth.users WHERE id = $1',
+    [userId]
+  );
+
+  if (userResult.rows.length === 0) {
+    throw new Error('Usuário não encontrado');
+  }
+
+  // Verificar senha atual
+  const isValidPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+  if (!isValidPassword) {
+    throw new Error('Senha atual incorreta');
+  }
+
+  // Atualizar para nova senha
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await query(
+    'UPDATE auth.users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+    [passwordHash, userId]
+  );
+};
+
+// Solicitar reset de senha
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  const userResult = await query(
+    'SELECT id FROM auth.users WHERE email = $1',
+    [email.toLowerCase()]
+  );
+
+  if (userResult.rows.length === 0) {
+    // Não revelar se email existe
+    return;
+  }
+
+  const userId = userResult.rows[0].id;
+  const token = uuidv4();
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+  // Salvar token (usando raw_user_meta_data para simplificar)
+  await query(
+    `UPDATE auth.users 
+     SET raw_user_meta_data = jsonb_set(
+       COALESCE(raw_user_meta_data, '{}'::jsonb),
+       '{reset_token}',
+       $1::jsonb
+     )
+     WHERE id = $2`,
+    [JSON.stringify({ token, expires_at: expiresAt.toISOString() }), userId]
+  );
+
+  // TODO: Enviar email com link de reset
+  console.log(`Password reset token for ${email}: ${token}`);
+};
+
+// Resetar senha com token
+export const resetPassword = async (token: string, newPassword: string): Promise<void> => {
+  // Buscar usuário com este token
+  const result = await query(
+    `SELECT id, raw_user_meta_data FROM auth.users 
+     WHERE raw_user_meta_data->'reset_token'->>'token' = $1`,
+    [token]
+  );
+
+  if (result.rows.length === 0) {
+    throw new Error('Token inválido ou expirado');
+  }
+
+  const user = result.rows[0];
+  const resetData = user.raw_user_meta_data?.reset_token;
+
+  if (!resetData || new Date(resetData.expires_at) < new Date()) {
+    throw new Error('Token inválido ou expirado');
+  }
+
+  // Atualizar senha e limpar token
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await query(
+    `UPDATE auth.users 
+     SET password_hash = $1, 
+         raw_user_meta_data = raw_user_meta_data - 'reset_token',
+         updated_at = NOW() 
+     WHERE id = $2`,
+    [passwordHash, user.id]
+  );
+};

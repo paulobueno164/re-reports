@@ -80,7 +80,7 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
     setRotation(0);
 
     try {
-      const url = anexosService.getFileUrl(attachment.storagePath);
+      const url = anexosService.getViewUrl(attachment.id);
       
       if (attachment.tipoArquivo.startsWith('image/')) {
         setPreviewType('image');
@@ -268,7 +268,7 @@ function AttachmentThumbnail({
 
   const loadThumbnail = async () => {
     try {
-      const url = anexosService.getFileUrl(attachment.storagePath);
+      const url = anexosService.getViewUrl(attachment.id);
       setThumbnailUrl(url);
     } catch (error) {
       console.error('Error loading thumbnail:', error);

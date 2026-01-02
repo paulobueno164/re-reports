@@ -127,8 +127,8 @@ class ApiClient {
     return response.blob();
   }
 
-  getFileUrl(storagePath: string): string {
-    return `${this.baseUrl}/api/attachments/download/${encodeURIComponent(storagePath)}`;
+  getFileUrl(anexoId: string): string {
+    return `${this.baseUrl}/api/anexos/${anexoId}/view`;
   }
 }
 

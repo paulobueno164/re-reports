@@ -13,30 +13,23 @@ export interface Anexo {
 
 export const anexosService = {
   async getByLancamentoId(lancamentoId: string): Promise<Anexo[]> {
-    return apiClient.get<Anexo[]>(`/api/attachments/${lancamentoId}`);
+    return apiClient.get<Anexo[]>(`/api/lancamentos/${lancamentoId}/anexos`);
   },
 
   async upload(lancamentoId: string, file: File): Promise<Anexo> {
-    return apiClient.uploadFile('/api/attachments/upload', file, {
-      lancamento_id: lancamentoId,
-    });
+    return apiClient.uploadFile(`/api/lancamentos/${lancamentoId}/anexos`, file);
   },
 
   async delete(anexoId: string): Promise<void> {
-    await apiClient.delete(`/api/attachments/${anexoId}`);
+    await apiClient.delete(`/api/anexos/${anexoId}`);
   },
 
-  async download(storagePath: string): Promise<Blob> {
-    return apiClient.downloadFile(`/api/attachments/download/${encodeURIComponent(storagePath)}`);
+  async download(anexoId: string): Promise<Blob> {
+    return apiClient.downloadFile(`/api/anexos/${anexoId}/download`);
   },
 
-  async getPreviewUrl(storagePath: string): Promise<string> {
-    // Return direct URL for preview
-    return apiClient.getFileUrl(storagePath);
-  },
-
-  getFileUrl(storagePath: string): string {
-    return apiClient.getFileUrl(storagePath);
+  getViewUrl(anexoId: string): string {
+    return apiClient.getFileUrl(anexoId);
   },
 };
 
