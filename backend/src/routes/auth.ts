@@ -136,4 +136,19 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// Trocar própria senha (usuário autenticado)
+router.put('/change-password', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { currentPassword, newPassword } = z.object({
+      currentPassword: z.string().min(1),
+      newPassword: z.string().min(6),
+    }).parse(req.body);
+    
+    await authService.changePassword(req.user!.id, currentPassword, newPassword);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 export default router;

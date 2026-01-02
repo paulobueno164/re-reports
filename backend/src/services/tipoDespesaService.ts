@@ -243,3 +243,38 @@ export const unlinkTipoDespesaFromColaborador = async (
     [colaboradorId, tipoDespesaId]
   );
 };
+
+// Atualizar tipos de despesa de um colaborador em batch
+export const updateColaboradorTiposDespesas = async (
+  colaboradorId: string,
+  tiposDespesaIds: string[]
+): Promise<void> => {
+  await transaction(async (client) => {
+    // Desativar todos os vínculos atuais
+    await client.query(
+      'UPDATE colaborador_tipos_despesas SET ativo = false WHERE colaborador_id = $1',
+      [colaboradorId]
+    );
+
+    // Ativar/criar os novos vínculos
+    for (const tipoDespesaId of tiposDespesaIds) {
+      const existing = await client.query(
+        'SELECT id FROM colaborador_tipos_despesas WHERE colaborador_id = $1 AND tipo_despesa_id = $2',
+        [colaboradorId, tipoDespesaId]
+      );
+
+      if (existing.rows.length > 0) {
+        await client.query(
+          'UPDATE colaborador_tipos_despesas SET ativo = true WHERE colaborador_id = $1 AND tipo_despesa_id = $2',
+          [colaboradorId, tipoDespesaId]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO colaborador_tipos_despesas (id, colaborador_id, tipo_despesa_id, ativo, created_at)
+           VALUES (gen_random_uuid(), $1, $2, true, NOW())`,
+          [colaboradorId, tipoDespesaId]
+        );
+      }
+    }
+  });
+};

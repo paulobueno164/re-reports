@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { lancamentosService } from '@/services/lancamentos.service';
+import { colaboradoresService } from '@/services/colaboradores.service';
 
 interface Notification {
   id: string;
@@ -13,11 +14,15 @@ interface Notification {
   data?: any;
 }
 
+const POLLING_INTERVAL = 30000; // 30 segundos
+
 export function useRealtimeNotifications() {
   const { user, hasRole } = useAuth();
   const { toast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const lastCheckRef = useRef<Date>(new Date());
+  const knownIdsRef = useRef<Set<string>>(new Set());
 
   const addNotification = useCallback((notification: Omit<Notification, 'id' | 'createdAt' | 'read'>) => {
     const newNotification: Notification = {
@@ -27,10 +32,9 @@ export function useRealtimeNotifications() {
       read: false,
     };
 
-    setNotifications((prev) => [newNotification, ...prev].slice(0, 50)); // Keep last 50
+    setNotifications((prev) => [newNotification, ...prev].slice(0, 50));
     setUnreadCount((prev) => prev + 1);
 
-    // Show toast
     toast({
       title: notification.title,
       description: notification.message,
@@ -55,113 +59,94 @@ export function useRealtimeNotifications() {
     const isRH = hasRole('RH');
     const isFinanceiro = hasRole('FINANCEIRO');
 
-    // RH and Financeiro receive notifications about new expense submissions
-    if (isRH || isFinanceiro) {
-      const channel = supabase
-        .channel('lancamentos-notifications')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'lancamentos',
-          },
-          async (payload) => {
-            const oldStatus = (payload.old as any)?.status;
-            const newStatus = payload.new.status;
+    const checkForNewExpenses = async () => {
+      try {
+        const lancamentos = await lancamentosService.getAll();
+        const lastCheck = lastCheckRef.current;
 
-            // New expense submitted for analysis (INSERT event is handled separately)
-            if (newStatus === 'enviado' && oldStatus !== 'enviado') {
-              // Fetch collaborator name
-              const { data: colaborador } = await supabase
-                .from('colaboradores_elegiveis')
-                .select('nome')
-                .eq('id', payload.new.colaborador_id)
-                .maybeSingle();
+        for (const lancamento of lancamentos) {
+          // Pular se já conhecemos este lançamento
+          if (knownIdsRef.current.has(lancamento.id)) continue;
 
-              addNotification({
-                type: 'new_expense',
-                title: 'Novo lançamento para análise',
-                message: `${colaborador?.nome || 'Colaborador'} enviou uma despesa para validação.`,
-                data: payload.new,
-              });
+          const createdAt = new Date(lancamento.created_at);
+          const updatedAt = new Date(lancamento.updated_at);
+
+          // RH/Financeiro: notificar sobre novos lançamentos enviados
+          if ((isRH || isFinanceiro) && lancamento.status === 'enviado') {
+            if (createdAt > lastCheck || updatedAt > lastCheck) {
+              try {
+                const colaborador = await colaboradoresService.getById(lancamento.colaborador_id);
+                addNotification({
+                  type: 'new_expense',
+                  title: 'Novo lançamento para análise',
+                  message: `${colaborador?.nome || 'Colaborador'} enviou uma despesa para validação.`,
+                  data: lancamento,
+                });
+              } catch {
+                addNotification({
+                  type: 'new_expense',
+                  title: 'Novo lançamento para análise',
+                  message: 'Um colaborador enviou uma despesa para validação.',
+                  data: lancamento,
+                });
+              }
             }
           }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'lancamentos',
-            filter: 'status=eq.enviado',
-          },
-          async (payload) => {
-            const { data: colaborador } = await supabase
-              .from('colaboradores_elegiveis')
-              .select('nome')
-              .eq('id', payload.new.colaborador_id)
-              .maybeSingle();
 
-            addNotification({
-              type: 'new_expense',
-              title: 'Novo lançamento para análise',
-              message: `${colaborador?.nome || 'Colaborador'} enviou uma nova despesa.`,
-              data: payload.new,
-            });
+          // Colaborador: notificar sobre validações/rejeições das próprias despesas
+          if (!isRH && !isFinanceiro) {
+            try {
+              const meuColaborador = await colaboradoresService.getByUserId(user.id);
+              if (meuColaborador && lancamento.colaborador_id === meuColaborador.id) {
+                if (updatedAt > lastCheck) {
+                  if (lancamento.status === 'valido') {
+                    addNotification({
+                      type: 'expense_validated',
+                      title: 'Despesa aprovada',
+                      message: 'Sua despesa foi validada pelo RH.',
+                      data: lancamento,
+                    });
+                  } else if (lancamento.status === 'invalido') {
+                    addNotification({
+                      type: 'expense_rejected',
+                      title: 'Despesa rejeitada',
+                      message: lancamento.motivo_invalidacao || 'Sua despesa foi invalidada.',
+                      data: lancamento,
+                    });
+                  }
+                }
+              }
+            } catch {
+              // Ignorar erros ao buscar colaborador
+            }
           }
-        )
-        .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-
-    // Colaboradores receive notifications about their expense validations
-    const channel = supabase
-      .channel('user-notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'lancamentos',
-        },
-        async (payload) => {
-          const oldStatus = (payload.old as any)?.status;
-          const newStatus = payload.new.status;
-
-          // Check if this expense belongs to the current user
-          const { data: colaborador } = await supabase
-            .from('colaboradores_elegiveis')
-            .select('id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          if (colaborador?.id !== payload.new.colaborador_id) return;
-
-          if (newStatus === 'valido' && oldStatus !== 'valido') {
-            addNotification({
-              type: 'expense_validated',
-              title: 'Despesa aprovada',
-              message: 'Sua despesa foi validada pelo RH.',
-              data: payload.new,
-            });
-          } else if (newStatus === 'invalido' && oldStatus !== 'invalido') {
-            addNotification({
-              type: 'expense_rejected',
-              title: 'Despesa rejeitada',
-              message: payload.new.motivo_invalidacao || 'Sua despesa foi invalidada.',
-              data: payload.new,
-            });
-          }
+          knownIdsRef.current.add(lancamento.id);
         }
-      )
-      .subscribe();
+
+        lastCheckRef.current = new Date();
+      } catch (error) {
+        console.error('Erro ao verificar novos lançamentos:', error);
+      }
+    };
+
+    // Inicializar IDs conhecidos
+    const initKnownIds = async () => {
+      try {
+        const lancamentos = await lancamentosService.getAll();
+        lancamentos.forEach(l => knownIdsRef.current.add(l.id));
+        lastCheckRef.current = new Date();
+      } catch (error) {
+        console.error('Erro ao inicializar IDs conhecidos:', error);
+      }
+    };
+
+    initKnownIds();
+
+    const interval = setInterval(checkForNewExpenses, POLLING_INTERVAL);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [user, hasRole, addNotification]);
 

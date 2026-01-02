@@ -128,8 +128,8 @@ export function useAttachments(lancamentoId?: string) {
 
   const getPreviewUrl = async (attachment: Attachment): Promise<string | null> => {
     try {
-      // For Express backend, we use the file URL directly
-      return anexosService.getFileUrl(attachment.storagePath);
+      // For Express backend, we use the file URL directly with attachment ID
+      return anexosService.getViewUrl(attachment.id);
     } catch (error) {
       console.error('Error getting preview URL:', error);
       return null;
