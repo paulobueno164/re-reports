@@ -10,6 +10,11 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  preview: {
+    host: "::",
+    port: 5173,
+    allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
