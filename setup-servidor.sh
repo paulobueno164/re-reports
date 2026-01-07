@@ -26,6 +26,8 @@ PGPASSWORD=ee1631 psql -U postgres -d re_reports -f banco.sql
 echo "5. Instalando dependências do backend..."
 cd backend
 npm install
+echo "5.1. Compilando backend..."
+npm run build
 
 # 6. Voltar para raiz e instalar dependências do frontend
 echo "6. Instalando dependências do frontend..."
