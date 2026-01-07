@@ -22,7 +22,7 @@ kill_port 5173
 # Iniciar backend em background
 echo "Iniciando backend na porta 3030..."
 cd ~/re-reports/backend
-nohup npm start > backend.log 2>&1 &
+nohup PORT=3030 npm start > backend.log 2>&1 &
 BACKEND_PID=$!
 echo "Backend iniciado (PID: $BACKEND_PID)"
 
