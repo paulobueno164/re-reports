@@ -9,8 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import authService from '@/services/auth.service';
+import authService, { AppRole } from '@/services/auth.service';
 import colaboradoresService from '@/services/colaboradores.service';
 
 interface ColaboradorSemUsuario {
@@ -32,6 +39,7 @@ const UsuarioForm = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [role, setRole] = useState<AppRole>('COLABORADOR');
   
   // Colaborador linking
   const [colaboradoresSemUsuario, setColaboradoresSemUsuario] = useState<ColaboradorSemUsuario[]>([]);
@@ -90,6 +98,7 @@ const UsuarioForm = () => {
         email: email.toLowerCase().trim(),
         password: password,
         nome: nome.trim(),
+        role: role,
       });
 
       // If collaborator selected, link them
@@ -245,6 +254,20 @@ const UsuarioForm = () => {
                   disabled={!!selectedColaborador}
                 />
               </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Role (Permissão) *</Label>
+              <Select value={role} onValueChange={(value) => setRole(value as AppRole)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="COLABORADOR">Colaborador</SelectItem>
+                  <SelectItem value="RH">RH</SelectItem>
+                  <SelectItem value="FINANCEIRO">Financeiro</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

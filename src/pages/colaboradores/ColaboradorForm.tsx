@@ -141,6 +141,59 @@ const ColaboradorForm = () => {
     setLoading(false);
   };
 
+  const handleOpenCreateUserDialog = async () => {
+    if (!formData.email || !formData.nome) {
+      toast({ title: 'Erro', description: 'Preencha o nome e e-mail do colaborador primeiro.', variant: 'destructive' });
+      return;
+    }
+
+    const email = formData.email.toLowerCase().trim();
+    
+    // Verificar se já existe um usuário com este email
+    try {
+      const allUsers = await authService.getAllUsers();
+      const existingUser = allUsers.find(u => u.email.toLowerCase() === email);
+      
+      if (existingUser) {
+        // Usuário já existe, verificar se está vinculado a outro colaborador
+        try {
+          const colaboradorVinculado = await colaboradoresService.getByUserId(existingUser.id);
+          
+          if (colaboradorVinculado) {
+            // Já está vinculado a outro colaborador
+            toast({ 
+              title: 'Erro ao vincular usuário', 
+              description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`, 
+              variant: 'destructive' 
+            });
+            return;
+          }
+        } catch (error: any) {
+          // Se der erro ao buscar (exceto 404), mostrar erro
+          if (!error.message?.includes('404') && !error.message?.includes('não encontrado')) {
+            toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+            return;
+          }
+          // Se for 404, continuar normalmente (usuário não está vinculado)
+        }
+        
+        // Usuário existe mas não está vinculado, apenas vincular sem pedir senha
+        setLinkedUserId(existingUser.id);
+        setFoundUser({ id: existingUser.id, nome: existingUser.nome, email: existingUser.email });
+        toast({ 
+          title: 'Sucesso', 
+          description: `Usuário existente vinculado ao colaborador com sucesso.` 
+        });
+        return;
+      }
+
+      // Usuário não existe, abrir dialog para criar com senha
+      setShowCreateUserDialog(true);
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    }
+  };
+
   const handleCreateUser = async () => {
     if (!newUserPassword || newUserPassword.length < 6) {
       toast({ title: 'Erro', description: 'A senha deve ter no mínimo 6 caracteres.', variant: 'destructive' });
@@ -157,8 +210,11 @@ const ColaboradorForm = () => {
 
     setProcessingUser(true);
     try {
+      const email = formData.email.toLowerCase().trim();
+      
+      // Criar novo usuário
       const result = await authService.createUser({
-        email: formData.email.toLowerCase().trim(),
+        email: email,
         password: newUserPassword,
         nome: formData.nome,
         role: 'COLABORADOR',
@@ -171,6 +227,43 @@ const ColaboradorForm = () => {
       setConfirmPassword('');
       toast({ title: 'Sucesso', description: 'Usuário criado e vinculado com sucesso.' });
     } catch (error: any) {
+      // Se o erro for "Email já cadastrado", tentar vincular usuário existente
+      if (error.message && (error.message.includes('já cadastrado') || error.message.includes('já está em uso'))) {
+        try {
+          const allUsers = await authService.getAllUsers();
+          const existingUser = allUsers.find(u => u.email.toLowerCase() === email);
+          
+          if (existingUser) {
+            const colaboradorVinculado = await colaboradoresService.getByUserId(existingUser.id);
+            
+            if (!colaboradorVinculado) {
+              // Usuário existe mas não está vinculado, apenas vincular
+              setLinkedUserId(existingUser.id);
+              setFoundUser({ id: existingUser.id, nome: existingUser.nome, email: existingUser.email });
+              setShowCreateUserDialog(false);
+              setNewUserPassword('');
+              setConfirmPassword('');
+              toast({ 
+                title: 'Sucesso', 
+                description: `Usuário existente vinculado ao colaborador com sucesso.` 
+              });
+              setProcessingUser(false);
+              return;
+            } else {
+              toast({ 
+                title: 'Erro ao vincular usuário', 
+                description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`, 
+                variant: 'destructive' 
+              });
+              setProcessingUser(false);
+              return;
+            }
+          }
+        } catch (checkError) {
+          // Se falhar na verificação, mostrar erro original
+        }
+      }
+      
       toast({ title: 'Erro ao criar usuário', description: error.message, variant: 'destructive' });
     } finally {
       setProcessingUser(false);
@@ -289,14 +382,15 @@ const ColaboradorForm = () => {
   };
 
   const calculateRendimentoTotal = () => {
+    // Garantir que todos os valores sejam números antes de somar
     return (
-      formData.salarioBase +
-      formData.valeAlimentacao +
-      formData.valeRefeicao +
-      formData.ajudaCusto +
-      formData.mobilidade +
-      formData.cestaBeneficiosTeto +
-      formData.pidaTeto
+      Number(formData.salarioBase || 0) +
+      Number(formData.valeAlimentacao || 0) +
+      Number(formData.valeRefeicao || 0) +
+      Number(formData.ajudaCusto || 0) +
+      Number(formData.mobilidade || 0) +
+      Number(formData.cestaBeneficiosTeto || 0) +
+      Number(formData.pidaTeto || 0)
     );
   };
 
@@ -443,7 +537,7 @@ const ColaboradorForm = () => {
                       </AlertDescription>
                     </Alert>
                     
-                    <Button onClick={() => setShowCreateUserDialog(true)} disabled={!formData.email || !formData.nome}>
+                    <Button onClick={handleOpenCreateUserDialog} disabled={!formData.email || !formData.nome}>
                       <UserPlus className="h-4 w-4 mr-2" />
                       Criar Usuário de Acesso
                     </Button>

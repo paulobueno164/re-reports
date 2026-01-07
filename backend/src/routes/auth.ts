@@ -88,6 +88,22 @@ router.delete('/users/:id', authenticateToken, requireRole('RH'), async (req: Au
   }
 });
 
+router.put('/users/:id/status', authenticateToken, requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    // Verificar se o usuário está tentando inativar a si mesmo
+    if (req.params.id === req.user?.id) {
+      res.status(400).json({ error: 'Você não pode inativar a si mesmo' });
+      return;
+    }
+
+    const { ativo } = z.object({ ativo: z.boolean() }).parse(req.body);
+    await authService.toggleUserStatus(req.params.id, ativo);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
   res.json(req.user);
 });

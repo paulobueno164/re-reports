@@ -82,6 +82,7 @@ const DashboardRH = () => {
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
+        setLoading(true);
         const allPeriods = await periodosService.getAll();
 
         if (allPeriods && allPeriods.length > 0) {
@@ -91,13 +92,23 @@ const DashboardRH = () => {
           if (currentPeriod) {
             setSelectedPeriodId(currentPeriod.id);
             setCurrentPeriodName(currentPeriod.periodo);
+          } else if (allPeriods.length > 0) {
+            // Se não há período atual, seleciona o primeiro disponível
+            setSelectedPeriodId(allPeriods[0].id);
+            setCurrentPeriodName(allPeriods[0].periodo);
           }
+        } else {
+          setPeriods([]);
         }
 
         const depts = await colaboradoresService.getDepartamentos();
-        setDepartments(depts);
+        setDepartments(depts || []);
       } catch (error) {
         console.error('Error fetching initial data:', error);
+        setPeriods([]);
+        setDepartments([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchInitialData();
@@ -224,10 +235,33 @@ const DashboardRH = () => {
     }
   };
 
-  if (loading && !selectedPeriodId) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (periods.length === 0) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <PageHeader
+          title="Dashboard"
+          description="Nenhum período cadastrado"
+        />
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum período cadastrado</h3>
+            <p className="text-muted-foreground mb-4">
+              É necessário cadastrar pelo menos um período no calendário para visualizar o dashboard.
+            </p>
+            <Button asChild>
+              <Link to="/calendario">Ir para Calendário</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader2, UserCog, MoreVertical, Plus, Eye, EyeOff, Link, Unlink2, KeyRound, ExternalLink } from 'lucide-react';
+import { Search, Loader2, UserCog, MoreVertical, Plus, Eye, EyeOff, Link, Unlink2, KeyRound, ExternalLink, Ban, CheckCircle2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import authService, { AppRole, UserWithRoles } from '@/services/auth.service';
 import colaboradoresService from '@/services/colaboradores.service';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ColaboradorSemUsuario {
   id: string;
@@ -52,6 +53,7 @@ interface UserDisplay extends UserWithRoles {
 const UsuariosLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: currentUser, hasRole } = useAuth();
   const [users, setUsers] = useState<UserDisplay[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -88,6 +90,7 @@ const UsuariosLista = () => {
         const colab = colaboradores.find(c => c.user_id === user.id);
         return {
           ...user,
+          roles: Array.isArray(user.roles) ? user.roles : [],
           colaboradorId: colab?.id,
           colaboradorNome: colab?.nome,
         };
@@ -150,6 +153,17 @@ const UsuariosLista = () => {
   };
 
   const handleOpenLinkDialog = async (user: UserDisplay) => {
+    // Verificar se o usuário tem role COLABORADOR
+    const roles = Array.isArray(user.roles) ? user.roles : [];
+    if (!roles.includes('COLABORADOR')) {
+      toast({ 
+        title: 'Erro', 
+        description: 'Apenas usuários com role COLABORADOR podem ser vinculados a colaboradores.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setSelectedUser(user);
     setSelectedColaboradorId('');
     await fetchColaboradoresSemUsuario();
@@ -193,6 +207,45 @@ const UsuariosLista = () => {
     }
   };
 
+  const handleToggleUserStatus = async (user: UserDisplay) => {
+    // Validação adicional no frontend
+    if (user.id === currentUser?.id) {
+      toast({ 
+        title: 'Erro', 
+        description: 'Você não pode inativar a si mesmo.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    if (!hasRole('RH')) {
+      toast({ 
+        title: 'Erro', 
+        description: 'Apenas usuários com role RH podem ativar/inativar usuários.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    const novoStatus = !(user.ativo !== false);
+    const acao = novoStatus ? 'ativar' : 'inativar';
+    
+    try {
+      await authService.toggleUserStatus(user.id, novoStatus);
+      toast({ 
+        title: 'Sucesso', 
+        description: `Usuário ${acao === 'ativar' ? 'ativado' : 'inativado'} com sucesso.` 
+      });
+      fetchUsers();
+    } catch (error: any) {
+      toast({ 
+        title: 'Erro', 
+        description: `Erro ao ${acao} usuário: ${error.message}`, 
+        variant: 'destructive' 
+      });
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const searchLower = searchTerm.toLowerCase();
     return (
@@ -233,18 +286,37 @@ const UsuariosLista = () => {
     {
       key: 'roles',
       header: 'Roles',
+      render: (item: UserDisplay) => {
+        const roles = Array.isArray(item.roles) ? item.roles : [];
+        return (
+          <div className="flex flex-wrap gap-1">
+            {roles.length === 0 ? (
+              <span className="text-muted-foreground text-sm">Sem roles</span>
+            ) : (
+              roles.map((role) => (
+                <Badge key={role} variant={getRoleBadgeVariant(role)}>
+                  {role}
+                </Badge>
+              ))
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      hideOnMobile: true,
       render: (item: UserDisplay) => (
-        <div className="flex flex-wrap gap-1">
-          {item.roles.length === 0 ? (
-            <span className="text-muted-foreground text-sm">Sem roles</span>
-          ) : (
-            item.roles.map((role) => (
-              <Badge key={role} variant={getRoleBadgeVariant(role)}>
-                {role}
-              </Badge>
-            ))
-          )}
-        </div>
+        item.ativo !== false ? (
+          <Badge variant="outline" className="text-success border-success/30">
+            Ativo
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="text-destructive border-destructive/30">
+            Inativo
+          </Badge>
+        )
       ),
     },
     {
@@ -297,16 +369,40 @@ const UsuariosLista = () => {
               <TooltipContent>Alterar Senha</TooltipContent>
             </Tooltip>
             
-            {!item.colaboradorId && (
+            {hasRole('RH') && item.id !== currentUser?.id && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenLinkDialog(item)}>
-                    <Link className="h-4 w-4" />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className={`h-8 w-8 ${item.ativo !== false ? 'text-destructive hover:text-destructive' : 'text-success hover:text-success'}`}
+                    onClick={() => handleToggleUserStatus(item)}
+                  >
+                    {item.ativo !== false ? (
+                      <Ban className="h-4 w-4" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Vincular Colaborador</TooltipContent>
+                <TooltipContent>{item.ativo !== false ? 'Inativar Usuário' : 'Ativar Usuário'}</TooltipContent>
               </Tooltip>
             )}
+            
+            {!item.colaboradorId && (() => {
+              const roles = Array.isArray(item.roles) ? item.roles : [];
+              const isColaborador = roles.includes('COLABORADOR');
+              return isColaborador ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenLinkDialog(item)}>
+                      <Link className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Vincular Colaborador</TooltipContent>
+                </Tooltip>
+              ) : null;
+            })()}
             
             {item.colaboradorId && (
               <>
@@ -348,12 +444,34 @@ const UsuariosLista = () => {
                   <KeyRound className="mr-2 h-4 w-4" />
                   Alterar Senha
                 </DropdownMenuItem>
-                {!item.colaboradorId && (
-                  <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
-                    <Link className="mr-2 h-4 w-4" />
-                    Vincular Colaborador
+                {hasRole('RH') && item.id !== currentUser?.id && (
+                  <DropdownMenuItem 
+                    onClick={() => handleToggleUserStatus(item)}
+                    className={item.ativo !== false ? 'text-destructive focus:text-destructive' : 'text-success focus:text-success'}
+                  >
+                    {item.ativo !== false ? (
+                      <>
+                        <Ban className="mr-2 h-4 w-4" />
+                        Inativar Usuário
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Ativar Usuário
+                      </>
+                    )}
                   </DropdownMenuItem>
                 )}
+                {!item.colaboradorId && (() => {
+                  const roles = Array.isArray(item.roles) ? item.roles : [];
+                  const isColaborador = roles.includes('COLABORADOR');
+                  return isColaborador ? (
+                    <DropdownMenuItem onClick={() => handleOpenLinkDialog(item)}>
+                      <Link className="mr-2 h-4 w-4" />
+                      Vincular Colaborador
+                    </DropdownMenuItem>
+                  ) : null;
+                })()}
                 {item.colaboradorId && (
                   <>
                     <DropdownMenuItem onClick={() => navigate(`/colaboradores/${item.colaboradorId}`)}>
@@ -404,13 +522,13 @@ const UsuariosLista = () => {
           </div>
           <div className="bg-card rounded-lg border p-4">
             <div className="text-2xl font-bold">
-              {users.filter((u) => u.roles.includes('RH')).length}
+              {users.filter((u) => Array.isArray(u.roles) && u.roles.includes('RH')).length}
             </div>
             <div className="text-sm text-muted-foreground">Usuários RH</div>
           </div>
           <div className="bg-card rounded-lg border p-4">
             <div className="text-2xl font-bold">
-              {users.filter((u) => u.roles.includes('FINANCEIRO')).length}
+              {users.filter((u) => Array.isArray(u.roles) && u.roles.includes('FINANCEIRO')).length}
             </div>
             <div className="text-sm text-muted-foreground">Usuários Financeiro</div>
           </div>

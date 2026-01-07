@@ -26,7 +26,7 @@ export interface CreateUserInput {
 export const login = async (email: string, password: string): Promise<LoginResult> => {
   // Buscar usuário pelo email
   const userResult = await query(
-    'SELECT id, email, password_hash FROM auth.users WHERE email = $1',
+    'SELECT id, email, encrypted_password, ativo FROM auth.users WHERE email = $1',
     [email.toLowerCase()]
   );
 
@@ -36,8 +36,13 @@ export const login = async (email: string, password: string): Promise<LoginResul
 
   const user = userResult.rows[0];
 
+  // Verificar se o usuário está ativo
+  if (user.ativo === false) {
+    throw new Error('Usuário inativo. Entre em contato com o administrador.');
+  }
+
   // Verificar senha
-  const isValidPassword = await bcrypt.compare(password, user.password_hash);
+  const isValidPassword = await bcrypt.compare(password, user.encrypted_password);
 
   if (!isValidPassword) {
     throw new Error('Credenciais inválidas');
@@ -97,23 +102,32 @@ export const createUser = async (input: CreateUserInput): Promise<{ id: string; 
 
   await transaction(async (client) => {
     // Criar usuário na tabela auth.users
+    // O trigger handle_new_user criará automaticamente o perfil e a role COLABORADOR
     await client.query(
-      `INSERT INTO auth.users (id, email, password_hash, raw_user_meta_data, created_at, updated_at)
+      `INSERT INTO auth.users (id, email, encrypted_password, raw_user_meta_data, created_at, updated_at)
        VALUES ($1, $2, $3, $4, NOW(), NOW())`,
       [userId, email.toLowerCase(), passwordHash, JSON.stringify({ nome })]
     );
 
-    // Criar perfil (o trigger handle_new_user faria isso automaticamente no Supabase)
+    // Atualizar o perfil criado pelo trigger (garantir que o nome está correto)
     await client.query(
-      `INSERT INTO profiles (id, nome, email, created_at, updated_at)
-       VALUES ($1, $2, $3, NOW(), NOW())`,
-      [userId, nome, email.toLowerCase()]
+      `UPDATE profiles SET nome = $1, updated_at = NOW() WHERE id = $2`,
+      [nome, userId]
     );
 
-    // Adicionar role
+    // Remover a role COLABORADOR criada pelo trigger se a role desejada for diferente
+    if (role !== 'COLABORADOR') {
+      await client.query(
+        `DELETE FROM user_roles WHERE user_id = $1 AND role = 'COLABORADOR'`,
+        [userId]
+      );
+    }
+
+    // Adicionar a role especificada (ou manter COLABORADOR se for a mesma)
     await client.query(
       `INSERT INTO user_roles (id, user_id, role, created_at)
-       VALUES ($1, $2, $3, NOW())`,
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, role) DO NOTHING`,
       [uuidv4(), userId, role]
     );
   });
@@ -151,7 +165,7 @@ export const updateUserPassword = async (userId: string, newPassword: string): P
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
   await query(
-    'UPDATE auth.users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+    'UPDATE auth.users SET encrypted_password = $1, updated_at = NOW() WHERE id = $2',
     [passwordHash, userId]
   );
 };
@@ -161,13 +175,37 @@ export const deleteUser = async (userId: string): Promise<void> => {
   await query('DELETE FROM auth.users WHERE id = $1', [userId]);
 };
 
-export const getUserById = async (userId: string): Promise<Profile | null> => {
+export const toggleUserStatus = async (userId: string, ativo: boolean): Promise<void> => {
+  await query(
+    'UPDATE auth.users SET ativo = $1, updated_at = NOW() WHERE id = $2',
+    [ativo, userId]
+  );
+};
+
+export const getUserById = async (userId: string): Promise<UserWithRoles | null> => {
   const result = await query(
-    'SELECT id, nome, email, avatar_url, created_at, updated_at FROM profiles WHERE id = $1',
+    `SELECT p.id, p.email, p.nome, p.avatar_url, p.created_at,
+            COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}')::text[] as roles,
+            COALESCE(u.ativo, true) as ativo
+     FROM profiles p
+     LEFT JOIN auth.users u ON u.id = p.id
+     LEFT JOIN user_roles ur ON ur.user_id = p.id
+     WHERE p.id = $1
+     GROUP BY p.id, p.email, p.nome, p.avatar_url, p.created_at, u.ativo`,
     [userId]
   );
 
-  return result.rows[0] || null;
+  if (result.rows.length === 0) {
+    return null;
+  }
+
+  // Garantir que roles seja sempre um array
+  const user = result.rows[0];
+  return {
+    ...user,
+    roles: Array.isArray(user.roles) ? user.roles : [],
+    ativo: user.ativo !== false, // Garantir que seja boolean
+  };
 };
 
 export const getUserRoles = async (userId: string): Promise<AppRole[]> => {
@@ -180,15 +218,31 @@ export const getUserRoles = async (userId: string): Promise<AppRole[]> => {
 };
 
 export const addUserRole = async (userId: string, role: AppRole): Promise<void> => {
-  await query(
-    `INSERT INTO user_roles (id, user_id, role, created_at)
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (user_id, role) DO NOTHING`,
-    [uuidv4(), userId, role]
-  );
+  await transaction(async (client) => {
+    // Remover todas as roles existentes (usuário só pode ter uma role)
+    await client.query(
+      'DELETE FROM user_roles WHERE user_id = $1',
+      [userId]
+    );
+
+    // Adicionar a nova role
+    await client.query(
+      `INSERT INTO user_roles (id, user_id, role, created_at)
+       VALUES ($1, $2, $3, NOW())`,
+      [uuidv4(), userId, role]
+    );
+  });
 };
 
 export const removeUserRole = async (userId: string, role: AppRole): Promise<void> => {
+  // Verificar quantas roles o usuário tem
+  const currentRoles = await getUserRoles(userId);
+  
+  // Se o usuário tem apenas uma role e é a que está sendo removida, não permitir
+  if (currentRoles.length === 1 && currentRoles[0] === role) {
+    throw new Error('Usuário deve ter pelo menos uma role');
+  }
+
   await query(
     'DELETE FROM user_roles WHERE user_id = $1 AND role = $2',
     [userId, role]
@@ -203,18 +257,26 @@ export interface UserWithRoles {
   avatar_url: string | null;
   roles: AppRole[];
   created_at: string;
+  ativo: boolean;
 }
 
 export const getAllUsers = async (): Promise<UserWithRoles[]> => {
   const result = await query(
     `SELECT p.id, p.email, p.nome, p.avatar_url, p.created_at,
-            COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}') as roles
+            COALESCE(array_agg(ur.role) FILTER (WHERE ur.role IS NOT NULL), '{}')::text[] as roles,
+            COALESCE(u.ativo, true) as ativo
      FROM profiles p
+     LEFT JOIN auth.users u ON u.id = p.id
      LEFT JOIN user_roles ur ON ur.user_id = p.id
-     GROUP BY p.id, p.email, p.nome, p.avatar_url, p.created_at
+     GROUP BY p.id, p.email, p.nome, p.avatar_url, p.created_at, u.ativo
      ORDER BY p.nome`
   );
-  return result.rows;
+  // Garantir que roles seja sempre um array
+  return result.rows.map((row: any) => ({
+    ...row,
+    roles: Array.isArray(row.roles) ? row.roles : [],
+    ativo: row.ativo !== false, // Garantir que seja boolean
+  }));
 };
 
 // Trocar senha do próprio usuário (valida senha atual)
@@ -225,7 +287,7 @@ export const changePassword = async (
 ): Promise<void> => {
   // Buscar hash da senha atual
   const userResult = await query(
-    'SELECT password_hash FROM auth.users WHERE id = $1',
+    'SELECT encrypted_password FROM auth.users WHERE id = $1',
     [userId]
   );
 
@@ -234,7 +296,7 @@ export const changePassword = async (
   }
 
   // Verificar senha atual
-  const isValidPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password_hash);
+  const isValidPassword = await bcrypt.compare(currentPassword, userResult.rows[0].encrypted_password);
   if (!isValidPassword) {
     throw new Error('Senha atual incorreta');
   }
@@ -242,7 +304,7 @@ export const changePassword = async (
   // Atualizar para nova senha
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await query(
-    'UPDATE auth.users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+    'UPDATE auth.users SET encrypted_password = $1, updated_at = NOW() WHERE id = $2',
     [passwordHash, userId]
   );
 };
@@ -303,7 +365,7 @@ export const resetPassword = async (token: string, newPassword: string): Promise
   const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   await query(
     `UPDATE auth.users 
-     SET password_hash = $1, 
+     SET encrypted_password = $1, 
          raw_user_meta_data = raw_user_meta_data - 'reset_token',
          updated_at = NOW() 
      WHERE id = $2`,

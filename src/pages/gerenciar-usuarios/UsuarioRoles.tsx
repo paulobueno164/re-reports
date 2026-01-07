@@ -59,13 +59,16 @@ const UsuarioRoles = () => {
         return;
       }
 
+      // Garantir que roles seja sempre um array
+      const roles = Array.isArray(userData.roles) ? userData.roles : [];
+
       setUser({
         id: userData.id,
         nome: userData.nome,
         email: userData.email,
       });
-      setCurrentRoles(userData.roles);
-      setSelectedRoles([...userData.roles]);
+      setCurrentRoles(roles);
+      setSelectedRoles([...roles]);
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
       navigate('/gerenciar-usuarios');
@@ -75,30 +78,45 @@ const UsuarioRoles = () => {
   };
 
   const handleRoleToggle = (role: AppRole) => {
-    setSelectedRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
-    );
+    // Usuário só pode ter uma role, então selecionar apenas a role clicada
+    setSelectedRoles([role]);
   };
 
   const handleSave = async () => {
     if (!user) return;
 
+    // Validar que exatamente uma role foi selecionada
+    if (selectedRoles.length === 0) {
+      toast({ 
+        title: 'Erro', 
+        description: 'Selecione pelo menos uma role para o usuário.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
+    if (selectedRoles.length > 1) {
+      toast({ 
+        title: 'Erro', 
+        description: 'Um usuário só pode ter uma role. Selecione apenas uma.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
+
     setSaving(true);
     try {
-      const rolesToAdd = selectedRoles.filter((role) => !currentRoles.includes(role));
-      const rolesToRemove = currentRoles.filter((role) => !selectedRoles.includes(role));
+      const newRole = selectedRoles[0];
+      const currentRole = currentRoles[0];
 
-      for (const role of rolesToAdd) {
-        await authService.addUserRole(user.id, role);
-      }
-
-      for (const role of rolesToRemove) {
-        await authService.removeUserRole(user.id, role);
+      // Se a role mudou, atualizar (addUserRole já remove todas as outras)
+      if (newRole !== currentRole) {
+        await authService.addUserRole(user.id, newRole);
       }
 
       toast({
-        title: 'Roles atualizadas',
-        description: `As permissões de ${user.nome} foram atualizadas com sucesso.`,
+        title: 'Role atualizada',
+        description: `A permissão de ${user.nome} foi atualizada com sucesso.`,
       });
 
       navigate('/gerenciar-usuarios');
@@ -137,6 +155,9 @@ const UsuarioRoles = () => {
         </div>
 
         <div className="space-y-3">
+          <p className="text-sm text-muted-foreground mb-2">
+            Selecione uma role para o usuário. Cada usuário pode ter apenas uma role.
+          </p>
           {AVAILABLE_ROLES.map((role) => {
             const Icon = role.icon;
             const isSelected = selectedRoles.includes(role.value);
@@ -149,12 +170,15 @@ const UsuarioRoles = () => {
                 }`}
                 onClick={() => handleRoleToggle(role.value)}
               >
-                <Checkbox
-                  id={role.value}
-                  checked={isSelected}
-                  onCheckedChange={() => handleRoleToggle(role.value)}
-                  className="mt-0.5"
-                />
+                <div className="mt-0.5">
+                  <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                    isSelected ? 'border-primary bg-primary' : 'border-border'
+                  }`}>
+                    {isSelected && (
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <Icon className="h-4 w-4" />

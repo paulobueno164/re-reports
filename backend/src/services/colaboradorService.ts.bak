@@ -198,63 +198,41 @@ export const updateColaborador = async (
   });
 };
 
-export const deleteColaborador = async (id: string): Promise<boolean> => {
-  try {
-    // Tentar deletar diretamente primeiro
-    const result = await query(
-      'DELETE FROM colaboradores_elegiveis WHERE id = $1',
-      [id]
-    );
-    return (result.rowCount ?? 0) > 0;
-  } catch (error: any) {
-    // Se falhar por constraint (tem lançamentos, etc), marcar como inativo instead
-    if (error.code === '23503' || error.message?.includes('foreign key') || error.message?.includes('still referenced')) {
-      const updateResult = await query(
-        'UPDATE colaboradores_elegiveis SET ativo = false, updated_at = NOW() WHERE id = $1',
-        [id]
-      );
-      if ((updateResult.rowCount ?? 0) > 0) {
-        throw new Error('Não foi possível excluir o colaborador pois ele possui registros vinculados (lançamentos, etc). O colaborador foi marcado como inativo.');
-      }
-    }
-    // Se for outro erro, relançar
-    throw error;
-  }
-};
+export const deleteColaborador = async (id: string): Promise\u003cboolean\u003e =\u003e { \n  try { \n    // Tentar deletar diretamente primeiro\n    const result = await query(\n      'DELETE FROM colaboradores_elegiveis WHERE id = $1',\n      [id]\n    );\n    return (result.rowCount ?? 0) > 0;\n  } catch (error: any) {\n    // Se falhar por constraint (tem lançamentos, etc), marcar como inativo instead\n    if (error.code === '23503' || error.message?.includes('foreign key') || error.message?.includes('still referenced')) {\n      const updateResult = await query(\n        'UPDATE colaboradores_elegiveis SET ativo = false, updated_at = NOW() WHERE id = $1',\n        [id]\n      );\n      if ((updateResult.rowCount ?? 0) > 0) {\n        throw new Error('Não foi possível excluir o colaborador pois ele possui registros vinculados (lançamentos, etc). O colaborador foi marcado como inativo.');\n      }\n    }\n    // Se for outro erro, relançar\n    throw error;\n  }\n};
 
 export const linkColaboradorToUser = async (colaboradorId: string, userId: string): Promise<void> => {
-  await transaction(async (client) => {
-    // Buscar dados do colaborador
-    const colaboradorResult = await client.query(
-      'SELECT nome, email FROM colaboradores_elegiveis WHERE id = $1',
-      [colaboradorId]
-    );
+    await transaction(async (client) => {
+      // Buscar dados do colaborador
+      const colaboradorResult = await client.query(
+        'SELECT nome, email FROM colaboradores_elegiveis WHERE id = $1',
+        [colaboradorId]
+      );
 
-    if (colaboradorResult.rows.length === 0) {
-      throw new Error('Colaborador não encontrado');
-    }
+      if (colaboradorResult.rows.length === 0) {
+        throw new Error('Colaborador não encontrado');
+      }
 
-    const colaborador = colaboradorResult.rows[0];
+      const colaborador = colaboradorResult.rows[0];
 
-    // Vincular colaborador ao usuário
-    await client.query(
-      'UPDATE colaboradores_elegiveis SET user_id = $1, updated_at = NOW() WHERE id = $2',
-      [userId, colaboradorId]
-    );
+      // Vincular colaborador ao usuário
+      await client.query(
+        'UPDATE colaboradores_elegiveis SET user_id = $1, updated_at = NOW() WHERE id = $2',
+        [userId, colaboradorId]
+      );
 
-    // Sincronizar dados do colaborador para o perfil do usuário
-    await client.query(
-      'UPDATE profiles SET nome = $1, email = $2, updated_at = NOW() WHERE id = $3',
-      [colaborador.nome, colaborador.email.toLowerCase(), userId]
-    );
+      // Sincronizar dados do colaborador para o perfil do usuário
+      await client.query(
+        'UPDATE profiles SET nome = $1, email = $2, updated_at = NOW() WHERE id = $3',
+        [colaborador.nome, colaborador.email.toLowerCase(), userId]
+      );
 
-    // Atualizar email em auth.users também
-    await client.query(
-      'UPDATE auth.users SET email = $1, updated_at = NOW() WHERE id = $2',
-      [colaborador.email.toLowerCase(), userId]
-    );
-  });
-};
+      // Atualizar email em auth.users também
+      await client.query(
+        'UPDATE auth.users SET email = $1, updated_at = NOW() WHERE id = $2',
+        [colaborador.email.toLowerCase(), userId]
+      );
+    });
+  };
 
 export const unlinkColaboradorFromUser = async (colaboradorId: string): Promise<void> => {
   await query(
@@ -269,3 +247,4 @@ export const getDepartamentos = async (): Promise<string[]> => {
   );
   return result.rows.map((r) => r.departamento);
 };
+

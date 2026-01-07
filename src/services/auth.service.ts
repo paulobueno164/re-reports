@@ -28,6 +28,7 @@ export interface UserWithRoles {
   avatar_url?: string;
   roles: AppRole[];
   created_at: string;
+  ativo: boolean;
 }
 
 export const authService = {
@@ -87,6 +88,10 @@ export const authService = {
 
   async resetPassword(token: string, password: string): Promise<void> {
     await apiClient.post('/auth/reset-password', { token, password }, { skipAuth: true });
+  },
+
+  async toggleUserStatus(userId: string, ativo: boolean): Promise<void> {
+    await apiClient.put(`/auth/users/${userId}/status`, { ativo });
   },
 
   isAuthenticated(): boolean {

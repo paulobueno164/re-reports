@@ -46,7 +46,10 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Erro de conexão' }));
-      throw new Error(error.error || error.message || `HTTP ${response.status}`);
+      const errorMessage = error.error || error.message || `HTTP ${response.status}`;
+      const httpError = new Error(errorMessage);
+      (httpError as any).status = response.status;
+      throw httpError;
     }
 
     return response.json();

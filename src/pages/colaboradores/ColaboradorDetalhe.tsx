@@ -41,14 +41,15 @@ const ColaboradorDetalhe = () => {
 
   const calculateRendimentoTotal = () => {
     if (!colaborador) return 0;
+    // Garantir que todos os valores sejam números antes de somar
     return (
-      colaborador.salario_base +
-      colaborador.vale_alimentacao +
-      colaborador.vale_refeicao +
-      colaborador.ajuda_custo +
-      colaborador.mobilidade +
-      colaborador.cesta_beneficios_teto +
-      colaborador.pida_teto
+      Number(colaborador.salario_base || 0) +
+      Number(colaborador.vale_alimentacao || 0) +
+      Number(colaborador.vale_refeicao || 0) +
+      Number(colaborador.ajuda_custo || 0) +
+      Number(colaborador.mobilidade || 0) +
+      Number(colaborador.cesta_beneficios_teto || 0) +
+      Number(colaborador.pida_teto || 0)
     );
   };
 

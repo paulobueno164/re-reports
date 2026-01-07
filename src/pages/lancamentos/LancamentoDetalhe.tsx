@@ -32,7 +32,7 @@ const LancamentoDetalhe = () => {
   const rejectionReasonRef = useRef<HTMLTextAreaElement>(null);
 
   const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
-  const canValidate = hasRole("RH") && (expense?.status === "enviado" || expense?.status === "em_analise");
+  const canValidate = (hasRole("RH") || hasRole("FINANCEIRO")) && (expense?.status === "enviado" || expense?.status === "em_analise");
 
   useEffect(() => {
     fetchExpense();

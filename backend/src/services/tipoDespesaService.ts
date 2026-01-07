@@ -11,15 +11,15 @@ export interface CreateTipoDespesaInput {
   ativo?: boolean;
 }
 
-export interface UpdateTipoDespesaInput extends Partial<CreateTipoDespesaInput> {}
+export interface UpdateTipoDespesaInput extends Partial<CreateTipoDespesaInput> { }
 
 // Componentes de remuneração (exceto Salário Base)
-export type ComponenteRemuneracao = 
-  | 'vale_alimentacao' 
-  | 'vale_refeicao' 
-  | 'ajuda_custo' 
-  | 'mobilidade' 
-  | 'cesta_beneficios' 
+export type ComponenteRemuneracao =
+  | 'vale_alimentacao'
+  | 'vale_refeicao'
+  | 'ajuda_custo'
+  | 'mobilidade'
+  | 'cesta_beneficios'
   | 'pida';
 
 export interface EventoFolha {
@@ -52,7 +52,29 @@ export const getAllTiposDespesas = async (
   sql += ' ORDER BY grupo, nome';
 
   const result = await query(sql, params);
-  return result.rows;
+
+  // Normalizar origem_permitida para sempre ser array
+  return result.rows.map((row: any) => {
+    let origemPermitida = row.origem_permitida;
+
+    // Se é string, tentar converter para array
+    if (typeof origemPermitida === 'string') {
+      // Remove chaves {proprio} -> proprio
+      const cleaned = origemPermitida.replace(/^\{|\}$/g, '').trim();
+      // Converte em array
+      origemPermitida = cleaned ? cleaned.split(',').map((s: string) => s.trim()) : ['proprio'];
+    }
+
+    // Se não é array, usar default
+    if (!Array.isArray(origemPermitida)) {
+      origemPermitida = ['proprio'];
+    }
+
+    return {
+      ...row,
+      origem_permitida: origemPermitida,
+    };
+  });
 };
 
 export const getTipoDespesaById = async (id: string): Promise<TipoDespesa | null> => {
@@ -60,12 +82,31 @@ export const getTipoDespesaById = async (id: string): Promise<TipoDespesa | null
     'SELECT * FROM tipos_despesas WHERE id = $1',
     [id]
   );
-  return result.rows[0] || null;
+
+  if (!result.rows[0]) return null;
+
+  const row = result.rows[0];
+  let origemPermitida = row.origem_permitida;
+
+  // Normalizar origem_permitida
+  if (typeof origemPermitida === 'string') {
+    const cleaned = origemPermitida.replace(/^\{|\}$/g, '').trim();
+    origemPermitida = cleaned ? cleaned.split(',').map((s: string) => s.trim()) : ['proprio'];
+  }
+
+  if (!Array.isArray(origemPermitida)) {
+    origemPermitida = ['proprio'];
+  }
+
+  return {
+    ...row,
+    origem_permitida: origemPermitida,
+  };
 };
 
 export const createTipoDespesa = async (input: CreateTipoDespesaInput): Promise<TipoDespesa> => {
   const id = uuidv4();
-  
+
   const result = await query(
     `INSERT INTO tipos_despesas (
       id, nome, grupo, valor_padrao_teto, classificacao, origem_permitida, ativo, created_at

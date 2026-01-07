@@ -31,8 +31,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { BatchApprovalPanel } from '@/components/validation/BatchApprovalPanel';
-import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
-import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
 import lancamentosService, { Lancamento } from '@/services/lancamentos.service';
 import { colaboradoresService } from '@/services/colaboradores.service';
 
@@ -64,7 +62,6 @@ const ValidacaoLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { hasInconsistency, getDisplayName } = useNameInconsistency();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -257,21 +254,9 @@ const ValidacaoLista = () => {
     { 
       key: 'colaboradorNome', 
       header: 'Colaborador',
-      render: (item: Expense) => {
-        const inconsistency = hasInconsistency(item.colaboradorId);
-        const displayName = getDisplayName(item.colaboradorId, item.colaboradorNome, true);
-        return (
-          <span className="inline-flex items-center gap-1">
-            <span className="truncate max-w-[100px] sm:max-w-none">{displayName}</span>
-            {inconsistency && (
-              <NameInconsistencyAlert 
-                colaboradorNome={inconsistency.colaboradorNome} 
-                profileNome={inconsistency.profileNome} 
-              />
-            )}
-          </span>
-        );
-      },
+      render: (item: Expense) => (
+        <span className="truncate max-w-[100px] sm:max-w-none">{item.colaboradorNome}</span>
+      ),
     },
     { key: 'tipoDespesaNome', header: 'Tipo', hideOnMobile: true },
     {

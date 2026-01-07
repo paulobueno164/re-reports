@@ -89,8 +89,17 @@ export const colaboradoresService = {
   async getByUserId(userId: string): Promise<Colaborador | null> {
     try {
       return apiClient.get<Colaborador>(`/api/colaboradores/user/${userId}`);
-    } catch {
-      return null;
+    } catch (error: any) {
+      // Se for 404, significa que não está vinculado a nenhum colaborador (comportamento esperado)
+      // Não é um erro, apenas significa que o usuário não tem colaborador vinculado
+      if (error.status === 404 || 
+          error.message?.includes('404') || 
+          error.message?.includes('não encontrado') || 
+          error.message?.includes('Colaborador não encontrado')) {
+        return null;
+      }
+      // Para outros erros, relançar
+      throw error;
     }
   },
 

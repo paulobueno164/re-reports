@@ -22,8 +22,6 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
 import { formatCurrency } from '@/lib/expense-validation';
-import { useNameInconsistency } from '@/hooks/use-name-inconsistency';
-import { NameInconsistencyAlert } from '@/components/ui/name-inconsistency-alert';
 
 const departments = [
   'Tecnologia da Informação',
@@ -38,7 +36,6 @@ const departments = [
 const ColaboradoresLista = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { hasInconsistency } = useNameInconsistency();
   const [employees, setEmployees] = useState<Colaborador[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -86,20 +83,9 @@ const ColaboradoresLista = () => {
     { 
       key: 'nome', 
       header: 'Nome',
-      render: (item: Colaborador) => {
-        const inconsistency = hasInconsistency(item.id);
-        return (
-          <span className="inline-flex items-center gap-1">
-            <span className="truncate max-w-[120px] sm:max-w-none">{item.nome}</span>
-            {inconsistency && (
-              <NameInconsistencyAlert 
-                colaboradorNome={inconsistency.colaboradorNome} 
-                profileNome={inconsistency.profileNome} 
-              />
-            )}
-          </span>
-        );
-      },
+      render: (item: Colaborador) => (
+        <span className="truncate max-w-[120px] sm:max-w-none">{item.nome}</span>
+      ),
     },
     { key: 'departamento', header: 'Depto', hideOnMobile: true },
     {

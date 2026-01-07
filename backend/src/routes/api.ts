@@ -35,8 +35,12 @@ router.put('/colaboradores/:id', requireRole('RH'), async (req, res) => {
   res.json(result);
 });
 router.delete('/colaboradores/:id', requireRole('RH'), async (req, res) => {
-  await colaboradorService.deleteColaborador(req.params.id);
-  res.json({ success: true });
+  try {
+    await colaboradorService.deleteColaborador(req.params.id);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 // Períodos
@@ -151,6 +155,17 @@ router.post('/fechamentos', requireRole('RH'), async (req: AuthenticatedRequest,
     res.status(201).json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
+router.get('/fechamentos/:id', requireRole('RH', 'FINANCEIRO'), async (req, res) => {
+  try {
+    const result = await fechamentoService.getFechamentoById(req.params.id);
+    if (!result) {
+      return res.status(404).json({ error: 'Fechamento não encontrado' });
+    }
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
+});
 router.get('/fechamentos/:periodoId/resumo', requireRole('RH', 'FINANCEIRO'), async (req, res) => {
   const result = await fechamentoService.getResumoFechamento(req.params.periodoId);
   res.json(result);
@@ -180,6 +195,17 @@ router.get('/exportacoes', requireRole('FINANCEIRO'), async (req, res) => {
 router.get('/exportacoes/data/:periodoId', requireRole('FINANCEIRO'), async (req, res) => {
   const result = await exportService.getExportData(req.params.periodoId);
   res.json(result);
+});
+router.get('/exportacoes/:id', requireRole('FINANCEIRO'), async (req, res) => {
+  try {
+    const result = await exportService.getExportacaoById(req.params.id);
+    if (!result) {
+      return res.status(404).json({ error: 'Exportação não encontrada' });
+    }
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ error: e.message });
+  }
 });
 router.post('/exportacoes', requireRole('FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
   const result = await exportService.createExportacao(req.body.periodo_id, req.user!.id, req.body.nome_arquivo, req.body.qtd_registros, req.body.fechamento_id);
