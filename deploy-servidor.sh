@@ -49,35 +49,38 @@ ENVFILE
 echo "8. Compilando frontend..."
 npm run build
 
-# Configurar PM2 para gerenciar os processos
-echo "9. Configurando PM2..."
+# Configurar systemd para gerenciar o backend
+echo "9. Configurando systemd service para o backend..."
 
-# Criar arquivo de configuração do PM2
-cat > ecosystem.config.js <<'PM2CONFIG'
-module.exports = {
-  apps: [
-    {
-      name: 're-reports-backend',
-      cwd: '/home/dev_admin/re-reports/backend',
-      script: 'dist/server.js',
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '1G',
-      env: {
-        NODE_ENV: 'production',
-        PORT: 3030
-      }
-    }
-  ]
-};
-PM2CONFIG
+sudo tee /etc/systemd/system/re-reports-backend.service <<'SYSTEMDCONF'
+[Unit]
+Description=RE-Reports Backend API
+After=network.target postgresql.service
+Wants=postgresql.service
 
-# Iniciar backend com PM2
-echo "10. Iniciando backend com PM2..."
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
+[Service]
+Type=simple
+User=dev_admin
+WorkingDirectory=/home/dev_admin/re-reports/backend
+Environment=NODE_ENV=production
+Environment=PORT=3030
+ExecStart=/usr/bin/node /home/dev_admin/re-reports/backend/dist/server.js
+Restart=always
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=re-reports-backend
+
+[Install]
+WantedBy=multi-user.target
+SYSTEMDCONF
+
+# Recarregar systemd e iniciar o serviço
+echo "10. Iniciando serviço do backend..."
+sudo systemctl daemon-reload
+sudo systemctl enable re-reports-backend
+sudo systemctl start re-reports-backend
+sudo systemctl status re-reports-backend --no-pager
 
 # Instalar e configurar nginx para o frontend
 echo "11. Instalando e configurando Nginx..."
@@ -156,7 +159,9 @@ echo "- Backend API: http://rereports.eastus.cloudapp.azure.com:3030"
 echo "- Nginx: porta 80"
 echo ""
 echo "Comandos úteis:"
-echo "- Ver logs do backend: pm2 logs re-reports-backend"
-echo "- Reiniciar backend: pm2 restart re-reports-backend"
-echo "- Ver status: pm2 status"
+echo "- Ver logs do backend: sudo journalctl -u re-reports-backend -f"
+echo "- Reiniciar backend: sudo systemctl restart re-reports-backend"
+echo "- Ver status do backend: sudo systemctl status re-reports-backend"
+echo "- Parar backend: sudo systemctl stop re-reports-backend"
 echo "- Ver logs nginx: sudo tail -f /var/log/nginx/re-reports-error.log"
+echo "- Reiniciar nginx: sudo systemctl restart nginx"

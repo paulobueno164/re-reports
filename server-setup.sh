@@ -27,19 +27,4 @@ sudo systemctl enable postgresql
 echo "4. Verificando Git..."
 sudo apt install -y git
 
-# Clonar repositório
-echo "5. Clonando repositório..."
-cd /home/dev_admin
-if [ -d "re-reports" ]; then
-    echo "Diretório já existe, removendo..."
-    rm -rf re-reports
-fi
-
-git clone -b servidor https://github.com/paulobueno164/re-reports.git
-cd re-reports
-
-# Instalar PM2 globalmente para gerenciar processos
-echo "6. Instalando PM2..."
-sudo npm install -g pm2
-
 echo "=== Configuração inicial concluída ==="
