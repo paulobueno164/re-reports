@@ -7,11 +7,8 @@ echo "================================"
 # Função para matar processos nas portas
 kill_port() {
     PORT=$1
-    PID=$(lsof -ti:$PORT)
-    if [ ! -z "$PID" ]; then
-        echo "Matando processo na porta $PORT (PID: $PID)"
-        kill -9 $PID
-    fi
+    echo "Matando processos na porta $PORT..."
+    fuser -k -n tcp $PORT || true
 }
 
 # Limpar portas
