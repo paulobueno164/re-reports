@@ -20,6 +20,7 @@ sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD 'ee1631';"
 
 # 4. Executar script SQL
 echo "4. Executando script de criação do banco..."
+PGPASSWORD=ee1631 psql -U postgres -d re_reports -f reset_db.sql
 PGPASSWORD=ee1631 psql -U postgres -d re_reports -f banco.sql
 
 # 5. Instalar dependências do backend
