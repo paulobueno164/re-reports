@@ -1,7 +1,36 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService, AuthUser, AppRole } from '@/services/auth.service';
-import { MOCK_MODE } from '@/lib/mock-config';
-import { getCurrentMockUser, setCurrentMockUser, authenticateMockUser, logoutMockUser } from '@/lib/mock-mode';
+import { MOCK_MODE, MOCK_USERS } from '@/lib/mock-config';
+
+// Mock user management functions - defined here to avoid circular dependencies
+const getMockUserFromStorage = () => {
+  const stored = localStorage.getItem('mock_user');
+  if (stored) {
+    return JSON.parse(stored);
+  }
+  return null;
+};
+
+const setMockUserToStorage = (user: typeof MOCK_USERS[0] | null) => {
+  if (user) {
+    localStorage.setItem('mock_user', JSON.stringify(user));
+  } else {
+    localStorage.removeItem('mock_user');
+  }
+};
+
+const authenticateMockUserLocal = (email: string, password: string) => {
+  const user = MOCK_USERS.find(u => u.email === email && u.password === password);
+  if (user) {
+    setMockUserToStorage(user);
+    return { user, token: 'mock-token-' + user.id };
+  }
+  throw new Error('Email ou senha inválidos');
+};
+
+const logoutMockUserLocal = () => {
+  setMockUserToStorage(null);
+};
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -22,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchCurrentUser = async () => {
     if (MOCK_MODE) {
-      const mockUser = getCurrentMockUser();
+      const mockUser = getMockUserFromStorage();
       if (mockUser) {
         setUser({ id: mockUser.id, email: mockUser.email, nome: mockUser.nome, roles: mockUser.roles });
         setRoles(mockUser.roles);
@@ -62,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       if (MOCK_MODE) {
-        const { user: mockUser } = authenticateMockUser(email, password);
+        const { user: mockUser } = authenticateMockUserLocal(email, password);
         const authUser = { id: mockUser.id, email: mockUser.email, nome: mockUser.nome, roles: mockUser.roles };
         setUser(authUser);
         setRoles(mockUser.roles);
@@ -79,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     if (MOCK_MODE) {
-      logoutMockUser();
+      logoutMockUserLocal();
     } else {
       await authService.logout();
     }
