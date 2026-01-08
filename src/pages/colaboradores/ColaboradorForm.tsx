@@ -52,11 +52,11 @@ const ColaboradorForm = () => {
   const [saving, setSaving] = useState(false);
   const [foundUser, setFoundUser] = useState<{ id: string; nome: string; email: string } | null>(null);
   const [linkedUserId, setLinkedUserId] = useState<string | null>(null);
-  
+
   // Expense types for new colaborador
   const expenseTypesRef = useRef<ExpenseTypesManagerRef>(null);
   const [pendingExpenseTypes, setPendingExpenseTypes] = useState<ExpenseTypeSelection[]>([]);
-  
+
   // User management states
   const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
   const [showChangePasswordDialog, setShowChangePasswordDialog] = useState(false);
@@ -88,8 +88,8 @@ const ColaboradorForm = () => {
 
   // Zero PI/DA when switch is disabled
   const handleTemPidaChange = (checked: boolean) => {
-    setFormData({ 
-      ...formData, 
+    setFormData({
+      ...formData,
       temPida: checked,
       pidaTeto: checked ? formData.pidaTeto : 0
     });
@@ -120,8 +120,8 @@ const ColaboradorForm = () => {
         temPida: data.tem_pida,
         pidaTeto: data.pida_teto,
         ativo: data.ativo,
-        feriasInicio: data.ferias_inicio || '',
-        feriasFim: data.ferias_fim || '',
+        feriasInicio: data.ferias_inicio ? String(data.ferias_inicio).split('T')[0] : '',
+        feriasFim: data.ferias_fim ? String(data.ferias_fim).split('T')[0] : '',
         beneficioProporcional: data.beneficio_proporcional,
       });
       if (data.user_id) {
@@ -148,23 +148,23 @@ const ColaboradorForm = () => {
     }
 
     const email = formData.email.toLowerCase().trim();
-    
+
     // Verificar se já existe um usuário com este email
     try {
       const allUsers = await authService.getAllUsers();
       const existingUser = allUsers.find(u => u.email.toLowerCase() === email);
-      
+
       if (existingUser) {
         // Usuário já existe, verificar se está vinculado a outro colaborador
         try {
           const colaboradorVinculado = await colaboradoresService.getByUserId(existingUser.id);
-          
+
           if (colaboradorVinculado) {
             // Já está vinculado a outro colaborador
-            toast({ 
-              title: 'Erro ao vincular usuário', 
-              description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`, 
-              variant: 'destructive' 
+            toast({
+              title: 'Erro ao vincular usuário',
+              description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`,
+              variant: 'destructive'
             });
             return;
           }
@@ -176,13 +176,13 @@ const ColaboradorForm = () => {
           }
           // Se for 404, continuar normalmente (usuário não está vinculado)
         }
-        
+
         // Usuário existe mas não está vinculado, apenas vincular sem pedir senha
         setLinkedUserId(existingUser.id);
         setFoundUser({ id: existingUser.id, nome: existingUser.nome, email: existingUser.email });
-        toast({ 
-          title: 'Sucesso', 
-          description: `Usuário existente vinculado ao colaborador com sucesso.` 
+        toast({
+          title: 'Sucesso',
+          description: `Usuário existente vinculado ao colaborador com sucesso.`
         });
         return;
       }
@@ -211,7 +211,7 @@ const ColaboradorForm = () => {
     setProcessingUser(true);
     try {
       const email = formData.email.toLowerCase().trim();
-      
+
       // Criar novo usuário
       const result = await authService.createUser({
         email: email,
@@ -232,10 +232,10 @@ const ColaboradorForm = () => {
         try {
           const allUsers = await authService.getAllUsers();
           const existingUser = allUsers.find(u => u.email.toLowerCase() === email);
-          
+
           if (existingUser) {
             const colaboradorVinculado = await colaboradoresService.getByUserId(existingUser.id);
-            
+
             if (!colaboradorVinculado) {
               // Usuário existe mas não está vinculado, apenas vincular
               setLinkedUserId(existingUser.id);
@@ -243,17 +243,17 @@ const ColaboradorForm = () => {
               setShowCreateUserDialog(false);
               setNewUserPassword('');
               setConfirmPassword('');
-              toast({ 
-                title: 'Sucesso', 
-                description: `Usuário existente vinculado ao colaborador com sucesso.` 
+              toast({
+                title: 'Sucesso',
+                description: `Usuário existente vinculado ao colaborador com sucesso.`
               });
               setProcessingUser(false);
               return;
             } else {
-              toast({ 
-                title: 'Erro ao vincular usuário', 
-                description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`, 
-                variant: 'destructive' 
+              toast({
+                title: 'Erro ao vincular usuário',
+                description: `Este e-mail já está vinculado ao colaborador ${colaboradorVinculado.nome} (${colaboradorVinculado.matricula}).`,
+                variant: 'destructive'
               });
               setProcessingUser(false);
               return;
@@ -263,7 +263,7 @@ const ColaboradorForm = () => {
           // Se falhar na verificação, mostrar erro original
         }
       }
-      
+
       toast({ title: 'Erro ao criar usuário', description: error.message, variant: 'destructive' });
     } finally {
       setProcessingUser(false);
@@ -358,7 +358,7 @@ const ColaboradorForm = () => {
         toast({ title: 'Colaborador atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
         const newColaborador = await colaboradoresService.create(dbData);
-        
+
         // Save expense types for new colaborador
         const expenseTypesToSave = expenseTypesRef.current?.getSelectedTypes() || pendingExpenseTypes;
         if (expenseTypesToSave.length > 0 && newColaborador) {
@@ -370,7 +370,7 @@ const ColaboradorForm = () => {
             }
           }
         }
-        
+
         toast({ title: 'Colaborador criado', description: 'O colaborador foi cadastrado com sucesso.' });
       }
       navigate('/colaboradores');
@@ -536,12 +536,12 @@ const ColaboradorForm = () => {
                         Este colaborador ainda não possui usuário de acesso ao sistema.
                       </AlertDescription>
                     </Alert>
-                    
+
                     <Button onClick={handleOpenCreateUserDialog} disabled={!formData.email || !formData.nome}>
                       <UserPlus className="h-4 w-4 mr-2" />
                       Criar Usuário de Acesso
                     </Button>
-                    
+
                     {(!formData.email || !formData.nome) && (
                       <p className="text-xs text-muted-foreground">
                         Preencha o nome e e-mail na aba "Dados Básicos" primeiro.
@@ -562,7 +562,7 @@ const ColaboradorForm = () => {
                         </div>
                       </AlertDescription>
                     </Alert>
-                    
+
                     <div className="flex flex-wrap gap-2">
                       <Button variant="outline" size="sm" onClick={() => {
                         setNewEmail(foundUser?.email || formData.email);
@@ -756,9 +756,9 @@ const ColaboradorForm = () => {
             {isEditing && id ? (
               <ExpenseTypesManager colaboradorId={id} />
             ) : (
-              <ExpenseTypesManager 
+              <ExpenseTypesManager
                 ref={expenseTypesRef}
-                standalone 
+                standalone
                 onSelectionChange={setPendingExpenseTypes}
               />
             )}
