@@ -16,6 +16,9 @@ export interface CreateColaboradorInput {
   cesta_beneficios_teto?: number;
   pida_teto?: number;
   tem_pida?: boolean;
+  ferias_inicio?: string | null;
+  ferias_fim?: string | null;
+  beneficio_proporcional?: boolean;
   ativo?: boolean;
   user_id?: string;
 }
@@ -90,9 +93,10 @@ export const createColaborador = async (input: CreateColaboradorInput): Promise<
         id, nome, email, matricula, departamento,
         salario_base, vale_alimentacao, vale_refeicao, ajuda_custo,
         mobilidade, transporte, cesta_beneficios_teto, pida_teto,
-        tem_pida, ativo, user_id, created_at, updated_at
+        tem_pida, ferias_inicio, ferias_fim, beneficio_proporcional,
+        ativo, user_id, created_at, updated_at
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW()
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, NOW(), NOW()
       ) RETURNING *`,
       [
         id,
@@ -109,6 +113,9 @@ export const createColaborador = async (input: CreateColaboradorInput): Promise<
         input.cesta_beneficios_teto || 0,
         input.pida_teto || 0,
         input.tem_pida || false,
+        (input.ferias_inicio && input.ferias_inicio !== '') ? input.ferias_inicio : null,
+        (input.ferias_fim && input.ferias_fim !== '') ? input.ferias_fim : null,
+        input.beneficio_proporcional || false,
         input.ativo ?? true,
         input.user_id || null,
       ]
@@ -145,14 +152,44 @@ export const updateColaborador = async (
     );
     const hadUserIdBefore = currentColab.rows[0]?.user_id;
 
+    // Lista de campos válidos que podem ser atualizados na tabela
+    const validFields = [
+      'nome',
+      'email',
+      'matricula',
+      'departamento',
+      'salario_base',
+      'vale_alimentacao',
+      'vale_refeicao',
+      'ajuda_custo',
+      'mobilidade',
+      'transporte',
+      'cesta_beneficios_teto',
+      'pida_teto',
+      'tem_pida',
+      'ferias_inicio',
+      'ferias_fim',
+      'beneficio_proporcional',
+      'ativo',
+      'user_id'
+    ];
+
     const fields: string[] = [];
     const values: any[] = [];
     let paramIndex = 1;
 
     Object.entries(input).forEach(([key, value]) => {
-      if (value !== undefined) {
+      // Apenas processar campos válidos que existem na tabela
+      if (value !== undefined && validFields.includes(key)) {
         fields.push(`${key} = $${paramIndex}`);
-        values.push(key === 'email' ? value.toLowerCase() : value);
+        // Tratamento especial para campos de data (converter string vazia para null)
+        if ((key === 'ferias_inicio' || key === 'ferias_fim') && (value === '' || value === null)) {
+          values.push(null);
+        } else if (key === 'email') {
+          values.push(value.toLowerCase());
+        } else {
+          values.push(value);
+        }
         paramIndex++;
       }
     });

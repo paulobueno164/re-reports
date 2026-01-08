@@ -106,6 +106,24 @@ const ColaboradorForm = () => {
     setLoading(true);
     try {
       const data = await colaboradoresService.getById(id);
+      
+      // Converter datas ISO para formato YYYY-MM-DD para input date
+      const formatDateForInput = (dateValue: string | null | undefined): string => {
+        if (!dateValue) return '';
+        // Se já está no formato YYYY-MM-DD, retorna direto
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+        // Se é uma string ISO, extrai a parte da data
+        const date = new Date(dateValue);
+        if (isNaN(date.getTime())) return '';
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+      
+      const feriasInicioFormatted = formatDateForInput(data.ferias_inicio);
+      const feriasFimFormatted = formatDateForInput(data.ferias_fim);
+      
       setFormData({
         matricula: data.matricula,
         nome: data.nome,
@@ -120,8 +138,8 @@ const ColaboradorForm = () => {
         temPida: data.tem_pida,
         pidaTeto: data.pida_teto,
         ativo: data.ativo,
-        feriasInicio: data.ferias_inicio || '',
-        feriasFim: data.ferias_fim || '',
+        feriasInicio: feriasInicioFormatted,
+        feriasFim: feriasFimFormatted,
         beneficioProporcional: data.beneficio_proporcional,
       });
       if (data.user_id) {

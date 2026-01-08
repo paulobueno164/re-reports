@@ -164,6 +164,9 @@ CREATE TABLE IF NOT EXISTS public.colaboradores_elegiveis (
     cesta_beneficios_teto NUMERIC NOT NULL DEFAULT 0,
     pida_teto NUMERIC NOT NULL DEFAULT 0,
     tem_pida BOOLEAN NOT NULL DEFAULT FALSE,
+    ferias_inicio DATE,
+    ferias_fim DATE,
+    beneficio_proporcional BOOLEAN NOT NULL DEFAULT FALSE,
     ativo BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
