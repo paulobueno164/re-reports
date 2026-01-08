@@ -625,13 +625,19 @@ export function matchRoute(method: string, path: string): { handler: string; par
 
 export async function handleMockRequest(method: string, endpoint: string, data?: any): Promise<any> {
   // Remove /api prefix if present
-  const path = endpoint.startsWith('/api') ? endpoint.slice(4) : endpoint;
+  let path = endpoint.startsWith('/api') ? endpoint.slice(4) : endpoint;
+  
+  // Remove query string for route matching
+  const queryIndex = path.indexOf('?');
+  if (queryIndex !== -1) {
+    path = path.slice(0, queryIndex);
+  }
   
   const matched = matchRoute(method, path);
   
   if (!matched) {
     console.warn(`[MOCK] No handler for ${method} ${path}`);
-    return {};
+    return method === 'GET' ? [] : {};
   }
   
   console.log(`[MOCK] ${method} ${path}`, data);
