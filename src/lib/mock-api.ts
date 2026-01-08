@@ -231,6 +231,13 @@ const handlers: Record<string, MockHandler> = {
     return { id: newUser.id, email: newUser.email };
   },
   
+  // Departamentos
+  'GET /departamentos': async () => {
+    await delay();
+    const depts = [...new Set(mockColaboradoresBackend.map(c => c.departamento))];
+    return depts;
+  },
+  
   // Colaboradores
   'GET /colaboradores': async () => {
     await delay();
