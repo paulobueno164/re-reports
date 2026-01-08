@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService, AuthUser, AppRole } from '@/services/auth.service';
+import { MOCK_MODE, getCurrentMockUser, setCurrentMockUser, authenticateMockUser, logoutMockUser } from '@/lib/mock-mode';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -19,6 +20,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
 
   const fetchCurrentUser = async () => {
+    if (MOCK_MODE) {
+      const mockUser = getCurrentMockUser();
+      if (mockUser) {
+        setUser({ id: mockUser.id, email: mockUser.email, nome: mockUser.nome, roles: mockUser.roles });
+        setRoles(mockUser.roles);
+      }
+      setLoading(false);
+      return;
+    }
+    
     if (!authService.isAuthenticated()) {
       setUser(null);
       setRoles([]);
@@ -31,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       setRoles(currentUser.roles);
     } catch (error) {
-      // Token inválido ou expirado
       authService.logout();
       setUser(null);
       setRoles([]);
@@ -50,6 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      if (MOCK_MODE) {
+        const { user: mockUser } = authenticateMockUser(email, password);
+        const authUser = { id: mockUser.id, email: mockUser.email, nome: mockUser.nome, roles: mockUser.roles };
+        setUser(authUser);
+        setRoles(mockUser.roles);
+        return { error: null };
+      }
       const result = await authService.login(email, password);
       setUser(result.user);
       setRoles(result.user.roles);
@@ -60,7 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await authService.logout();
+    if (MOCK_MODE) {
+      logoutMockUser();
+    } else {
+      await authService.logout();
+    }
     setUser(null);
     setRoles([]);
   };

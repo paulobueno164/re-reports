@@ -231,7 +231,8 @@ const ColaboradorForm = () => {
       if (error.message && (error.message.includes('já cadastrado') || error.message.includes('já está em uso'))) {
         try {
           const allUsers = await authService.getAllUsers();
-          const existingUser = allUsers.find(u => u.email.toLowerCase() === email);
+          const emailLower = formData.email.toLowerCase().trim();
+          const existingUser = allUsers.find(u => u.email.toLowerCase() === emailLower);
           
           if (existingUser) {
             const colaboradorVinculado = await colaboradoresService.getByUserId(existingUser.id);

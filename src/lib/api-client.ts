@@ -1,4 +1,7 @@
 // API Client for RE-Reports Backend
+import { MOCK_MODE } from './mock-mode';
+import { handleMockRequest } from './mock-api';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface RequestOptions extends RequestInit {
@@ -56,10 +59,12 @@ class ApiClient {
   }
 
   async get<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    if (MOCK_MODE) return handleMockRequest('GET', endpoint) as Promise<T>;
     return this.request<T>(endpoint, { ...options, method: 'GET' });
   }
 
   async post<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    if (MOCK_MODE) return handleMockRequest('POST', endpoint, data) as Promise<T>;
     return this.request<T>(endpoint, {
       ...options,
       method: 'POST',
@@ -68,6 +73,7 @@ class ApiClient {
   }
 
   async put<T>(endpoint: string, data?: unknown, options?: RequestOptions): Promise<T> {
+    if (MOCK_MODE) return handleMockRequest('PUT', endpoint, data) as Promise<T>;
     return this.request<T>(endpoint, {
       ...options,
       method: 'PUT',
@@ -76,6 +82,7 @@ class ApiClient {
   }
 
   async delete<T>(endpoint: string, options?: RequestOptions): Promise<T> {
+    if (MOCK_MODE) return handleMockRequest('DELETE', endpoint) as Promise<T>;
     return this.request<T>(endpoint, { ...options, method: 'DELETE' });
   }
 
