@@ -38,6 +38,9 @@ export interface ColaboradorElegivel {
   cesta_beneficios_teto: number;
   pida_teto: number;
   tem_pida: boolean;
+  ferias_inicio: string | null;
+  ferias_fim: string | null;
+  beneficio_proporcional: boolean;
   ativo: boolean;
   created_at: string;
   updated_at: string;
