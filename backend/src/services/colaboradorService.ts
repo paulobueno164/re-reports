@@ -178,14 +178,17 @@ export const updateColaborador = async (
     const values: any[] = [];
     let paramIndex = 1;
 
-    Object.entries(input).forEach(([key, value]) => {
+    const inputKeys = Object.keys(input) as Array<keyof UpdateColaboradorInput>;
+
+    inputKeys.forEach((key) => {
+      const value = input[key];
       // Apenas processar campos válidos que existem na tabela
       if (value !== undefined && validFields.includes(key)) {
         fields.push(`${key} = $${paramIndex}`);
         // Tratamento especial para campos de data (converter string vazia para null)
         if ((key === 'ferias_inicio' || key === 'ferias_fim') && (value === '' || value === null)) {
           values.push(null);
-        } else if (key === 'email') {
+        } else if (key === 'email' && typeof value === 'string') {
           values.push(value.toLowerCase());
         } else {
           values.push(value);
