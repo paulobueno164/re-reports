@@ -1,33 +1,6 @@
 // Mock Mode User Management
-import { MOCK_MODE } from './mock-config';
-export { MOCK_MODE };
-
-
-// Mock Users for authentication
-export const MOCK_USERS = [
-  {
-    id: 'user-rh-001',
-    email: 'rh@sistema.com.br',
-    password: 'admin123',
-    nome: 'Administrador RH',
-    roles: ['RH'] as ('FINANCEIRO' | 'COLABORADOR' | 'RH')[],
-  },
-  {
-    id: 'user-financeiro-001',
-    email: 'financeiro@sistema.com.br',
-    password: 'admin123',
-    nome: 'Gestor Financeiro',
-    roles: ['FINANCEIRO'] as ('FINANCEIRO' | 'COLABORADOR' | 'RH')[],
-  },
-  {
-    id: 'user-colaborador-001',
-    email: 'colaborador@sistema.com.br',
-    password: 'admin123',
-    nome: 'João Silva Santos',
-    roles: ['COLABORADOR'] as ('FINANCEIRO' | 'COLABORADOR' | 'RH')[],
-    colaboradorId: '1', // Links to mockEmployees[0]
-  },
-];
+import { MOCK_MODE, MOCK_USERS } from './mock-config';
+export { MOCK_MODE, MOCK_USERS };
 
 // Current logged in user (stored in memory for mock mode)
 let currentMockUser: typeof MOCK_USERS[0] | null = null;

@@ -7,7 +7,7 @@ import {
   mockPayrollEvents,
   mockDashboardSummary,
 } from './mock-data';
-import { MOCK_USERS } from './mock-mode';
+import { MOCK_USERS } from './mock-config';
 
 // Lazy load to avoid circular dependency
 const getMockUser = () => {
