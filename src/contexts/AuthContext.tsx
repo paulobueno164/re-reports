@@ -1,6 +1,19 @@
+// Auth Context - v2 (fixed circular dependencies)
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { authService, AuthUser, AppRole } from '@/services/auth.service';
 import { MOCK_MODE, MOCK_USERS } from '@/lib/mock-config';
+
+// Types defined locally to avoid import chain issues in mock mode
+export type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  nome: string;
+  roles: AppRole[];
+}
+
+// Lazy load auth service only when needed (non-mock mode)
+const getAuthService = () => import('@/services/auth.service').then(m => m.authService);
 
 // Mock user management functions - defined here to avoid circular dependencies
 const getMockUserFromStorage = () => {
@@ -60,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     
+    const authService = await getAuthService();
     if (!authService.isAuthenticated()) {
       setUser(null);
       setRoles([]);
@@ -97,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRoles(mockUser.roles);
         return { error: null };
       }
+      const authService = await getAuthService();
       const result = await authService.login(email, password);
       setUser(result.user);
       setRoles(result.user.roles);
@@ -110,6 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (MOCK_MODE) {
       logoutMockUserLocal();
     } else {
+      const authService = await getAuthService();
       await authService.logout();
     }
     setUser(null);
