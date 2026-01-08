@@ -1,5 +1,5 @@
 // API Client for RE-Reports Backend
-import { MOCK_MODE } from './mock-mode';
+import { MOCK_MODE } from './mock-config';
 import { handleMockRequest } from './mock-api';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -88,6 +88,8 @@ class ApiClient {
 
   // Upload de arquivos
   async uploadFile(endpoint: string, file: File, additionalData?: Record<string, string>): Promise<any> {
+    if (MOCK_MODE) return handleMockRequest('POST', endpoint);
+    
     const formData = new FormData();
     formData.append('file', file);
     
@@ -119,6 +121,8 @@ class ApiClient {
 
   // Download de arquivos
   async downloadFile(endpoint: string): Promise<Blob> {
+    if (MOCK_MODE) return new Blob(['mock file content'], { type: 'application/pdf' });
+    
     const token = this.getToken();
     const headers: Record<string, string> = {};
     if (token) {
@@ -138,6 +142,7 @@ class ApiClient {
   }
 
   getFileUrl(anexoId: string): string {
+    if (MOCK_MODE) return '/placeholder.svg';
     return `${this.baseUrl}/api/anexos/${anexoId}/view`;
   }
 }

@@ -7,7 +7,16 @@ import {
   mockPayrollEvents,
   mockDashboardSummary,
 } from './mock-data';
-import { getCurrentMockUser, MOCK_USERS } from './mock-mode';
+import { MOCK_USERS } from './mock-mode';
+
+// Lazy load to avoid circular dependency
+const getMockUser = () => {
+  const stored = localStorage.getItem('mock_user');
+  if (stored) {
+    return JSON.parse(stored);
+  }
+  return null;
+};
 
 // Simula delay de rede
 const delay = (ms: number = 200) => new Promise(resolve => setTimeout(resolve, ms));
@@ -180,7 +189,7 @@ const handlers: Record<string, MockHandler> = {
   
   'GET /auth/me': async () => {
     await delay();
-    const user = getCurrentMockUser();
+    const user = getMockUser();
     if (!user) throw new Error('Não autenticado');
     return {
       id: user.id,
@@ -237,7 +246,7 @@ const handlers: Record<string, MockHandler> = {
   
   'GET /colaboradores/me': async () => {
     await delay();
-    const user = getCurrentMockUser();
+    const user = getMockUser();
     if (!user) throw new Error('Não autenticado');
     // Return first colaborador for mock
     return mockColaboradoresBackend[0];
@@ -378,7 +387,7 @@ const handlers: Record<string, MockHandler> = {
       ...mockLancamentosBackend[index],
       status: data?.status,
       motivo_invalidacao: data?.motivo_invalidacao || null,
-      validado_por: getCurrentMockUser()?.id,
+      validado_por: getMockUser()?.id,
       validado_em: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -528,7 +537,7 @@ const handlers: Record<string, MockHandler> = {
       valor_total: mockLancamentosBackend
         .filter(l => l.periodo_id === data?.periodo_id && l.status === 'valido')
         .reduce((sum, l) => sum + l.valor_considerado, 0),
-      usuario_id: getCurrentMockUser()?.id || 'unknown',
+      usuario_id: getMockUser()?.id || 'unknown',
       detalhes_erro: null,
       created_at: new Date().toISOString(),
       periodo: mockPeriodosBackend.find(p => p.id === data?.periodo_id),
