@@ -1,6 +1,7 @@
-// Mock Mode Configuration
-// Set to true to use mocked data instead of real API calls
-export const MOCK_MODE = true;
+// Mock Mode User Management
+import { MOCK_MODE } from './mock-config';
+export { MOCK_MODE };
+
 
 // Mock Users for authentication
 export const MOCK_USERS = [

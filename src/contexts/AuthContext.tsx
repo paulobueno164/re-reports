@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { authService, AuthUser, AppRole } from '@/services/auth.service';
-import { MOCK_MODE, getCurrentMockUser, setCurrentMockUser, authenticateMockUser, logoutMockUser } from '@/lib/mock-mode';
+import { MOCK_MODE } from '@/lib/mock-config';
+import { getCurrentMockUser, setCurrentMockUser, authenticateMockUser, logoutMockUser } from '@/lib/mock-mode';
 
 interface AuthContextType {
   user: AuthUser | null;
