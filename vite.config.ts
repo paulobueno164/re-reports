@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
   },
   preview: {
     host: "::",
