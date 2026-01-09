@@ -6,7 +6,7 @@ export interface CreateAuditLogInput {
   userId: string;
   userName: string;
   action: 'aprovar' | 'rejeitar' | 'criar' | 'atualizar' | 'excluir' | 'iniciar_analise';
-  entityType: 'lancamento' | 'colaborador' | 'tipo_despesa' | 'periodo' | 'evento_folha';
+  entityType: 'lancamento' | 'colaborador' | 'tipo_despesa' | 'periodo' | 'evento_folha' | 'departamento' | 'grupo_despesa';
   entityId: string;
   entityDescription?: string;
   oldValues?: Record<string, any>;

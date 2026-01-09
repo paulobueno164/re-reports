@@ -7,6 +7,8 @@ import * as fechamentoService from '../services/fechamentoService';
 import * as dashboardService from '../services/dashboardService';
 import * as exportService from '../services/exportService';
 import * as auditService from '../services/auditService';
+import * as departamentoService from '../services/departamentoService';
+import * as grupoDespesaService from '../services/grupoDespesaService';
 import { authenticateToken, AuthenticatedRequest, requireRole, hasRole } from '../middleware/auth';
 
 const router = Router();
@@ -303,10 +305,75 @@ router.put('/colaboradores/:id/unlink-user', requireRole('RH'), async (req, res)
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-// Departamentos
+
+// =====================================================
+// CONFIGURAÇÕES
+// =====================================================
+
+// Departamentos CRUD
 router.get('/departamentos', async (req, res) => {
-  const result = await colaboradorService.getDepartamentos();
+  const result = await departamentoService.getAllDepartamentos(req.query as any);
   res.json(result);
+});
+
+router.get('/departamentos/:id', async (req, res) => {
+  const result = await departamentoService.getDepartamentoById(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Departamento não encontrado' });
+  res.json(result);
+});
+
+router.post('/departamentos', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await departamentoService.createDepartamento(req.body, req.user!.id, req.user!.nome);
+    res.status(201).json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/departamentos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await departamentoService.updateDepartamento(req.params.id, req.body, req.user!.id, req.user!.nome);
+    res.json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/departamentos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    await departamentoService.deleteDepartamento(req.params.id, req.user!.id, req.user!.nome);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// Grupos de Despesa CRUD
+router.get('/grupos-despesa', async (req, res) => {
+  const result = await grupoDespesaService.getAllGruposDespesa(req.query as any);
+  res.json(result);
+});
+
+router.get('/grupos-despesa/:id', async (req, res) => {
+  const result = await grupoDespesaService.getGrupoDespesaById(req.params.id);
+  if (!result) return res.status(404).json({ error: 'Grupo de despesa não encontrado' });
+  res.json(result);
+});
+
+router.post('/grupos-despesa', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await grupoDespesaService.createGrupoDespesa(req.body, req.user!.id, req.user!.nome);
+    res.status(201).json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.put('/grupos-despesa/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const result = await grupoDespesaService.updateGrupoDespesa(req.params.id, req.body, req.user!.id, req.user!.nome);
+    res.json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+router.delete('/grupos-despesa/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    await grupoDespesaService.deleteGrupoDespesa(req.params.id, req.user!.id, req.user!.nome);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
 // Iniciar análise de lançamento
@@ -329,5 +396,6 @@ router.get('/eventos-pida', requireRole('RH', 'FINANCEIRO'), async (req, res) =>
   );
   res.json(result);
 });
+
 
 export default router;

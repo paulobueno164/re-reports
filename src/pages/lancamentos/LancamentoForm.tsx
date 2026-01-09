@@ -17,11 +17,11 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { 
-  validarLancamentoCesta, 
-  formatCurrency, 
+import {
+  validarLancamentoCesta,
+  formatCurrency,
   validarOrigemDespesa,
-  gerarHashComprovante 
+  gerarHashComprovante
 } from '@/lib/expense-validation';
 import { AttachmentUploadSimple } from '@/components/attachments/AttachmentUploadSimple';
 import { AttachmentList } from '@/components/attachments/AttachmentList';
@@ -85,7 +85,7 @@ const LancamentoForm = () => {
 
   const today = new Date();
   const todayTime = today.getTime();
-  
+
   const currentPeriod = periods.find((p) => {
     if (p.status !== 'aberto') return false;
     const abertura = p.abreLancamento.getTime();
@@ -104,7 +104,7 @@ const LancamentoForm = () => {
     try {
       // Fetch colaborador
       const colabData = await colaboradoresService.getByUserId(user.id);
-      
+
       if (colabData) {
         setColaborador({
           id: colabData.id,
@@ -115,7 +115,7 @@ const LancamentoForm = () => {
         // Fetch expense types for this colaborador
         const vinculosData = await colaboradoresService.getTiposDespesas(colabData.id);
         let typesData: ExpenseType[] = [];
-        
+
         if (vinculosData && vinculosData.length > 0) {
           typesData = vinculosData
             .filter((v: any) => v.tipo_despesa)
@@ -241,7 +241,7 @@ const LancamentoForm = () => {
     try {
       const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
       const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
-      
+
       let lancamentoId: string;
 
       if (isEditing && id) {
@@ -380,10 +380,10 @@ const LancamentoForm = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Número do Documento</Label>
-            <Input 
-              value={formNumeroDocumento} 
-              onChange={(e) => setFormNumeroDocumento(e.target.value)} 
-              placeholder="Ex: NF-001234, REC-5678" 
+            <Input
+              value={formNumeroDocumento}
+              onChange={(e) => setFormNumeroDocumento(e.target.value)}
+              placeholder="Ex: NF-001234, REC-5678"
             />
           </div>
           <div className="space-y-2">
@@ -405,7 +405,7 @@ const LancamentoForm = () => {
               onCheckedChange={setFormParcelamentoAtivo}
             />
           </div>
-          
+
           {formParcelamentoAtivo && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               <div className="space-y-2">
@@ -452,7 +452,7 @@ const LancamentoForm = () => {
               onUploadComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
             />
           )}
-          
+
           {isEditing && id && (
             <div className="mt-4">
               <Label className="text-sm text-muted-foreground">Comprovantes já anexados:</Label>

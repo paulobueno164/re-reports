@@ -21,6 +21,7 @@ import {
   Activity,
   History,
   UserCog,
+  Settings,
 } from 'lucide-react';
 import onsetLogo from '@/assets/onset-logo.png';
 
@@ -96,6 +97,12 @@ const navigation: NavItem[] = [
     href: '/auditoria',
     icon: <History className="w-5 h-5" />,
     roles: ['RH', 'FINANCEIRO'],
+  },
+  {
+    label: 'Configurações',
+    href: '/configuracoes',
+    icon: <Settings className="w-5 h-5" />,
+    roles: ['RH'],
   },
   {
     label: 'Gerenciar Usuários',

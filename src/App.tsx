@@ -24,6 +24,13 @@ import NotFound from "./pages/NotFound";
 import { UsuariosLista, UsuarioRoles, UsuarioForm } from "./pages/gerenciar-usuarios";
 import Perfil from "./pages/Perfil";
 
+// Configurações
+import ConfiguracoesIndex from "./pages/configuracoes";
+import DepartamentosLista from "./pages/configuracoes/departamentos/DepartamentosLista";
+import DepartamentoForm from "./pages/configuracoes/departamentos/DepartamentoForm";
+import GruposDespesaLista from "./pages/configuracoes/grupos-despesa/GruposDespesaLista";
+import GrupoDespesaForm from "./pages/configuracoes/grupos-despesa/GrupoDespesaForm";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -155,6 +162,45 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/perfil" element={<Perfil />} />
+
+
+              {/* Configurações */}
+              <Route path="/configuracoes" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <ConfiguracoesIndex />
+                </ProtectedRoute>
+              } />
+              <Route path="/configuracoes/departamentos" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <DepartamentosLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/configuracoes/departamentos/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <DepartamentoForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/configuracoes/departamentos/:id" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <DepartamentoForm />
+                </ProtectedRoute>
+              } />
+
+              <Route path="/configuracoes/grupos-despesa" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <GruposDespesaLista />
+                </ProtectedRoute>
+              } />
+              <Route path="/configuracoes/grupos-despesa/novo" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <GrupoDespesaForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/configuracoes/grupos-despesa/:id" element={
+                <ProtectedRoute requiredRoles={['RH']}>
+                  <GrupoDespesaForm />
+                </ProtectedRoute>
+              } />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

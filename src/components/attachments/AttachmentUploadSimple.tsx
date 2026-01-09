@@ -53,7 +53,7 @@ export function AttachmentUploadSimple({
           Adicione comprovantes para validação do lançamento.
         </AlertDescription>
       </Alert>
-      
+
       <div
         className={cn(
           'border-2 border-dashed rounded-lg p-4 text-center transition-colors',

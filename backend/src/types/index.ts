@@ -148,6 +148,23 @@ export interface JwtPayload {
   email: string;
 }
 
+// Configuration Tables
+export interface Departamento {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GrupoDespesa {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Request Types
 export interface AuthenticatedRequest extends Express.Request {
   user?: AuthUser;
