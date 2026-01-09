@@ -125,7 +125,6 @@ const CalendarioLista = () => {
               size="icon"
               className="h-8 w-8"
               onClick={() => navigate(`/calendario/${item.id}/editar`)}
-              disabled={item.status === "fechado"}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -134,7 +133,6 @@ const CalendarioLista = () => {
               size="icon"
               className="h-8 w-8"
               onClick={() => handleDelete(item)}
-              disabled={item.status === "fechado"}
             >
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
@@ -149,7 +147,6 @@ const CalendarioLista = () => {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
                   onClick={() => navigate(`/calendario/${item.id}/editar`)}
-                  disabled={item.status === "fechado"}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
@@ -157,7 +154,6 @@ const CalendarioLista = () => {
                 <DropdownMenuItem
                   onClick={() => handleDelete(item)}
                   className="text-destructive"
-                  disabled={item.status === "fechado"}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   Excluir
