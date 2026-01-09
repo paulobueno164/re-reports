@@ -87,6 +87,7 @@ const ColaboradorLancamentos = () => {
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [percentualUsado, setPercentualUsado] = useState(0);
   const [bloqueadoPorUltimoLancamento, setBloqueadoPorUltimoLancamento] = useState(false);
+  const [hasBeneficiosLiberados, setHasBeneficiosLiberados] = useState(true);
   const [periodoValidation, setPeriodoValidation] = useState<{
     permitido: boolean;
     periodoDestino: 'atual' | 'proximo' | 'bloqueado';
@@ -169,6 +170,11 @@ const ColaboradorLancamentos = () => {
       const colabData = await colaboradoresService.getById(id);
       setColaborador(colabData);
       setTetoCesta(colabData.cesta_beneficios_teto);
+
+      // Verificar se colaborador tem tipos de despesa liberados
+      const vinculosData = await colaboradoresService.getTiposDespesas(colabData.id);
+      const hasTypes = vinculosData && vinculosData.length > 0 && vinculosData.some((v: any) => v.tipo_despesa);
+      setHasBeneficiosLiberados(hasTypes || false);
 
       const periodsData = await periodosService.getAll();
       const mapped: CalendarPeriod[] = periodsData.map(p => ({
@@ -263,6 +269,14 @@ const ColaboradorLancamentos = () => {
   };
 
   const handleNew = () => {
+    if (!hasBeneficiosLiberados) {
+      toast({ 
+        title: 'Benefícios não liberados', 
+        description: 'Você não possui benefícios liberados para lançamento neste período. Procure o RH/Administrador.', 
+        variant: 'destructive' 
+      });
+      return;
+    }
     if (periodoValidation && !periodoValidation.permitido) {
       toast({ title: 'Período não disponível', description: periodoValidation.mensagem, variant: 'destructive' });
       return;
@@ -441,7 +455,7 @@ const ColaboradorLancamentos = () => {
     },
   ];
 
-  const canCreateNew = canEdit && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
+  const canCreateNew = canEdit && hasBeneficiosLiberados && periodoValidation?.permitido && !bloqueadoPorUltimoLancamento && saldoDisponivel > 0;
 
   if (loading) {
     return (
@@ -498,6 +512,14 @@ const ColaboradorLancamentos = () => {
         )}
 
         {/* Alerts */}
+        {!hasBeneficiosLiberados && selectedPeriod?.status === 'aberto' && (
+          <Alert variant="destructive">
+            <Lock className="h-4 w-4" />
+            <AlertTitle>Benefícios não liberados</AlertTitle>
+            <AlertDescription>Você não possui benefícios liberados para lançamento neste período. Procure o RH/Administrador.</AlertDescription>
+          </Alert>
+        )}
+
         {periodoValidation && !periodoValidation.permitido && selectedPeriod?.status === 'aberto' && (
           <Alert variant="destructive">
             <Lock className="h-4 w-4" />

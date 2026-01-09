@@ -11,7 +11,7 @@ import attachmentsRoutes from './routes/attachments';
 import { initializeStorage } from './config/storage';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3030;
 
 // Inicializar diretórios de storage
 initializeStorage();

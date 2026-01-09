@@ -59,7 +59,7 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
 
   const handleDownload = async (attachment: Attachment) => {
     try {
-      const blob = await anexosService.download(attachment.storagePath);
+      const blob = await anexosService.download(attachment.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -80,7 +80,9 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
     setRotation(0);
 
     try {
-      const url = anexosService.getViewUrl(attachment.id);
+      // Fazer download do arquivo e criar blob URL para garantir autenticação
+      const blob = await anexosService.download(attachment.id);
+      const url = URL.createObjectURL(blob);
       
       if (attachment.tipoArquivo.startsWith('image/')) {
         setPreviewType('image');
@@ -91,8 +93,10 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
         setPreviewUrl(url);
         setPreviewOpen(true);
       } else {
-        // For other files, download directly
+        // For other files, open blob URL in new tab
         window.open(url, '_blank');
+        // Limpar o blob URL após um tempo
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
     } catch (error) {
       console.error('Error getting preview URL:', error);
@@ -201,7 +205,14 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
       ))}
 
       {/* Preview Dialog */}
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <Dialog open={previewOpen} onOpenChange={(open) => {
+        setPreviewOpen(open);
+        // Limpar blob URL quando fechar o dialog
+        if (!open && previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+      }}>
         <DialogContent className="w-full max-w-4xl max-h-[90vh] flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center justify-between pr-8">
@@ -264,17 +275,29 @@ function AttachmentThumbnail({
 
   useEffect(() => {
     loadThumbnail();
-  }, [attachment.storagePath]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachment.id, attachment.storagePath]);
 
   const loadThumbnail = async () => {
     try {
-      const url = anexosService.getViewUrl(attachment.id);
+      // Fazer download e criar blob URL para garantir autenticação
+      const blob = await anexosService.download(attachment.id);
+      const url = URL.createObjectURL(blob);
       setThumbnailUrl(url);
     } catch (error) {
       console.error('Error loading thumbnail:', error);
     }
     setLoading(false);
   };
+  
+  // Cleanup: revogar blob URL quando o componente desmontar
+  useEffect(() => {
+    return () => {
+      if (thumbnailUrl) {
+        URL.revokeObjectURL(thumbnailUrl);
+      }
+    };
+  }, [thumbnailUrl]);
 
   return (
     <div className="relative group rounded-lg overflow-hidden border bg-muted aspect-square">

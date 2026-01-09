@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Upload, Loader2, FileText, X, AlertCircle, CreditCard } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
@@ -30,6 +30,7 @@ import periodosService from '@/services/periodos.service';
 import tiposDespesasService from '@/services/tipos-despesas.service';
 import lancamentosService from '@/services/lancamentos.service';
 import anexosService from '@/services/anexos.service';
+import { findCurrentPeriod } from '@/lib/utils';
 
 interface ExpenseType {
   id: string;
@@ -41,6 +42,8 @@ interface CalendarPeriod {
   id: string;
   periodo: string;
   status: string;
+  dataInicio: Date;
+  dataFinal: Date;
   abreLancamento: Date;
   fechaLancamento: Date;
 }
@@ -83,15 +86,6 @@ const LancamentoForm = () => {
   const [cestaTeto, setCestaTeto] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
 
-  const today = new Date();
-  const todayTime = today.getTime();
-
-  const currentPeriod = periods.find((p) => {
-    if (p.status !== 'aberto') return false;
-    const abertura = p.abreLancamento.getTime();
-    const fechamento = p.fechaLancamento.getTime() + (23 * 60 * 60 * 1000) + (59 * 60 * 1000) + (59 * 1000);
-    return todayTime >= abertura && todayTime <= fechamento;
-  }) || periods.find((p) => p.status === 'aberto');
 
   useEffect(() => {
     fetchData();
@@ -126,17 +120,7 @@ const LancamentoForm = () => {
             }));
         }
 
-        if (typesData.length === 0) {
-          const allTypesData = await tiposDespesasService.getAll();
-          typesData = allTypesData
-            .filter(t => t.classificacao === 'variavel' && t.ativo)
-            .map(t => ({
-              id: t.id,
-              nome: t.nome,
-              origemPermitida: t.origem_permitida as ('proprio' | 'conjuge' | 'filhos')[],
-            }));
-        }
-
+        // NÃO fazer fallback para todos os tipos - se não tem tipos liberados, não pode criar lançamento
         setExpenseTypes(typesData);
       }
 
@@ -146,15 +130,30 @@ const LancamentoForm = () => {
         id: p.id,
         periodo: p.periodo,
         status: p.status,
+        dataInicio: new Date(p.data_inicio),
+        dataFinal: new Date(p.data_final),
         abreLancamento: new Date(p.abre_lancamento),
         fechaLancamento: new Date(p.fecha_lancamento),
       }));
       setPeriods(mappedPeriods);
 
-      // Set default period
-      const openPeriod = mappedPeriods.find(p => p.status === 'aberto');
-      if (openPeriod && !isEditing) {
-        setFormPeriodoId(openPeriod.id);
+      // Encontrar período vigente (data atual entre data_inicio e data_final)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTime = today.getTime();
+      
+      const vigentPeriod = mappedPeriods.find(p => {
+        const inicio = new Date(p.dataInicio);
+        inicio.setHours(0, 0, 0, 0);
+        const fim = new Date(p.dataFinal);
+        fim.setHours(23, 59, 59, 999);
+        return todayTime >= inicio.getTime() && todayTime <= fim.getTime();
+      });
+
+      // Set default period - usar período vigente se existir, senão usar o primeiro com status aberto
+      const defaultPeriod = vigentPeriod || mappedPeriods.find(p => p.status === 'aberto');
+      if (defaultPeriod && !isEditing) {
+        setFormPeriodoId(defaultPeriod.id);
       }
 
       // Fetch existing expense if editing
@@ -173,11 +172,11 @@ const LancamentoForm = () => {
         }
       }
 
-      // Calculate totals
-      if (colabData && openPeriod) {
+      // Calculate totals - usar o período vigente ou o período selecionado no formulário
+      if (colabData && defaultPeriod) {
         const expenses = await lancamentosService.getAll({
           colaborador_id: colabData.id,
-          periodo_id: openPeriod.id,
+          periodo_id: defaultPeriod.id,
           status: 'valido',
         });
 
@@ -268,9 +267,19 @@ const LancamentoForm = () => {
         lancamentoId = result.id;
       }
 
-      // Upload attachment
+      // Upload attachment após criar o lançamento
       if (formFile && lancamentoId) {
-        await anexosService.upload(lancamentoId, formFile);
+        try {
+          await anexosService.upload(lancamentoId, formFile);
+        } catch (error: any) {
+          // Se o upload falhar, não bloquear o salvamento do lançamento
+          console.error('Erro ao fazer upload do comprovante:', error);
+          toast({
+            title: 'Aviso',
+            description: 'Lançamento salvo, mas houve erro ao fazer upload do comprovante. Você pode adicionar o comprovante depois.',
+            variant: 'default',
+          });
+        }
       }
 
       toast({
@@ -287,12 +296,38 @@ const LancamentoForm = () => {
   };
 
   const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
+  const hasNoBeneficios = expenseTypes.length === 0;
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
+    );
+  }
+
+  // Bloquear acesso se não tem benefícios liberados
+  if (hasNoBeneficios && !isEditing) {
+    return (
+      <PageFormLayout
+        title="Novo Lançamento"
+        description="Preencha os dados do lançamento de despesa"
+        backTo="/lancamentos"
+        backLabel="Voltar para lista"
+      >
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Benefícios não liberados</AlertTitle>
+          <AlertDescription>
+            Você não possui benefícios liberados para lançamento neste período. Procure o RH/Administrador.
+          </AlertDescription>
+        </Alert>
+        <div className="flex justify-end gap-3 pt-4">
+          <Button variant="outline" onClick={() => navigate('/lancamentos')}>
+            Voltar
+          </Button>
+        </div>
+      </PageFormLayout>
     );
   }
 
@@ -447,10 +482,42 @@ const LancamentoForm = () => {
         <div className="space-y-4">
           <Label>Comprovante</Label>
           {!isEditing && (
-            <AttachmentUploadSimple
-              lancamentoId="temp"
-              onUploadComplete={() => setAttachmentRefreshKey(prev => prev + 1)}
-            />
+            <>
+              <Alert variant="default" className="border-primary/30 bg-primary/5">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Adicione comprovantes para validação do lançamento. O arquivo será enviado após salvar o lançamento.
+                </AlertDescription>
+              </Alert>
+              <div className="border-2 border-dashed rounded-lg p-4">
+                <Input
+                  type="file"
+                  accept=".pdf,.xlsx,.xls,.doc,.docx,.png,.jpg,.jpeg"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setFormFile(file);
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+                {formFile && (
+                  <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="h-4 w-4" />
+                    <span>{formFile.name}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFormFile(null)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
           )}
 
           {isEditing && id && (

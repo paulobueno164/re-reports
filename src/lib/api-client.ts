@@ -1,5 +1,5 @@
 // API Client for RE-Reports Backend
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3030';
 
 interface RequestOptions extends RequestInit {
   skipAuth?: boolean;

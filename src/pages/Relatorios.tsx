@@ -69,12 +69,16 @@ const Relatorios = () => {
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
-  const periodOptions: ComboboxOption[] = useMemo(() =>
-    periodos.map((p) => ({
+  const periodOptions: ComboboxOption[] = useMemo(() => {
+    if (!periodos || periodos.length === 0) {
+      return [];
+    }
+    return periodos.map((p) => ({
       value: p.id,
       label: `${p.periodo}${p.status === 'aberto' ? ' (Atual)' : ''}`,
       description: p.status === 'aberto' ? 'Período aberto' : 'Período fechado',
-    })), [periodos]);
+    }));
+  }, [periodos]);
 
   const colaboradorOptions: ComboboxOption[] = useMemo(() =>
     colaboradores.map((c) => ({
@@ -122,17 +126,38 @@ const Relatorios = () => {
       ]);
 
       if (colaboradoresData) setColaboradores(colaboradoresData as any);
-      if (periodosData) {
+      
+      // Garantir que períodos seja um array válido
+      if (periodosData && Array.isArray(periodosData) && periodosData.length > 0) {
         setPeriodos(periodosData);
         if (!selectedPeriod) {
           const currentPeriod = findCurrentPeriod(periodosData);
           if (currentPeriod) {
             setSelectedPeriod(currentPeriod.id);
+          } else if (periodosData.length > 0) {
+            // Se não há período vigente, usar o primeiro disponível
+            setSelectedPeriod(periodosData[0].id);
           }
         }
+      } else {
+        // Se não há períodos, limpar o estado
+        setPeriodos([]);
+        setSelectedPeriod('');
+        if (periodosData && (!Array.isArray(periodosData) || periodosData.length === 0)) {
+          toast({
+            title: 'Aviso',
+            description: 'Nenhum período cadastrado encontrado.',
+            variant: 'default',
+          });
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao buscar dados:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Erro ao carregar períodos e colaboradores',
+        variant: 'destructive',
+      });
     }
     setLoading(false);
   };
@@ -173,14 +198,20 @@ const Relatorios = () => {
         resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
       }
 
+      // Calcular rendimento total com validação para evitar NaN
+      const rendimentoTotal = resumo.reduce((acc, r) => {
+        const valor = Number(r.valorUtilizado) || 0;
+        return acc + (isNaN(valor) ? 0 : valor);
+      }, 0);
+
       setPreviewData({
         colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
         periodo: periodo?.periodo || '',
         resumo,
-        rendimentoTotal: resumo.reduce((acc, r) => acc + Number(r.valorUtilizado || 0), 0),
+        rendimentoTotal: isNaN(rendimentoTotal) ? 0 : rendimentoTotal,
         utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, totalPendente, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
-        despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
-        totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor })),
+        despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado) || 0, status: d.status, data: new Date(d.created_at) })),
+        totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor: Number(valor) || 0 })),
         totalLancamentos: despesas.length,
         qtdAprovados: aprovados.length,
         qtdPendentes: pendentes.length,

@@ -120,7 +120,7 @@ interface SidebarProps {
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { signOut, hasRole, roles } = useAuth();
+  const { signOut, hasRole, roles, activeRole } = useAuth();
 
   const handleLogout = async () => {
     await signOut();
@@ -128,7 +128,17 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   };
 
   const filteredNavigation = navigation.filter((item) => {
-    if (!item.roles) return true;
+    // Se a role ativa é ADMINISTRADOR, mostrar apenas menus de ADMINISTRADOR
+    if (activeRole === 'ADMINISTRADOR') {
+      return item.roles?.includes('ADMINISTRADOR') || false;
+    }
+    
+    // Para outras roles, usar a lógica padrão
+    if (!item.roles) {
+      // Itens sem roles específicas (como Lançamentos) não devem aparecer para ADMINISTRADOR
+      // mas aparecem para outras roles
+      return true;
+    }
     return item.roles.some((role) => hasRole(role));
   });
 
@@ -143,14 +153,20 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Role Badge */}
       <div className="px-6 py-3 border-b border-sidebar-border">
         <div className="flex flex-wrap gap-1">
-          {roles.map((role) => (
-            <span
-              key={role}
-              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary"
-            >
-              {role}
+          {activeRole ? (
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary">
+              {activeRole}
             </span>
-          ))}
+          ) : (
+            roles.map((role) => (
+              <span
+                key={role}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-sidebar-primary/20 text-sidebar-primary"
+              >
+                {role}
+              </span>
+            ))
+          )}
         </div>
       </div>
 

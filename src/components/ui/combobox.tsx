@@ -81,31 +81,37 @@ const Combobox = React.forwardRef<HTMLButtonElement, ComboboxProps>(
             <CommandList>
               <CommandEmpty>{emptyMessage}</CommandEmpty>
               <CommandGroup>
-                {options.map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.label}
-                    onSelect={() => {
-                      onValueChange(option.value === value ? "" : option.value);
-                      setOpen(false);
-                    }}
-                  >
-                    <div className="flex flex-col">
-                      <span>{option.label}</span>
-                      {option.description && (
-                        <span className="text-xs text-muted-foreground">
-                          {option.description}
-                        </span>
-                      )}
-                    </div>
-                    <Check
-                      className={cn(
-                        "ml-auto h-4 w-4",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                  </CommandItem>
-                ))}
+                {options.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-muted-foreground">
+                    {emptyMessage}
+                  </div>
+                ) : (
+                  options.map((option) => (
+                    <CommandItem
+                      key={option.value}
+                      value={`${option.label} ${option.description || ''}`}
+                      onSelect={() => {
+                        onValueChange(option.value === value ? "" : option.value);
+                        setOpen(false);
+                      }}
+                    >
+                      <div className="flex flex-col">
+                        <span>{option.label}</span>
+                        {option.description && (
+                          <span className="text-xs text-muted-foreground">
+                            {option.description}
+                          </span>
+                        )}
+                      </div>
+                      <Check
+                        className={cn(
+                          "ml-auto h-4 w-4",
+                          value === option.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                    </CommandItem>
+                  ))
+                )}
               </CommandGroup>
             </CommandList>
           </Command>

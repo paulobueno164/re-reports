@@ -16,6 +16,22 @@ export interface UpdatePeriodoInput extends Partial<CreatePeriodoInput> { }
 export const getAllPeriodos = async (
   filters?: { status?: PeriodStatus }
 ): Promise<CalendarioPeriodo[]> => {
+  // Atualizar status dos períodos baseado na data atual
+  const today = new Date().toISOString().split('T')[0];
+  try {
+    await query(
+      `UPDATE calendario_periodos 
+       SET status = CASE 
+         WHEN data_inicio <= $1::date AND data_final >= $1::date THEN 'aberto'::public.period_status
+         ELSE 'fechado'::public.period_status
+       END`,
+      [today]
+    );
+  } catch (error) {
+    // Se falhar a atualização, continuar mesmo assim (não é crítico)
+    console.error('Erro ao atualizar status dos períodos:', error);
+  }
+
   let sql = 'SELECT * FROM calendario_periodos WHERE 1=1';
   const params: any[] = [];
   let paramIndex = 1;

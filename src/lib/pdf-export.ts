@@ -52,8 +52,12 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
 
   doc.setFontSize(12);
   doc.text(`Período: ${data.periodo}`, pageWidth - 14, 18, { align: 'right' });
+  // Usar data local corretamente para evitar problema de timezone
   const hoje = new Date();
-  const dataFormatada = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+  const dia = hoje.getDate();
+  const mes = hoje.getMonth() + 1;
+  const ano = hoje.getFullYear();
+  const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
   doc.text(`Gerado em: ${dataFormatada}`, pageWidth - 14, 26, { align: 'right' });
 
   // Employee info
@@ -86,8 +90,8 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
       ]),
       [
         { content: 'RENDIMENTO TOTAL', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
-        { content: formatCurrency(data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
-        { content: formatCurrency(data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
+        { content: formatCurrency(isNaN(data.rendimentoTotal) ? 0 : data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
+        { content: formatCurrency(isNaN(data.rendimentoTotal) ? 0 : data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
         { content: '100%', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } }
       ]
     ],

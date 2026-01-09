@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, User, Menu, X } from 'lucide-react';
+import { Search, User, Menu, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,14 +16,22 @@ import { useNavigate } from 'react-router-dom';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useIsMobile } from '@/hooks/use-mobile';
 import onsetLogo from '@/assets/onset-logo.png';
+import { AppRole } from '@/services/auth.service';
 
 interface HeaderProps {
   title?: string;
   onMenuClick?: () => void;
 }
 
+const ROLE_LABELS: Record<AppRole, string> = {
+  RH: 'RH',
+  FINANCEIRO: 'Financeiro',
+  COLABORADOR: 'Colaborador',
+  ADMINISTRADOR: 'Administrador',
+};
+
 export function Header({ title, onMenuClick }: HeaderProps) {
-  const { user, signOut, roles } = useAuth();
+  const { user, signOut, roles, activeRole, setActiveRole } = useAuth();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -33,15 +41,42 @@ export function Header({ title, onMenuClick }: HeaderProps) {
     navigate('/auth');
   };
 
+  const getDashboardRouteForRole = (role: AppRole): string => {
+    switch (role) {
+      case 'RH':
+        return '/dashboard-rh';
+      case 'FINANCEIRO':
+        return '/dashboard-financeiro';
+      case 'ADMINISTRADOR':
+        // Página inicial do ADMINISTRADOR é sempre Configurações
+        return '/configuracoes';
+      case 'COLABORADOR':
+      default:
+        return '/';
+    }
+  };
+
+  const handleRoleChange = (role: AppRole) => {
+    setActiveRole(role);
+    // Navegar para a página inicial da role e recarregar
+    const dashboardRoute = getDashboardRouteForRole(role);
+    window.location.href = dashboardRoute;
+  };
+
   const getInitials = (email: string) => {
     return email.substring(0, 2).toUpperCase();
   };
 
   const getPrimaryRole = () => {
+    if (activeRole) {
+      return ROLE_LABELS[activeRole];
+    }
     if (roles.includes('RH')) return 'RH';
     if (roles.includes('FINANCEIRO')) return 'Financeiro';
     return 'Colaborador';
   };
+
+  const hasMultipleRoles = roles.length > 1;
 
   return (
     <header className="sticky top-0 z-30 flex h-14 md:h-16 items-center justify-between border-b border-border bg-card px-3 md:px-6">
@@ -145,6 +180,28 @@ export function Header({ title, onMenuClick }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            {hasMultipleRoles && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground px-2 py-1.5">
+                  Perfil Ativo
+                </DropdownMenuLabel>
+                {roles.map((role) => (
+                  <DropdownMenuItem
+                    key={role}
+                    onClick={() => handleRoleChange(role)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span>{ROLE_LABELS[role]}</span>
+                      {activeRole === role && (
+                        <Check className="h-4 w-4 text-primary" />
+                      )}
+                    </div>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={() => navigate('/perfil')}>
               <User className="mr-2 h-4 w-4" />
               Perfil

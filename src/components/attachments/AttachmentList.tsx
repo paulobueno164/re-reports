@@ -48,6 +48,16 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
 
   useEffect(() => {
     fetchAttachments();
+    
+    // Cleanup: revogar blob URLs quando o componente desmontar
+    return () => {
+      if (inlinePreviewUrl) {
+        URL.revokeObjectURL(inlinePreviewUrl);
+      }
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
   }, [lancamentoId]);
 
   const fetchAttachments = async () => {
@@ -79,10 +89,16 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   const loadInlinePreview = async (attachment: Attachment) => {
     setLoadingInlinePreview(true);
     try {
-      const url = anexosService.getViewUrl(attachment.id);
+      const blob = await anexosService.download(attachment.id);
+      const url = URL.createObjectURL(blob);
       setInlinePreviewUrl(url);
     } catch (error) {
       console.error('Error loading preview:', error);
+      toast({
+        title: 'Erro ao carregar preview',
+        description: 'Não foi possível carregar a visualização do arquivo',
+        variant: 'destructive',
+      });
     }
     setLoadingInlinePreview(false);
   };
@@ -108,12 +124,31 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   };
 
   const handlePreview = async (attachment: Attachment) => {
-    const url = anexosService.getViewUrl(attachment.id);
-    if (attachment.tipoArquivo.startsWith('image/')) {
-      setPreviewUrl(url);
-      setPreviewOpen(true);
-    } else {
-      window.open(url, '_blank');
+    try {
+      if (attachment.tipoArquivo.startsWith('image/')) {
+        // Para imagens, fazer download e criar blob URL
+        const blob = await anexosService.download(attachment.id);
+        const url = URL.createObjectURL(blob);
+        setPreviewUrl(url);
+        setPreviewOpen(true);
+      } else if (attachment.tipoArquivo === 'application/pdf') {
+        // Para PDFs, fazer download e abrir em nova aba
+        const blob = await anexosService.download(attachment.id);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // Limpar o blob URL após um tempo para liberar memória
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        // Para outros tipos, tentar abrir diretamente
+        const url = anexosService.getViewUrl(attachment.id);
+        window.open(url, '_blank');
+      }
+    } catch (error) {
+      toast({
+        title: 'Erro ao visualizar',
+        description: 'Não foi possível carregar o arquivo',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -278,7 +313,14 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
         </div>
       ))}
 
-      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+      <Dialog open={previewOpen} onOpenChange={(open) => {
+        setPreviewOpen(open);
+        // Limpar blob URL quando fechar o dialog
+        if (!open && previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          setPreviewUrl(null);
+        }
+      }}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Visualizar Comprovante</DialogTitle>
@@ -289,6 +331,13 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
                 src={previewUrl}
                 alt="Preview"
                 className="max-h-[70vh] object-contain rounded-lg"
+                onError={(e) => {
+                  toast({
+                    title: 'Erro ao carregar imagem',
+                    description: 'Não foi possível exibir a imagem',
+                    variant: 'destructive',
+                  });
+                }}
               />
             </div>
           )}
