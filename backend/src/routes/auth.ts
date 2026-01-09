@@ -15,7 +15,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
   nome: z.string().min(2),
-  role: z.enum(['FINANCEIRO', 'COLABORADOR', 'RH']).optional(),
+  role: z.enum(['FINANCEIRO', 'COLABORADOR', 'RH', 'ADMINISTRADOR']).optional(),
 });
 
 router.post('/login', async (req, res) => {
@@ -110,7 +110,7 @@ router.get('/me', authenticateToken, async (req: AuthenticatedRequest, res) => {
 
 router.post('/users/:id/roles', authenticateToken, requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
-    const { role } = z.object({ role: z.enum(['FINANCEIRO', 'COLABORADOR', 'RH']) }).parse(req.body);
+    const { role } = z.object({ role: z.enum(['FINANCEIRO', 'COLABORADOR', 'RH', 'ADMINISTRADOR']) }).parse(req.body);
     await authService.addUserRole(req.params.id, role);
     res.json({ success: true });
   } catch (error: any) {
@@ -159,7 +159,7 @@ router.put('/change-password', authenticateToken, async (req: AuthenticatedReque
       currentPassword: z.string().min(1),
       newPassword: z.string().min(6),
     }).parse(req.body);
-    
+
     await authService.changePassword(req.user!.id, currentPassword, newPassword);
     res.json({ success: true });
   } catch (error: any) {

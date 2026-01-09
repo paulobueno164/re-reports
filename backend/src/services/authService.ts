@@ -219,16 +219,11 @@ export const getUserRoles = async (userId: string): Promise<AppRole[]> => {
 
 export const addUserRole = async (userId: string, role: AppRole): Promise<void> => {
   await transaction(async (client) => {
-    // Remover todas as roles existentes (usuário só pode ter uma role)
-    await client.query(
-      'DELETE FROM user_roles WHERE user_id = $1',
-      [userId]
-    );
-
-    // Adicionar a nova role
+    // Adicionar a nova role (ignorando se já existir)
     await client.query(
       `INSERT INTO user_roles (id, user_id, role, created_at)
-       VALUES ($1, $2, $3, NOW())`,
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, role) DO NOTHING`,
       [uuidv4(), userId, role]
     );
   });
@@ -237,7 +232,7 @@ export const addUserRole = async (userId: string, role: AppRole): Promise<void> 
 export const removeUserRole = async (userId: string, role: AppRole): Promise<void> => {
   // Verificar quantas roles o usuário tem
   const currentRoles = await getUserRoles(userId);
-  
+
   // Se o usuário tem apenas uma role e é a que está sendo removida, não permitir
   if (currentRoles.length === 1 && currentRoles[0] === role) {
     throw new Error('Usuário deve ter pelo menos uma role');
