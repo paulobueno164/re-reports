@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Eye, Loader2, MoreVertical } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Eye, Loader2, MoreVertical, Palmtree } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
 import { formatCurrency } from '@/lib/expense-validation';
@@ -33,6 +34,22 @@ const departments = [
   'Jurídico',
 ];
 
+// Função para verificar se o colaborador está em férias
+const isOnVacation = (colaborador: Colaborador): boolean => {
+  if (!colaborador.ferias_inicio || !colaborador.ferias_fim) return false;
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const inicio = new Date(colaborador.ferias_inicio);
+  inicio.setHours(0, 0, 0, 0);
+
+  const fim = new Date(colaborador.ferias_fim);
+  fim.setHours(0, 0, 0, 0);
+
+  return hoje >= inicio && hoje <= fim;
+};
+
 const ColaboradoresLista = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -40,6 +57,7 @@ const ColaboradoresLista = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartamento, setFilterDepartamento] = useState('all');
+  const [filterEmFerias, setFilterEmFerias] = useState('all');
 
   useEffect(() => {
     fetchEmployees();
@@ -63,7 +81,15 @@ const ColaboradoresLista = () => {
       emp.matricula.toLowerCase().includes(searchLower) ||
       emp.departamento.toLowerCase().includes(searchLower);
     const matchesDept = filterDepartamento === 'all' || emp.departamento === filterDepartamento;
-    return matchesSearch && matchesDept;
+
+    // Filtro de férias
+    const emFerias = isOnVacation(emp);
+    const matchesFerias =
+      filterEmFerias === 'all' ||
+      (filterEmFerias === 'sim' && emFerias) ||
+      (filterEmFerias === 'nao' && !emFerias);
+
+    return matchesSearch && matchesDept && matchesFerias;
   });
 
   const handleDelete = async (employee: Colaborador) => {
@@ -80,8 +106,8 @@ const ColaboradoresLista = () => {
 
   const columns = [
     { key: 'matricula', header: 'Matrícula', className: 'font-mono', hideOnMobile: true },
-    { 
-      key: 'nome', 
+    {
+      key: 'nome',
       header: 'Nome',
       render: (item: Colaborador) => (
         <span className="truncate max-w-[120px] sm:max-w-none">{item.nome}</span>
@@ -102,12 +128,21 @@ const ColaboradoresLista = () => {
     {
       key: 'ativo',
       header: 'Status',
-      render: (item: Colaborador) =>
-        item.ativo ? (
-          <span className="status-badge status-valid">Ativo</span>
-        ) : (
-          <span className="status-badge status-draft">Inativo</span>
-        ),
+      render: (item: Colaborador) => (
+        <div className="flex flex-col gap-1">
+          {item.ativo ? (
+            <span className="status-badge status-valid">Ativo</span>
+          ) : (
+            <span className="status-badge status-draft">Inativo</span>
+          )}
+          {isOnVacation(item) && (
+            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 w-fit">
+              <Palmtree className="h-3 w-3 mr-1" />
+              Em férias
+            </Badge>
+          )}
+        </div>
+      ),
     },
     {
       key: 'actions',
@@ -200,6 +235,19 @@ const ColaboradoresLista = () => {
                   {dept}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Em férias</Label>
+          <Select value={filterEmFerias} onValueChange={setFilterEmFerias}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status férias" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="sim">Sim</SelectItem>
+              <SelectItem value="nao">Não</SelectItem>
             </SelectContent>
           </Select>
         </div>
