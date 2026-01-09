@@ -355,6 +355,18 @@ const ColaboradorForm = () => {
     try {
       if (isEditing && id) {
         await colaboradoresService.update(id, dbData);
+
+        // Save expense types for edited colaborador
+        const expenseTypesToSave = expenseTypesRef.current?.getSelectedTypes() || [];
+        if (expenseTypesToSave.length > 0) {
+          const typeIds = expenseTypesToSave.map(et => et.tipo_despesa_id);
+          try {
+            await colaboradoresService.updateTiposDespesas(id, typeIds);
+          } catch (e) {
+            console.error('Erro ao atualizar tipos de despesa:', e);
+          }
+        }
+
         toast({ title: 'Colaborador atualizado', description: 'Os dados foram salvos com sucesso.' });
       } else {
         const newColaborador = await colaboradoresService.create(dbData);
@@ -754,7 +766,11 @@ const ColaboradorForm = () => {
 
           <TabsContent value="despesas">
             {isEditing && id ? (
-              <ExpenseTypesManager colaboradorId={id} />
+              <ExpenseTypesManager
+                ref={expenseTypesRef}
+                colaboradorId={id}
+                hideInternalSaveButton
+              />
             ) : (
               <ExpenseTypesManager
                 ref={expenseTypesRef}

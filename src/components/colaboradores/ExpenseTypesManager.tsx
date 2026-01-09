@@ -27,11 +27,12 @@ interface ExpenseTypesManagerProps {
   colaboradorId?: string;
   disabled?: boolean;
   standalone?: boolean;
+  hideInternalSaveButton?: boolean;
   onSelectionChange?: (selections: ExpenseTypeSelection[]) => void;
 }
 
 export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTypesManagerProps>(
-  ({ colaboradorId, disabled = false, standalone = false, onSelectionChange }, ref) => {
+  ({ colaboradorId, disabled = false, standalone = false, hideInternalSaveButton = false, onSelectionChange }, ref) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [expenseTypes, setExpenseTypes] = useState<TipoDespesa[]>([]);
@@ -200,7 +201,7 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                   )}
                 </Button>
               )}
-              {!disabled && !standalone && colaboradorId && (
+              {!disabled && !standalone && colaboradorId && !hideInternalSaveButton && (
                 <Button size="sm" onClick={handleSave} disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
                   Salvar
