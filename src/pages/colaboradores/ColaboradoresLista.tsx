@@ -131,9 +131,13 @@ const ColaboradoresLista = () => {
       render: (item: Colaborador) => (
         <div className="flex flex-col gap-1">
           {item.ativo ? (
-            <span className="status-badge status-valid">Ativo</span>
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
+              Ativo
+            </Badge>
           ) : (
-            <span className="status-badge status-draft">Inativo</span>
+            <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 w-fit">
+              Inativo
+            </Badge>
           )}
           {isOnVacation(item) && (
             <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 w-fit">

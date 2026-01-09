@@ -119,6 +119,44 @@ const ColaboradorDetalhe = () => {
               <p className="font-medium">{colaborador.departamento}</p>
             </div>
           </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Período de Férias</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Início das Férias</p>
+                <p className="font-medium">
+                  {colaborador.ferias_inicio
+                    ? new Date(colaborador.ferias_inicio).toLocaleDateString('pt-BR')
+                    : 'Não informado'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Fim das Férias</p>
+                <p className="font-medium">
+                  {colaborador.ferias_fim
+                    ? new Date(colaborador.ferias_fim).toLocaleDateString('pt-BR')
+                    : 'Não informado'}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Benefícios Proporcionais no Período de Férias</p>
+              <p className="font-medium">
+                {colaborador.beneficio_proporcional ? (
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Sim - Aplicar valores proporcionais (VA, VR, Mobilidade, etc.)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
+                    Não
+                  </Badge>
+                )}
+              </p>
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="remuneracao" className="space-y-6">
@@ -223,15 +261,15 @@ const ColaboradorDetalhe = () => {
                   <span className="text-right">Valor</span>
                   <span className="text-right">Tipo</span>
                 </div>
-                  {[
-                    { nome: 'Salário Base', valor: colaborador.salario_base, tipo: 'Fixo' },
-                    { nome: 'Vale Alimentação', valor: colaborador.vale_alimentacao, tipo: 'Fixo' },
-                    { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
-                    { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
-                    { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                    { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
-                    ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
-                  ].map((item) => (
+                {[
+                  { nome: 'Salário Base', valor: colaborador.salario_base, tipo: 'Fixo' },
+                  { nome: 'Vale Alimentação', valor: colaborador.vale_alimentacao, tipo: 'Fixo' },
+                  { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
+                  { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
+                  { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
+                  { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                  ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
+                ].map((item) => (
                   <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">
                     <span>{item.nome}</span>
                     <span className="text-right font-mono">{formatCurrency(item.valor)}</span>

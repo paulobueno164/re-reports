@@ -71,8 +71,8 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
       setLoading(true);
 
       try {
-        // Fetch all variable expense types
-        const types = await tiposDespesasService.getAll({ ativo: true, classificacao: 'variavel' });
+        // Fetch all active expense types (both variable and fixed)
+        const types = await tiposDespesasService.getAll({ ativo: true });
 
         let linkedMap = new Map<string, ColaboradorTipoDespesa>();
 
@@ -127,14 +127,14 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
 
     const handleSave = async () => {
       if (!colaboradorId) return;
-      
+
       setSaving(true);
 
       try {
         const selectedTypeIds = Array.from(changes.entries())
           .filter(([_, selected]) => selected)
           .map(([typeId]) => typeId);
-        
+
         await colaboradoresService.updateTiposDespesas(colaboradorId, selectedTypeIds);
 
         toast.success('Tipos de despesa atualizados com sucesso');
@@ -150,10 +150,10 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
     const filteredAndGroupedTypes = useMemo(() => {
       const filtered = expenseTypes.filter(type => {
         const search = searchTerm.toLowerCase();
-        return type.nome.toLowerCase().includes(search) || 
-               type.grupo.toLowerCase().includes(search);
+        return type.nome.toLowerCase().includes(search) ||
+          type.grupo.toLowerCase().includes(search);
       });
-      
+
       return filtered.reduce((acc, type) => {
         if (!acc[type.grupo]) acc[type.grupo] = [];
         acc[type.grupo].push(type);
@@ -237,9 +237,8 @@ export const ExpenseTypesManager = forwardRef<ExpenseTypesManagerRef, ExpenseTyp
                       return (
                         <div
                           key={type.id}
-                          className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                            selected ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 hover:bg-muted/50'
-                          }`}
+                          className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${selected ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 hover:bg-muted/50'
+                            }`}
                           onClick={() => !disabled && handleToggleType(type.id, !selected)}
                         >
                           <Checkbox
