@@ -30,7 +30,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ReactNode;
-  roles?: ('FINANCEIRO' | 'COLABORADOR' | 'RH')[];
+  roles?: ('FINANCEIRO' | 'COLABORADOR' | 'RH' | 'ADMINISTRADOR')[];
 }
 
 const navigation: NavItem[] = [
@@ -96,13 +96,13 @@ const navigation: NavItem[] = [
     label: 'Auditoria',
     href: '/auditoria',
     icon: <History className="w-5 h-5" />,
-    roles: ['RH', 'FINANCEIRO'],
+    roles: ['ADMINISTRADOR'],
   },
   {
     label: 'Configurações',
     href: '/configuracoes',
     icon: <Settings className="w-5 h-5" />,
-    roles: ['RH'],
+    roles: ['ADMINISTRADOR'],
   },
   {
     label: 'Gerenciar Usuários',

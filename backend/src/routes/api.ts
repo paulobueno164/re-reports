@@ -221,7 +221,7 @@ router.post('/exportacoes', requireRole('FINANCEIRO'), async (req: Authenticated
 });
 
 // Audit Logs
-router.get('/audit-logs', requireRole('RH', 'FINANCEIRO'), async (req, res) => {
+router.get('/audit-logs', requireRole('ADMINISTRADOR'), async (req, res) => {
   const result = await auditService.getAuditLogs(req.query as any);
   res.json(result);
 });
@@ -322,21 +322,21 @@ router.get('/departamentos/:id', async (req, res) => {
   res.json(result);
 });
 
-router.post('/departamentos', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.post('/departamentos', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await departamentoService.createDepartamento(req.body, req.user!.id, req.user!.nome);
     res.status(201).json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-router.put('/departamentos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.put('/departamentos/:id', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await departamentoService.updateDepartamento(req.params.id, req.body, req.user!.id, req.user!.nome);
     res.json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-router.delete('/departamentos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.delete('/departamentos/:id', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     await departamentoService.deleteDepartamento(req.params.id, req.user!.id, req.user!.nome);
     res.json({ success: true });
@@ -355,21 +355,21 @@ router.get('/grupos-despesa/:id', async (req, res) => {
   res.json(result);
 });
 
-router.post('/grupos-despesa', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.post('/grupos-despesa', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await grupoDespesaService.createGrupoDespesa(req.body, req.user!.id, req.user!.nome);
     res.status(201).json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-router.put('/grupos-despesa/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.put('/grupos-despesa/:id', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await grupoDespesaService.updateGrupoDespesa(req.params.id, req.body, req.user!.id, req.user!.nome);
     res.json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-router.delete('/grupos-despesa/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+router.delete('/grupos-despesa/:id', requireRole('ADMINISTRADOR'), async (req: AuthenticatedRequest, res) => {
   try {
     await grupoDespesaService.deleteGrupoDespesa(req.params.id, req.user!.id, req.user!.nome);
     res.json({ success: true });

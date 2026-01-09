@@ -1,6 +1,6 @@
 import apiClient from '@/lib/api-client';
 
-export type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
+export type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH' | 'ADMINISTRADOR';
 
 export interface AuthUser {
   id: string;

@@ -141,7 +141,7 @@ const App = () => (
               } />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/auditoria" element={
-                <ProtectedRoute requiredRoles={['RH', 'FINANCEIRO']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <HistoricoAuditoria />
                 </ProtectedRoute>
               } />
@@ -166,38 +166,38 @@ const App = () => (
 
               {/* Configurações */}
               <Route path="/configuracoes" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <ConfiguracoesIndex />
                 </ProtectedRoute>
               } />
               <Route path="/configuracoes/departamentos" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <DepartamentosLista />
                 </ProtectedRoute>
               } />
               <Route path="/configuracoes/departamentos/novo" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <DepartamentoForm />
                 </ProtectedRoute>
               } />
               <Route path="/configuracoes/departamentos/:id" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <DepartamentoForm />
                 </ProtectedRoute>
               } />
 
               <Route path="/configuracoes/grupos-despesa" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <GruposDespesaLista />
                 </ProtectedRoute>
               } />
               <Route path="/configuracoes/grupos-despesa/novo" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <GrupoDespesaForm />
                 </ProtectedRoute>
               } />
               <Route path="/configuracoes/grupos-despesa/:id" element={
-                <ProtectedRoute requiredRoles={['RH']}>
+                <ProtectedRoute requiredRoles={['ADMINISTRADOR']}>
                   <GrupoDespesaForm />
                 </ProtectedRoute>
               } />

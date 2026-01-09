@@ -1,5 +1,5 @@
 // Enums
-export type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH';
+export type AppRole = 'FINANCEIRO' | 'COLABORADOR' | 'RH' | 'ADMINISTRADOR';
 export type ExpenseStatus = 'enviado' | 'em_analise' | 'valido' | 'invalido';
 export type ExpenseOrigin = 'proprio' | 'conjuge' | 'filhos';
 export type ExpenseClassification = 'fixo' | 'variavel';

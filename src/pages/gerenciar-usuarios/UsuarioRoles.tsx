@@ -14,23 +14,29 @@ interface UserProfile {
 }
 
 const AVAILABLE_ROLES: { value: AppRole; label: string; description: string; icon: typeof Shield }[] = [
-  { 
-    value: 'COLABORADOR', 
-    label: 'Colaborador', 
+  {
+    value: 'COLABORADOR',
+    label: 'Colaborador',
     description: 'Pode submeter despesas e ver próprios dados',
-    icon: Shield 
+    icon: Shield
   },
-  { 
-    value: 'RH', 
-    label: 'RH', 
+  {
+    value: 'RH',
+    label: 'RH',
     description: 'Pode validar despesas, gerenciar colaboradores e processar fechamentos',
-    icon: ShieldCheck 
+    icon: ShieldCheck
   },
-  { 
-    value: 'FINANCEIRO', 
-    label: 'Financeiro', 
+  {
+    value: 'FINANCEIRO',
+    label: 'Financeiro',
     description: 'Pode exportar dados e gerar relatórios de pagamento',
-    icon: ShieldAlert 
+    icon: ShieldAlert
+  },
+  {
+    value: 'ADMINISTRADOR',
+    label: 'Administrador',
+    description: 'Acesso total às configurações do sistema e auditoria',
+    icon: ShieldCheck
   },
 ];
 
@@ -52,7 +58,7 @@ const UsuarioRoles = () => {
     setLoading(true);
     try {
       const userData = await authService.getUserById(id!);
-      
+
       if (!userData) {
         toast({ title: 'Erro', description: 'Usuário não encontrado', variant: 'destructive' });
         navigate('/gerenciar-usuarios');
@@ -78,45 +84,46 @@ const UsuarioRoles = () => {
   };
 
   const handleRoleToggle = (role: AppRole) => {
-    // Usuário só pode ter uma role, então selecionar apenas a role clicada
-    setSelectedRoles([role]);
+    // Permite múltiplas roles
+    setSelectedRoles(prev =>
+      prev.includes(role)
+        ? prev.filter(r => r !== role)
+        : [...prev, role]
+    );
   };
 
   const handleSave = async () => {
     if (!user) return;
 
-    // Validar que exatamente uma role foi selecionada
+    // Validar que pelo menos uma role foi selecionada
     if (selectedRoles.length === 0) {
-      toast({ 
-        title: 'Erro', 
-        description: 'Selecione pelo menos uma role para o usuário.', 
-        variant: 'destructive' 
-      });
-      return;
-    }
-
-    if (selectedRoles.length > 1) {
-      toast({ 
-        title: 'Erro', 
-        description: 'Um usuário só pode ter uma role. Selecione apenas uma.', 
-        variant: 'destructive' 
+      toast({
+        title: 'Erro',
+        description: 'Selecione pelo menos uma role para o usuário.',
+        variant: 'destructive'
       });
       return;
     }
 
     setSaving(true);
     try {
-      const newRole = selectedRoles[0];
-      const currentRole = currentRoles[0];
+      // Sincronizar roles: remover as que foram desmarcadas e adicionar as novas
+      const rolesToRemove = currentRoles.filter(r => !selectedRoles.includes(r));
+      const rolesToAdd = selectedRoles.filter(r => !currentRoles.includes(r));
 
-      // Se a role mudou, atualizar (addUserRole já remove todas as outras)
-      if (newRole !== currentRole) {
-        await authService.addUserRole(user.id, newRole);
+      // Remover roles desmarcadas
+      for (const role of rolesToRemove) {
+        await authService.removeUserRole(user.id, role);
+      }
+
+      // Adicionar novas roles
+      for (const role of rolesToAdd) {
+        await authService.addUserRole(user.id, role);
       }
 
       toast({
-        title: 'Role atualizada',
-        description: `A permissão de ${user.nome} foi atualizada com sucesso.`,
+        title: 'Roles atualizadas',
+        description: `As permissões de ${user.nome} foram atualizadas com sucesso.`,
       });
 
       navigate('/gerenciar-usuarios');
@@ -156,28 +163,25 @@ const UsuarioRoles = () => {
 
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground mb-2">
-            Selecione uma role para o usuário. Cada usuário pode ter apenas uma role.
+            Selecione uma ou mais roles para o usuário. As permissões são cumulativas.
           </p>
           {AVAILABLE_ROLES.map((role) => {
             const Icon = role.icon;
             const isSelected = selectedRoles.includes(role.value);
-            
+
             return (
               <div
                 key={role.value}
-                className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                }`}
+                className={`flex items-start space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                  }`}
                 onClick={() => handleRoleToggle(role.value)}
               >
                 <div className="mt-0.5">
-                  <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                    isSelected ? 'border-primary bg-primary' : 'border-border'
-                  }`}>
-                    {isSelected && (
-                      <div className="h-2 w-2 rounded-full bg-white" />
-                    )}
-                  </div>
+                  <Checkbox
+                    id={role.value}
+                    checked={isSelected}
+                    onCheckedChange={() => handleRoleToggle(role.value)}
+                  />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
