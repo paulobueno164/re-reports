@@ -7,9 +7,9 @@ import { VitePWA } from "vite-plugin-pwa";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    host: true,
     port: 8080,
-    allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
+    allowedHosts: ["rereports.eastus.cloudapp.azure.com", "all"],
   },
   preview: {
     host: "::",
