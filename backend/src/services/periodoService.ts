@@ -11,7 +11,7 @@ export interface CreatePeriodoInput {
   status?: PeriodStatus;
 }
 
-export interface UpdatePeriodoInput extends Partial<CreatePeriodoInput> {}
+export interface UpdatePeriodoInput extends Partial<CreatePeriodoInput> { }
 
 export const getAllPeriodos = async (
   filters?: { status?: PeriodStatus }
@@ -42,7 +42,7 @@ export const getPeriodoById = async (id: string): Promise<CalendarioPeriodo | nu
 
 export const getCurrentPeriodo = async (): Promise<CalendarioPeriodo | null> => {
   const today = new Date().toISOString().split('T')[0];
-  
+
   const result = await query(
     `SELECT * FROM calendario_periodos 
      WHERE data_inicio <= $1 AND data_final >= $1 AND status = 'aberto'
@@ -67,7 +67,7 @@ export const getCurrentPeriodo = async (): Promise<CalendarioPeriodo | null> => 
 
 export const getOpenPeriodoForSubmission = async (): Promise<CalendarioPeriodo | null> => {
   const today = new Date().toISOString().split('T')[0];
-  
+
   const result = await query(
     `SELECT * FROM calendario_periodos 
      WHERE abre_lancamento <= $1 AND fecha_lancamento >= $1 AND status = 'aberto'
@@ -79,9 +79,15 @@ export const getOpenPeriodoForSubmission = async (): Promise<CalendarioPeriodo |
   return result.rows[0] || null;
 };
 
-export const createPeriodo = async (input: CreatePeriodoInput): Promise<CalendarioPeriodo> => {
+import * as auditService from './auditService';
+
+export const createPeriodo = async (
+  input: CreatePeriodoInput,
+  executorId: string,
+  executorName: string
+): Promise<CalendarioPeriodo> => {
   const id = uuidv4();
-  
+
   const result = await query(
     `INSERT INTO calendario_periodos (
       id, periodo, data_inicio, data_final, abre_lancamento, fecha_lancamento, status, created_at
@@ -97,13 +103,31 @@ export const createPeriodo = async (input: CreatePeriodoInput): Promise<Calendar
     ]
   );
 
-  return result.rows[0];
+  const novoPeriodo = result.rows[0];
+
+  // Audit Log
+  await auditService.createAuditLog({
+    userId: executorId,
+    userName: executorName,
+    action: 'criar',
+    entityType: 'periodo',
+    entityId: novoPeriodo.id,
+    entityDescription: `Criação do período ${novoPeriodo.periodo}`,
+    newValues: novoPeriodo,
+  });
+
+  return novoPeriodo;
 };
 
 export const updatePeriodo = async (
   id: string,
-  input: UpdatePeriodoInput
+  input: UpdatePeriodoInput,
+  executorId: string,
+  executorName: string
 ): Promise<CalendarioPeriodo | null> => {
+  // Obter valores antigos para log
+  const oldValues = await getPeriodoById(id);
+
   const fields: string[] = [];
   const values: any[] = [];
   let paramIndex = 1;
@@ -127,13 +151,49 @@ export const updatePeriodo = async (
     values
   );
 
-  return result.rows[0] || null;
+  const updatedPeriodo = result.rows[0] || null;
+
+  if (updatedPeriodo) {
+    // Audit Log
+    await auditService.createAuditLog({
+      userId: executorId,
+      userName: executorName,
+      action: 'atualizar',
+      entityType: 'periodo',
+      entityId: id,
+      entityDescription: `Atualização do período ${updatedPeriodo.periodo}`,
+      oldValues: oldValues || undefined,
+      newValues: updatedPeriodo,
+    });
+  }
+
+  return updatedPeriodo;
 };
 
-export const deletePeriodo = async (id: string): Promise<boolean> => {
+export const deletePeriodo = async (
+  id: string,
+  executorId: string,
+  executorName: string
+): Promise<boolean> => {
+  const periodo = await getPeriodoById(id);
+
   const result = await query(
     'DELETE FROM calendario_periodos WHERE id = $1',
     [id]
   );
-  return (result.rowCount ?? 0) > 0;
+
+  if ((result.rowCount ?? 0) > 0) {
+    // Audit Log
+    await auditService.createAuditLog({
+      userId: executorId,
+      userName: executorName,
+      action: 'excluir',
+      entityType: 'periodo',
+      entityId: id,
+      entityDescription: `Exclusão do período ${periodo?.periodo || id}`,
+      oldValues: periodo || undefined,
+    });
+    return true;
+  }
+  return false;
 };

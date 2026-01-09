@@ -104,7 +104,13 @@ export const getTipoDespesaById = async (id: string): Promise<TipoDespesa | null
   };
 };
 
-export const createTipoDespesa = async (input: CreateTipoDespesaInput): Promise<TipoDespesa> => {
+import * as auditService from './auditService';
+
+export const createTipoDespesa = async (
+  input: CreateTipoDespesaInput,
+  executorId: string,
+  executorName: string
+): Promise<TipoDespesa> => {
   const id = uuidv4();
 
   const result = await query(
@@ -122,13 +128,31 @@ export const createTipoDespesa = async (input: CreateTipoDespesaInput): Promise<
     ]
   );
 
-  return result.rows[0];
+  const novaDespesa = result.rows[0];
+
+  // Audit Log
+  await auditService.createAuditLog({
+    userId: executorId,
+    userName: executorName,
+    action: 'criar',
+    entityType: 'tipo_despesa',
+    entityId: novaDespesa.id,
+    entityDescription: `Criação do tipo de despesa ${novaDespesa.nome}`,
+    newValues: novaDespesa,
+  });
+
+  return novaDespesa;
 };
 
 export const updateTipoDespesa = async (
   id: string,
-  input: UpdateTipoDespesaInput
+  input: UpdateTipoDespesaInput,
+  executorId: string,
+  executorName: string
 ): Promise<TipoDespesa | null> => {
+  // Obter valores antigos para log
+  const oldValues = await getTipoDespesaById(id);
+
   const fields: string[] = [];
   const values: any[] = [];
   let paramIndex = 1;
@@ -152,15 +176,51 @@ export const updateTipoDespesa = async (
     values
   );
 
-  return result.rows[0] || null;
+  const updatedDespesa = result.rows[0] || null;
+
+  if (updatedDespesa) {
+    // Audit Log
+    await auditService.createAuditLog({
+      userId: executorId,
+      userName: executorName,
+      action: 'atualizar',
+      entityType: 'tipo_despesa',
+      entityId: id,
+      entityDescription: `Atualização do tipo de despesa ${updatedDespesa.nome}`,
+      oldValues: oldValues || undefined,
+      newValues: updatedDespesa,
+    });
+  }
+
+  return updatedDespesa;
 };
 
-export const deleteTipoDespesa = async (id: string): Promise<boolean> => {
+export const deleteTipoDespesa = async (
+  id: string,
+  executorId: string,
+  executorName: string
+): Promise<boolean> => {
+  const despesa = await getTipoDespesaById(id);
+
   const result = await query(
     'DELETE FROM tipos_despesas WHERE id = $1',
     [id]
   );
-  return (result.rowCount ?? 0) > 0;
+
+  if ((result.rowCount ?? 0) > 0) {
+    // Audit Log
+    await auditService.createAuditLog({
+      userId: executorId,
+      userName: executorName,
+      action: 'excluir',
+      entityType: 'tipo_despesa',
+      entityId: id,
+      entityDescription: `Exclusão do tipo de despesa ${despesa?.nome || id}`,
+      oldValues: despesa || undefined,
+    });
+    return true;
+  }
+  return false;
 };
 
 // Eventos de Folha (nova estrutura por componente de remuneração)

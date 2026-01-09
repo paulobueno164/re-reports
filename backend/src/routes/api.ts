@@ -27,16 +27,16 @@ router.get('/colaboradores/:id', async (req: AuthenticatedRequest, res) => {
   res.json(result);
 });
 router.post('/colaboradores', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
-  const result = await colaboradorService.createColaborador(req.body);
+  const result = await colaboradorService.createColaborador(req.body, req.user!.id, req.user!.nome);
   res.status(201).json(result);
 });
-router.put('/colaboradores/:id', requireRole('RH'), async (req, res) => {
-  const result = await colaboradorService.updateColaborador(req.params.id, req.body);
+router.put('/colaboradores/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  const result = await colaboradorService.updateColaborador(req.params.id, req.body, req.user!.id, req.user!.nome);
   res.json(result);
 });
-router.delete('/colaboradores/:id', requireRole('RH'), async (req, res) => {
+router.delete('/colaboradores/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
-    await colaboradorService.deleteColaborador(req.params.id);
+    await colaboradorService.deleteColaborador(req.params.id, req.user!.id, req.user!.nome);
     res.json({ success: true });
   } catch (error: any) {
     res.status(400).json({ error: error.message });
@@ -57,17 +57,17 @@ router.get('/periodos/:id', async (req, res) => {
   if (!result) return res.status(404).json({ error: 'Período não encontrado' });
   res.json(result);
 });
-router.post('/periodos', requireRole('RH'), async (req, res) => {
-  const result = await periodoService.createPeriodo(req.body);
+router.post('/periodos', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  const result = await periodoService.createPeriodo(req.body, req.user!.id, req.user!.nome);
   res.status(201).json(result);
 });
-router.put('/periodos/:id', requireRole('RH'), async (req, res) => {
-  const result = await periodoService.updatePeriodo(req.params.id, req.body);
+router.put('/periodos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  const result = await periodoService.updatePeriodo(req.params.id, req.body, req.user!.id, req.user!.nome);
   res.json(result);
 });
-router.delete('/periodos/:id', requireRole('RH'), async (req, res) => {
+router.delete('/periodos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
-    await periodoService.deletePeriodo(req.params.id);
+    await periodoService.deletePeriodo(req.params.id, req.user!.id, req.user!.nome);
     res.json({ success: true });
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
@@ -82,13 +82,19 @@ router.get('/tipos-despesas/:id', async (req, res) => {
   if (!result) return res.status(404).json({ error: 'Tipo de despesa não encontrado' });
   res.json(result);
 });
-router.post('/tipos-despesas', requireRole('RH'), async (req, res) => {
-  const result = await tipoDespesaService.createTipoDespesa(req.body);
+router.post('/tipos-despesas', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  const result = await tipoDespesaService.createTipoDespesa(req.body, req.user!.id, req.user!.nome);
   res.status(201).json(result);
 });
-router.put('/tipos-despesas/:id', requireRole('RH'), async (req, res) => {
-  const result = await tipoDespesaService.updateTipoDespesa(req.params.id, req.body);
+router.put('/tipos-despesas/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  const result = await tipoDespesaService.updateTipoDespesa(req.params.id, req.body, req.user!.id, req.user!.nome);
   res.json(result);
+});
+router.delete('/tipos-despesas/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    await tipoDespesaService.deleteTipoDespesa(req.params.id, req.user!.id, req.user!.nome);
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
 // Lançamentos
@@ -312,13 +318,7 @@ router.post('/lancamentos/:id/iniciar-analise', requireRole('RH', 'FINANCEIRO'),
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
-// Tipos de despesas - delete
-router.delete('/tipos-despesas/:id', requireRole('RH'), async (req, res) => {
-  try {
-    await tipoDespesaService.deleteTipoDespesa(req.params.id);
-    res.json({ success: true });
-  } catch (e: any) { res.status(400).json({ error: e.message }); }
-});
+
 
 // Eventos PIDA
 router.get('/eventos-pida', requireRole('RH', 'FINANCEIRO'), async (req, res) => {

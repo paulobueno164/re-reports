@@ -84,7 +84,15 @@ export const getColaboradorByEmail = async (email: string): Promise<ColaboradorE
   return result.rows[0] || null;
 };
 
-export const createColaborador = async (input: CreateColaboradorInput): Promise<ColaboradorElegivel> => {
+import * as auditService from './auditService';
+
+// ... (imports)
+
+export const createColaborador = async (
+  input: CreateColaboradorInput,
+  executorId: string,
+  executorName: string
+): Promise<ColaboradorElegivel> => {
   const id = uuidv4();
 
   return await transaction(async (client) => {
@@ -136,21 +144,35 @@ export const createColaborador = async (input: CreateColaboradorInput): Promise<
       );
     }
 
+    // Audit Log
+    await auditService.createAuditLog({
+      userId: executorId,
+      userName: executorName,
+      action: 'criar',
+      entityType: 'colaborador',
+      entityId: colaborador.id,
+      entityDescription: `Criação do colaborador ${colaborador.nome} (${colaborador.matricula})`,
+      newValues: colaborador,
+    });
+
     return colaborador;
   });
 };
 
 export const updateColaborador = async (
   id: string,
-  input: UpdateColaboradorInput
+  input: UpdateColaboradorInput,
+  executorId: string,
+  executorName: string
 ): Promise<ColaboradorElegivel | null> => {
   return await transaction(async (client) => {
-    // Buscar colaborador atual para verificar se tinha user_id antes
+    // Buscar colaborador atual para verificar se tinha user_id antes e para logs
     const currentColab = await client.query(
-      'SELECT user_id FROM colaboradores_elegiveis WHERE id = $1',
+      'SELECT * FROM colaboradores_elegiveis WHERE id = $1',
       [id]
     );
-    const hadUserIdBefore = currentColab.rows[0]?.user_id;
+    const oldValues = currentColab.rows[0];
+    const hadUserIdBefore = oldValues?.user_id;
 
     // Lista de campos válidos que podem ser atualizados na tabela
     const validFields = [
@@ -234,18 +256,52 @@ export const updateColaborador = async (
       }
     }
 
+    // Audit Log
+    if (updatedColaborador) {
+      await auditService.createAuditLog({
+        userId: executorId,
+        userName: executorName,
+        action: 'atualizar',
+        entityType: 'colaborador',
+        entityId: id,
+        entityDescription: `Atualização do colaborador ${updatedColaborador.nome}`,
+        oldValues: oldValues,
+        newValues: updatedColaborador,
+      });
+    }
+
     return updatedColaborador;
   });
 };
 
-export const deleteColaborador = async (id: string): Promise<boolean> => {
+export const deleteColaborador = async (
+  id: string,
+  executorId: string,
+  executorName: string
+): Promise<boolean> => {
+  const colab = await getColaboradorById(id);
+
   try {
     // Tentar deletar diretamente primeiro
     const result = await query(
       'DELETE FROM colaboradores_elegiveis WHERE id = $1',
       [id]
     );
-    return (result.rowCount ?? 0) > 0;
+
+    if ((result.rowCount ?? 0) > 0) {
+      // Audit Log
+      await auditService.createAuditLog({
+        userId: executorId,
+        userName: executorName,
+        action: 'excluir',
+        entityType: 'colaborador',
+        entityId: id,
+        entityDescription: `Exclusão do colaborador ${colab?.nome || id}`,
+        oldValues: colab || undefined,
+      });
+      return true;
+    }
+    return false;
   } catch (error: any) {
     // Se falhar por constraint (tem lançamentos, etc), marcar como inativo instead
     if (error.code === '23503' || error.message?.includes('foreign key') || error.message?.includes('still referenced')) {
@@ -254,6 +310,18 @@ export const deleteColaborador = async (id: string): Promise<boolean> => {
         [id]
       );
       if ((updateResult.rowCount ?? 0) > 0) {
+        // Audit Log para inativação forçada
+        await auditService.createAuditLog({
+          userId: executorId,
+          userName: executorName,
+          action: 'atualizar',
+          entityType: 'colaborador',
+          entityId: id,
+          entityDescription: `Colaborador ${colab?.nome || id} marcado como inativo ao tentar excluir (possui vínculos)`,
+          oldValues: colab || undefined,
+          newValues: { ativo: false },
+        });
+
         throw new Error('Não foi possível excluir o colaborador pois ele possui registros vinculados (lançamentos, etc). O colaborador foi marcado como inativo.');
       }
     }
