@@ -143,7 +143,12 @@ export const colaboradoresService = {
   },
 
   async getDepartamentos(): Promise<string[]> {
-    return apiClient.get<string[]>('/api/departamentos');
+    const result = await apiClient.get<any>('/api/departamentos');
+    // API returns objects with {id, nome, ativo, ...}, extract just the names
+    if (Array.isArray(result)) {
+      return result.map((d: any) => typeof d === 'string' ? d : d.nome);
+    }
+    return [];
   },
 };
 

@@ -17,7 +17,6 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
     proxy: {
       '/api': 'http://localhost:3001',
-      '/auth': 'http://localhost:3001',
       '/cron': 'http://localhost:3001',
       '/anexos': 'http://localhost:3001',
     },
