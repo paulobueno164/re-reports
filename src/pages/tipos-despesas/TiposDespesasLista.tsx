@@ -42,6 +42,7 @@ const TiposDespesasLista = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrupo, setFilterGrupo] = useState('all');
+  const [filterClassificacao, setFilterClassificacao] = useState('all');
 
   useEffect(() => {
     fetchExpenseTypes();
@@ -73,7 +74,10 @@ const TiposDespesasLista = () => {
       type.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
       type.grupo.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGrupo = filterGrupo === 'all' || type.grupo === filterGrupo;
-    return matchesSearch && matchesGrupo;
+    const matchesClassificacao =
+      filterClassificacao === 'all' ||
+      type.classificacao === filterClassificacao;
+    return matchesSearch && matchesGrupo && matchesClassificacao;
   });
 
   const originLabels: Record<string, string> = {
@@ -109,6 +113,16 @@ const TiposDespesasLista = () => {
             </Badge>
           ))}
         </div>
+      ),
+    },
+    {
+      key: 'classificacao',
+      header: 'Tipo',
+      hideOnMobile: true,
+      render: (item: ExpenseType) => (
+        <Badge variant="outline" className={item.classificacao === 'variavel' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-blue-50 text-blue-700 border-blue-200'}>
+          {item.classificacao === 'variavel' ? 'Variável' : 'Fixa'}
+        </Badge>
       ),
     },
     {
@@ -206,6 +220,19 @@ const TiposDespesasLista = () => {
                   {group}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Tipo de despesa</Label>
+          <Select value={filterClassificacao} onValueChange={setFilterClassificacao}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="fixo">Fixa</SelectItem>
+              <SelectItem value="variavel">Variável</SelectItem>
             </SelectContent>
           </Select>
         </div>

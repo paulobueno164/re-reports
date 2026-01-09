@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -200,6 +201,17 @@ const TipoDespesaForm = () => {
               </Label>
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center space-x-2 pt-4">
+          <Switch
+            id="ativo"
+            checked={formData.ativo}
+            onCheckedChange={(checked) => setFormData({ ...formData, ativo: checked })}
+          />
+          <Label htmlFor="ativo" className="font-normal">
+            Tipo de despesa ativo (disponível para uso)
+          </Label>
         </div>
       </div>
     </PageFormLayout>
