@@ -13,6 +13,14 @@ import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 import { ExpenseTypesManager } from '@/components/colaboradores/ExpenseTypesManager';
 
+// Formatar data sem conversão de timezone
+const formatDate = (dateString: string | null) => {
+  if (!dateString) return 'Não informado';
+  const date = dateString.split('T')[0]; // YYYY-MM-DD
+  const [year, month, day] = date.split('-');
+  return `${day}/${month}/${year}`;
+};
+
 const ColaboradorDetalhe = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -127,19 +135,11 @@ const ColaboradorDetalhe = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Início das Férias</p>
-                <p className="font-medium">
-                  {colaborador.ferias_inicio
-                    ? new Date(colaborador.ferias_inicio).toLocaleDateString('pt-BR')
-                    : 'Não informado'}
-                </p>
+                <p className="font-medium">{formatDate(colaborador.ferias_inicio)}</p>
               </div>
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Fim das Férias</p>
-                <p className="font-medium">
-                  {colaborador.ferias_fim
-                    ? new Date(colaborador.ferias_fim).toLocaleDateString('pt-BR')
-                    : 'Não informado'}
-                </p>
+                <p className="font-medium">{formatDate(colaborador.ferias_fim)}</p>
               </div>
             </div>
             <div className="space-y-1">
