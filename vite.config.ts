@@ -9,12 +9,12 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: true,
     port: 8080,
-    allowedHosts: ["rereports.eastus.cloudapp.azure.com", "all"],
+    allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
   },
   preview: {
     host: true,
     port: 5173,
-    allowedHosts: ["rereports.eastus.cloudapp.azure.com", "all"],
+    allowedHosts: ["rereports.eastus.cloudapp.azure.com"],
     proxy: {
       '/api': 'http://localhost:3001',
       '/auth': 'http://localhost:3001',
