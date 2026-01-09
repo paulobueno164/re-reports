@@ -51,6 +51,57 @@ const PeriodoForm = () => {
       return;
     }
 
+    // Validar duplicação
+    try {
+      const allPeriods = await periodosService.getAll();
+
+      // Verificar duplicação de período (ignorando o próprio período se estiver editando)
+      const periodoDuplicado = allPeriods.find(p =>
+        p.periodo === formData.periodo && p.id !== id
+      );
+
+      if (periodoDuplicado) {
+        toast({
+          title: 'Erro de validação',
+          description: `Já existe um calendário cadastrado para o período ${formData.periodo}.`,
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      // Verificar sobreposição de datas (ignorando o próprio período se estiver editando)
+      const dataInicioNova = new Date(formData.dataInicio);
+      const dataFinalNova = new Date(formData.dataFinal);
+
+      const datasConflito = allPeriods.find(p => {
+        if (p.id === id) return false; // Ignorar o próprio período na edição
+
+        const inicioExistente = new Date(p.data_inicio);
+        const fimExistente = new Date(p.data_final);
+
+        // Verificar se há sobreposição de datas
+        return (
+          (dataInicioNova >= inicioExistente && dataInicioNova <= fimExistente) ||
+          (dataFinalNova >= inicioExistente && dataFinalNova <= fimExistente) ||
+          (dataInicioNova <= inicioExistente && dataFinalNova >= fimExistente)
+        );
+      });
+
+      if (datasConflito) {
+        const inicioConflito = new Date(datasConflito.data_inicio).toLocaleDateString('pt-BR');
+        const fimConflito = new Date(datasConflito.data_final).toLocaleDateString('pt-BR');
+        toast({
+          title: 'Erro de validação',
+          description: `As datas informadas conflitam com o período ${datasConflito.periodo} (${inicioConflito} - ${fimConflito}).`,
+          variant: 'destructive'
+        });
+        return;
+      }
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+      return;
+    }
+
     setSaving(true);
     const dbData = {
       periodo: formData.periodo,

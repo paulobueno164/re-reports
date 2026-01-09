@@ -40,16 +40,29 @@ const CalendarioLista = () => {
     setLoading(true);
     try {
       const data = await periodosService.getAll();
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+
       setPeriods(
-        data.map((p) => ({
-          id: p.id,
-          periodo: p.periodo,
-          dataInicio: new Date(p.data_inicio),
-          dataFinal: new Date(p.data_final),
-          abreLancamento: new Date(p.abre_lancamento),
-          fechaLancamento: new Date(p.fecha_lancamento),
-          status: p.status as "aberto" | "fechado",
-        })),
+        data.map((p) => {
+          const inicio = new Date(p.data_inicio);
+          inicio.setHours(0, 0, 0, 0);
+          const fim = new Date(p.data_final);
+          fim.setHours(0, 0, 0, 0);
+
+          // Status baseado na data atual
+          const status = (hoje >= inicio && hoje <= fim) ? "aberto" : "fechado";
+
+          return {
+            id: p.id,
+            periodo: p.periodo,
+            dataInicio: new Date(p.data_inicio),
+            dataFinal: new Date(p.data_final),
+            abreLancamento: new Date(p.abre_lancamento),
+            fechaLancamento: new Date(p.fecha_lancamento),
+            status: status as "aberto" | "fechado",
+          };
+        }),
       );
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
