@@ -4,7 +4,6 @@ interface ExportRow {
   matricula: string;
   nome: string;
   departamento: string;
-  codigoEvento: string;
   descricaoEvento: string;
   valor: number;
   periodo: string;
@@ -15,38 +14,36 @@ export function exportToExcel(data: ExportRow[], periodo: string): void {
   const hoje = new Date();
   const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
   const periodoFormatado = periodo.replace('/', '');
-  
+
   // Criar worksheet
   const wsData = [
-    ['Matrícula', 'Nome', 'Departamento', 'Código Evento', 'Descrição Evento', 'Valor (R$)', 'Período'],
+    ['Matrícula', 'Nome', 'Departamento', 'Descrição Evento', 'Valor (R$)', 'Período'],
     ...data.map(row => [
       row.matricula,
       row.nome,
       row.departamento,
-      row.codigoEvento,
       row.descricaoEvento,
       row.valor,
       row.periodo,
     ])
   ];
-  
+
   const ws = XLSX.utils.aoa_to_sheet(wsData);
-  
+
   // Definir largura das colunas
   ws['!cols'] = [
     { wch: 12 }, // Matrícula
     { wch: 30 }, // Nome
     { wch: 25 }, // Departamento
-    { wch: 15 }, // Código Evento
     { wch: 25 }, // Descrição Evento
     { wch: 15 }, // Valor
     { wch: 10 }, // Período
   ];
-  
+
   // Criar workbook
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Remuneração Estratégica');
-  
+
   // Gerar e baixar arquivo
   const fileName = `RemuneracaoEstrategica_${periodoFormatado}_${dataFormatada}.xlsx`;
   XLSX.writeFile(wb, fileName);
@@ -85,9 +82,9 @@ export function exportStatementToExcel(data: StatementData): void {
   const hoje = new Date();
   const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
   const periodoFormatado = data.periodo.replace('/', '');
-  
+
   const wb = XLSX.utils.book_new();
-  
+
   // Aba 1: Resumo
   const resumoData = [
     ['EXTRATO DE REMUNERAÇÃO ESTRATÉGICA'],
@@ -112,7 +109,7 @@ export function exportStatementToExcel(data: StatementData): void {
     ['Cesta de Benefícios - Utilizado', data.totais.cestaBeneficiosUtilizado, '', ''],
     ['Diferença convertida para PI/DA', data.totais.diferencaPida, '', ''],
   ];
-  
+
   const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
   wsResumo['!cols'] = [
     { wch: 30 },
@@ -121,7 +118,7 @@ export function exportStatementToExcel(data: StatementData): void {
     { wch: 15 },
   ];
   XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
-  
+
   // Aba 2: Lançamentos
   const lancamentosData = [
     ['DETALHAMENTO DE LANÇAMENTOS'],
@@ -136,7 +133,7 @@ export function exportStatementToExcel(data: StatementData): void {
       l.status,
     ]),
   ];
-  
+
   const wsLancamentos = XLSX.utils.aoa_to_sheet(lancamentosData);
   wsLancamentos['!cols'] = [
     { wch: 12 },
@@ -147,7 +144,7 @@ export function exportStatementToExcel(data: StatementData): void {
     { wch: 12 },
   ];
   XLSX.utils.book_append_sheet(wb, wsLancamentos, 'Lançamentos');
-  
+
   // Gerar e baixar arquivo
   const fileName = `Extrato_${data.colaborador.matricula}_${periodoFormatado}_${dataFormatada}.xlsx`;
   XLSX.writeFile(wb, fileName);
@@ -157,12 +154,12 @@ export function exportBatchToZip(statements: StatementData[]): void {
   // Para simplificação, vamos exportar um único Excel com múltiplas abas
   const hoje = new Date();
   const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
-  
+
   const wb = XLSX.utils.book_new();
-  
+
   statements.forEach((data, index) => {
     const tabName = `${data.colaborador.matricula}`.substring(0, 31); // Excel limita a 31 caracteres
-    
+
     const sheetData = [
       ['EXTRATO DE REMUNERAÇÃO ESTRATÉGICA'],
       [],
@@ -181,7 +178,7 @@ export function exportBatchToZip(statements: StatementData[]): void {
       [],
       ['Rendimento Total', data.totais.rendimentoTotal, '', ''],
     ];
-    
+
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
     ws['!cols'] = [
       { wch: 30 },
@@ -191,7 +188,7 @@ export function exportBatchToZip(statements: StatementData[]): void {
     ];
     XLSX.utils.book_append_sheet(wb, ws, tabName);
   });
-  
+
   const fileName = `Relatorios_Lote_${dataFormatada}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
@@ -230,16 +227,16 @@ export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
   const hoje = new Date();
   const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
   const periodoFormatado = data.periodo.replace('/', '');
-  
+
   const wb = XLSX.utils.book_new();
-  
+
   const statusLabels: Record<string, string> = {
     enviado: 'Enviado',
     em_analise: 'Em Análise',
     valido: 'Válido',
     invalido: 'Inválido',
   };
-  
+
   // Aba: Resumo e Lançamentos
   const sheetData = [
     ['DESPESAS DO COLABORADOR'],
@@ -275,7 +272,7 @@ export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
       statusLabels[e.status] || e.status,
     ]),
   ];
-  
+
   const ws = XLSX.utils.aoa_to_sheet(sheetData);
   ws['!cols'] = [
     { wch: 12 },
@@ -288,7 +285,7 @@ export function exportColaboradorExpenses(data: ColaboradorExpenseData): void {
     { wch: 12 },
   ];
   XLSX.utils.book_append_sheet(wb, ws, 'Despesas');
-  
+
   const fileName = `Despesas_${data.colaborador.matricula}_${periodoFormatado}_${dataFormatada}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }

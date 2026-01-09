@@ -129,7 +129,7 @@ const ColaboradoresLista = () => {
       key: 'ativo',
       header: 'Status',
       render: (item: Colaborador) => (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-row gap-2 items-center flex-wrap">
           {item.ativo ? (
             <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 w-fit">
               Ativo

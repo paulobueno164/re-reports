@@ -69,14 +69,14 @@ const Relatorios = () => {
 
   const departments = [...new Set(colaboradores.map((c) => c.departamento))];
 
-  const periodOptions: ComboboxOption[] = useMemo(() => 
+  const periodOptions: ComboboxOption[] = useMemo(() =>
     periodos.map((p) => ({
       value: p.id,
       label: `${p.periodo}${p.status === 'aberto' ? ' (Atual)' : ''}`,
       description: p.status === 'aberto' ? 'Período aberto' : 'Período fechado',
     })), [periodos]);
 
-  const colaboradorOptions: ComboboxOption[] = useMemo(() => 
+  const colaboradorOptions: ComboboxOption[] = useMemo(() =>
     colaboradores.map((c) => ({
       value: c.id,
       label: c.nome,
@@ -115,12 +115,12 @@ const Relatorios = () => {
           setSelectedColaborador(myColab.id);
         }
       }
-      
+
       const [colaboradoresData, periodosData] = await Promise.all([
         colaboradoresService.getAll({ ativo: true }),
         periodosService.getAll(),
       ]);
-      
+
       if (colaboradoresData) setColaboradores(colaboradoresData as any);
       if (periodosData) {
         setPeriodos(periodosData);
@@ -143,9 +143,9 @@ const Relatorios = () => {
     const periodo = periodos.find((p) => p.id === selectedPeriod);
 
     try {
-      const lancamentos = await lancamentosService.getAll({ 
-        colaborador_id: selectedColaborador, 
-        periodo_id: selectedPeriod 
+      const lancamentos = await lancamentosService.getAll({
+        colaborador_id: selectedColaborador,
+        periodo_id: selectedPeriod
       });
 
       const despesas = lancamentos || [];
@@ -177,7 +177,7 @@ const Relatorios = () => {
         colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
         periodo: periodo?.periodo || '',
         resumo,
-        rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
+        rendimentoTotal: resumo.reduce((acc, r) => acc + Number(r.valorUtilizado || 0), 0),
         utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, totalPendente, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
         despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
         totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor })),
@@ -204,15 +204,15 @@ const Relatorios = () => {
     if (!previewData) return;
     setGenerating(true);
     try {
-      const filteredDespesas = includePendentes 
-        ? previewData.despesas 
+      const filteredDespesas = includePendentes
+        ? previewData.despesas
         : previewData.despesas.filter((d: any) => d.status === 'valido');
-      
+
       const reportData = {
         ...previewData,
         despesas: filteredDespesas,
       };
-      
+
       const blob = await generatePDFReport(reportData);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -235,7 +235,6 @@ const Relatorios = () => {
         matricula: previewData.colaborador.matricula,
         nome: previewData.colaborador.nome,
         departamento: previewData.colaborador.departamento,
-        codigoEvento: '',
         descricaoEvento: item.componente,
         valor: item.valorUtilizado,
         periodo: previewData.periodo,
@@ -253,13 +252,13 @@ const Relatorios = () => {
     setGenerating(true);
     toast({ title: 'Gerando relatórios em lote', description: `Processando ${selectedEmployees.length} relatório(s)...` });
     const periodo = periodos.find((p) => p.id === selectedPeriod);
-    
+
     const pdfFiles: { name: string; blob: Blob }[] = [];
-    
+
     for (const empId of selectedEmployees) {
       const colaborador = colaboradores.find((c) => c.id === empId);
       if (!colaborador || !periodo) continue;
-      
+
       try {
         const lancamentos = await lancamentosService.getAll({ colaborador_id: empId, periodo_id: selectedPeriod });
         const despesas = lancamentos || [];
@@ -280,7 +279,7 @@ const Relatorios = () => {
           colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
           periodo: periodo.periodo,
           resumo,
-          rendimentoTotal: resumo.reduce((acc, r) => acc + r.valorUtilizado, 0),
+          rendimentoTotal: resumo.reduce((acc, r) => acc + Number(r.valorUtilizado || 0), 0),
           utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
           despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
           totaisPorCategoria: [],
@@ -294,7 +293,7 @@ const Relatorios = () => {
         console.error(`Erro ao gerar PDF para ${colaborador.nome}:`, error);
       }
     }
-    
+
     const zipBlob = await generateZipWithPDFs(pdfFiles);
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
@@ -302,7 +301,7 @@ const Relatorios = () => {
     a.download = `Relatorios_${periodo?.periodo}_${new Date().toISOString().split('T')[0]}.zip`;
     a.click();
     URL.revokeObjectURL(url);
-    
+
     toast({ title: 'ZIP gerado', description: `${selectedEmployees.length} PDF(s) baixados em um único arquivo ZIP.` });
     setGenerating(false);
   };
@@ -314,8 +313,8 @@ const Relatorios = () => {
     }
     if (batchSearch.trim()) {
       const search = batchSearch.toLowerCase();
-      result = result.filter((c) => 
-        c.nome.toLowerCase().includes(search) || 
+      result = result.filter((c) =>
+        c.nome.toLowerCase().includes(search) ||
         c.matricula.toLowerCase().includes(search)
       );
     }
@@ -394,7 +393,7 @@ const Relatorios = () => {
                     </AlertDescription>
                   </Alert>
                 )}
-                
+
                 {previewData.qtdPendentes > 0 && (
                   <Alert className="border-warning/50 bg-warning/10">
                     <Clock className="h-4 w-4 text-warning" />
@@ -433,7 +432,7 @@ const Relatorios = () => {
                   </div>
                   <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
                 </div>
-                
+
                 {previewData.despesas.length > 0 && (
                   <>
                     <Separator />
@@ -457,12 +456,12 @@ const Relatorios = () => {
                                 <td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(d.valor)}</td>
                                 <td className="px-3 sm:px-4 py-2 text-center">
                                   <Badge variant={
-                                    d.status === 'valido' ? 'default' : 
-                                    d.status === 'invalido' ? 'destructive' : 'outline'
+                                    d.status === 'valido' ? 'default' :
+                                      d.status === 'invalido' ? 'destructive' : 'outline'
                                   } className="text-xs">
-                                    {d.status === 'valido' ? 'Aprovado' : 
-                                     d.status === 'invalido' ? 'Rejeitado' : 
-                                     d.status === 'enviado' ? 'Pendente' : 'Em Análise'}
+                                    {d.status === 'valido' ? 'Aprovado' :
+                                      d.status === 'invalido' ? 'Rejeitado' :
+                                        d.status === 'enviado' ? 'Pendente' : 'Em Análise'}
                                   </Badge>
                                 </td>
                               </tr>
@@ -478,74 +477,74 @@ const Relatorios = () => {
           )}
         </TabsContent>
         {isRHorFinanceiro && (
-        <TabsContent value="batch" className="space-y-6">
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Gerar Relatórios em Lote</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Período</Label>
-                  <Combobox
-                    options={periodOptions}
-                    value={selectedPeriod}
-                    onValueChange={setSelectedPeriod}
-                    placeholder="Buscar período..."
-                    searchPlaceholder="Buscar por período..."
-                    emptyMessage="Nenhum período encontrado."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Filtrar por Departamento</Label>
-                  <Combobox
-                    options={departmentOptions}
-                    value={selectedDepartment}
-                    onValueChange={setSelectedDepartment}
-                    placeholder="Todos os departamentos"
-                    searchPlaceholder="Buscar departamento..."
-                    emptyMessage="Nenhum departamento encontrado."
-                  />
-                </div>
-              </div>
-              <Separator />
-              <div className="space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex-1">
-                    <Input
-                      placeholder="Buscar por nome ou matrícula..."
-                      value={batchSearch}
-                      onChange={(e) => setBatchSearch(e.target.value)}
-                      className="max-w-sm"
+          <TabsContent value="batch" className="space-y-6">
+            <Card>
+              <CardHeader><CardTitle className="text-lg">Gerar Relatórios em Lote</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Período</Label>
+                    <Combobox
+                      options={periodOptions}
+                      value={selectedPeriod}
+                      onValueChange={setSelectedPeriod}
+                      placeholder="Buscar período..."
+                      searchPlaceholder="Buscar por período..."
+                      emptyMessage="Nenhum período encontrado."
                     />
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="selectAll" checked={selectAll} onCheckedChange={(c) => handleSelectAll(!!c)} />
-                    <Label htmlFor="selectAll" className="font-normal">Selecionar Todos</Label>
+                  <div className="space-y-2">
+                    <Label>Filtrar por Departamento</Label>
+                    <Combobox
+                      options={departmentOptions}
+                      value={selectedDepartment}
+                      onValueChange={setSelectedDepartment}
+                      placeholder="Todos os departamentos"
+                      searchPlaceholder="Buscar departamento..."
+                      emptyMessage="Nenhum departamento encontrado."
+                    />
                   </div>
                 </div>
-                <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
-                  {filteredColaboradores.length === 0 ? (
-                    <div className="px-4 py-8 text-center text-muted-foreground">
-                      Nenhum colaborador encontrado com os filtros aplicados.
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex-1">
+                      <Input
+                        placeholder="Buscar por nome ou matrícula..."
+                        value={batchSearch}
+                        onChange={(e) => setBatchSearch(e.target.value)}
+                        className="max-w-sm"
+                      />
                     </div>
-                  ) : (
-                    filteredColaboradores.map((emp) => (
-                      <div key={emp.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50">
-                        <div className="flex items-center space-x-3">
-                          <Checkbox id={emp.id} checked={selectedEmployees.includes(emp.id)} onCheckedChange={(c) => handleSelectEmployee(emp.id, !!c)} />
-                          <div><p className="font-medium">{emp.nome}</p><p className="text-xs text-muted-foreground">{emp.matricula} • {emp.departamento}</p></div>
-                        </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="selectAll" checked={selectAll} onCheckedChange={(c) => handleSelectAll(!!c)} />
+                      <Label htmlFor="selectAll" className="font-normal">Selecionar Todos</Label>
+                    </div>
+                  </div>
+                  <div className="border rounded-lg divide-y max-h-64 overflow-y-auto">
+                    {filteredColaboradores.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-muted-foreground">
+                        Nenhum colaborador encontrado com os filtros aplicados.
                       </div>
-                    ))
-                  )}
+                    ) : (
+                      filteredColaboradores.map((emp) => (
+                        <div key={emp.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50">
+                          <div className="flex items-center space-x-3">
+                            <Checkbox id={emp.id} checked={selectedEmployees.includes(emp.id)} onCheckedChange={(c) => handleSelectEmployee(emp.id, !!c)} />
+                            <div><p className="font-medium">{emp.nome}</p><p className="text-xs text-muted-foreground">{emp.matricula} • {emp.departamento}</p></div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{selectedEmployees.length} colaborador(es) selecionado(s) de {filteredColaboradores.length} exibido(s)</p>
                 </div>
-                <p className="text-sm text-muted-foreground">{selectedEmployees.length} colaborador(es) selecionado(s) de {filteredColaboradores.length} exibido(s)</p>
-              </div>
-              <div className="flex gap-3">
-                <Button onClick={handleGenerateBatch} disabled={selectedEmployees.length === 0 || !selectedPeriod || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Baixar ZIP ({selectedEmployees.length} PDFs)</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                <div className="flex gap-3">
+                  <Button onClick={handleGenerateBatch} disabled={selectedEmployees.length === 0 || !selectedPeriod || generating}>{generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}<Download className="mr-2 h-4 w-4" />Baixar ZIP ({selectedEmployees.length} PDFs)</Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
         )}
       </Tabs>
     </div>

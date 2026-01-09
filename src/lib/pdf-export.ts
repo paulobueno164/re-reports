@@ -36,30 +36,32 @@ interface ReportData {
 export async function generatePDFReport(data: ReportData): Promise<Blob> {
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+
   // Header
   doc.setFillColor(59, 130, 246); // primary blue
   doc.rect(0, 0, pageWidth, 35, 'F');
-  
+
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
   doc.text('RE-Reports', 14, 18);
-  
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('Extrato de Remuneração Estratégica', 14, 26);
-  
+
   doc.setFontSize(12);
   doc.text(`Período: ${data.periodo}`, pageWidth - 14, 18, { align: 'right' });
-  doc.text(`Gerado em: ${formatDate(new Date())}`, pageWidth - 14, 26, { align: 'right' });
+  const hoje = new Date();
+  const dataFormatada = `${String(hoje.getDate()).padStart(2, '0')}/${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
+  doc.text(`Gerado em: ${dataFormatada}`, pageWidth - 14, 26, { align: 'right' });
 
   // Employee info
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('Dados do Colaborador', 14, 48);
-  
+
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Nome: ${data.colaborador.nome}`, 14, 56);
@@ -80,7 +82,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
         item.componente,
         formatCurrency(item.valorParametrizado),
         formatCurrency(item.valorUtilizado),
-        item.percentual > 0 ? `${item.percentual}%` : '-'
+        item.percentual > 0 ? `${Math.round(item.percentual)}%` : '-'
       ]),
       [
         { content: 'RENDIMENTO TOTAL', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
@@ -97,7 +99,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
 
   // Utilization section
   const tableEndY = (doc as any).lastAutoTable.finalY + 10;
-  
+
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text('Análise de Utilização - Cesta de Benefícios', 14, tableEndY);
@@ -106,7 +108,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
   const boxY = tableEndY + 5;
   const boxWidth = (pageWidth - 42) / 4;
   const boxHeight = 20;
-  
+
   // Box 1 - Limite
   doc.setFillColor(249, 250, 251);
   doc.roundedRect(14, boxY, boxWidth, boxHeight, 2, 2, 'F');
@@ -166,7 +168,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
   // Chart section - expenses by category
   if (data.totaisPorCategoria.length > 0) {
     const chartY = progressY + 20;
-    
+
     if (chartY < doc.internal.pageSize.getHeight() - 60) {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
@@ -193,7 +195,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
   // Expense details on new page if needed
   if (data.despesas.length > 0) {
     doc.addPage();
-    
+
     doc.setFillColor(59, 130, 246);
     doc.rect(0, 0, pageWidth, 20, 'F');
     doc.setTextColor(255, 255, 255);
