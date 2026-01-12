@@ -435,9 +435,21 @@ const DashboardFinanceiro = () => {
                         axisLine={{ stroke: 'hsl(var(--border))' }}
                       />
                       <YAxis 
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={(value) => {
+                          if (value >= 1000) {
+                            return `R$ ${(value / 1000).toFixed(0)}k`;
+                          }
+                          return `R$ ${value.toFixed(0)}`;
+                        }}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={[0, (dataMin: number, dataMax: number) => {
+                          if (!isFinite(dataMax) || dataMax === 0) {
+                            return 100;
+                          }
+                          const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
+                          return Math.ceil(dataMax + headroom);
+                        }]}
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}

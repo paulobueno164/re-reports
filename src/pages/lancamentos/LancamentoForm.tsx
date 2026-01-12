@@ -327,10 +327,10 @@ const LancamentoForm = () => {
         valorConsiderado: validation.valorConsiderado,
         valorNaoConsiderado: validation.valorNaoConsiderado,
         validation,
-      });
+        });
       setShowConfirmDialog(true);
       return;
-    }
+      }
 
     // Se não for warning, salvar direto
     await executeSave(validation);

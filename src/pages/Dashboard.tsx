@@ -365,9 +365,24 @@ const Dashboard = () => {
           <CardContent>
             {data.expensesByCategory.length > 0 ? (
               <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={data.expensesByCategory} layout="vertical">
+                <BarChart data={data.expensesByCategory} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                  <XAxis type="number" tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
+                  <XAxis 
+                    type="number" 
+                    tickFormatter={(value) => {
+                      if (value >= 1000) {
+                        return `R$ ${(value / 1000).toFixed(0)}k`;
+                      }
+                      return `R$ ${value.toFixed(0)}`;
+                    }}
+                    domain={[0, (dataMin: number, dataMax: number) => {
+                      if (!isFinite(dataMax) || dataMax === 0) {
+                        return 100;
+                      }
+                      const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
+                      return Math.ceil(dataMax + headroom);
+                    }]}
+                  />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
                   <Tooltip
                     formatter={(value: number) => [formatCurrency(value), 'Valor']}
@@ -432,10 +447,24 @@ const Dashboard = () => {
             <CardContent>
               {data.expensesByMonth.length > 0 ? (
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={data.expensesByMonth}>
+                  <LineChart data={data.expensesByMonth} margin={{ left: 0, right: 20, top: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} />
+                    <YAxis 
+                      tickFormatter={(value) => {
+                        if (value >= 1000) {
+                          return `R$ ${(value / 1000).toFixed(0)}k`;
+                        }
+                        return `R$ ${value.toFixed(0)}`;
+                      }}
+                      domain={[0, (dataMin: number, dataMax: number) => {
+                        if (!isFinite(dataMax) || dataMax === 0) {
+                          return 100;
+                        }
+                        const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
+                        return Math.ceil(dataMax + headroom);
+                      }]}
+                    />
                     <Tooltip
                       formatter={(value: number) => [formatCurrency(value), 'Valor']}
                       contentStyle={{ backgroundColor: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }}

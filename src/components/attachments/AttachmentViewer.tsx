@@ -278,7 +278,7 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
 
       {/* Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="!w-auto !h-auto !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-auto">
+        <DialogContent className="!w-[98vw] !h-[98vh] !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-hidden">
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center justify-between pr-8">
               <span className="truncate">{previewName}</span>
@@ -304,8 +304,9 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
             className="flex items-center justify-center bg-muted/30 p-6 overflow-hidden relative"
             style={{ 
               width: '100%', 
-              height: '100%',
-              minHeight: '400px',
+              minWidth: '600px',
+              minHeight: 'calc(98vh - 120px)',
+              height: 'calc(98vh - 120px)',
               maxHeight: 'calc(98vh - 120px)',
               cursor: zoom > 100 ? (isDragging ? 'grabbing' : 'grab') : 'default'
             }}

@@ -155,7 +155,7 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
     }
     
     try {
-      if (attachment.tipoArquivo.startsWith('image/')) {
+    if (attachment.tipoArquivo.startsWith('image/')) {
         // Para imagens, fazer download e criar blob URL
         const blob = await anexosService.download(attachment.id);
         const url = URL.createObjectURL(blob);
@@ -169,13 +169,13 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
         const url = URL.createObjectURL(blob);
         previewUrlRef.current = url;
         setPreviewType('pdf');
-        setPreviewUrl(url);
-        setPreviewOpen(true);
-      } else {
+      setPreviewUrl(url);
+      setPreviewOpen(true);
+    } else {
         // Para outros tipos, tentar abrir diretamente
         const url = anexosService.getViewUrl(attachment.id);
-        window.open(url, '_blank');
-      }
+      window.open(url, '_blank');
+    }
     } catch (error) {
       toast({
         title: 'Erro ao visualizar',
@@ -386,7 +386,7 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       ))}
 
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="!w-auto !h-auto !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-auto">
+        <DialogContent className="!w-[98vw] !h-[98vh] !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-hidden">
           <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center justify-between pr-8">
               <span className="truncate">{previewName}</span>
@@ -409,8 +409,9 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
               className="flex items-center justify-center bg-muted/30 p-6 overflow-hidden relative"
               style={{ 
                 width: '100%', 
-                height: '100%',
-                minHeight: '400px',
+                minWidth: '600px',
+                minHeight: 'calc(98vh - 120px)',
+                height: 'calc(98vh - 120px)',
                 maxHeight: 'calc(98vh - 120px)',
                 cursor: zoom > 100 ? (isDragging ? 'grabbing' : 'grab') : 'default'
               }}
@@ -453,10 +454,10 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
               )}
               {previewType === 'pdf' && (
                 <iframe
-                  src={previewUrl}
+                src={previewUrl}
                   title={previewName}
                   className="w-full h-[calc(95vh-8rem)] rounded-lg border-0"
-                />
+              />
               )}
             </div>
           )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2, CalendarDays } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -173,11 +173,11 @@ const DashboardRH = () => {
       const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const pendentesValidacao = pendingLancamentos?.length || 0;
 
-      // Gráfico Despesas por Categoria (excluindo rejeitadas)
+      // Gráfico Despesas por Categoria (apenas aprovados)
       const categoryMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        // Excluir lançamentos com status 'invalido'
-        if (l.status !== 'invalido') {
+        // Incluir apenas lançamentos com status 'valido' (aprovados)
+        if (l.status === 'valido') {
           const grupo = l.tipo_despesa?.grupo || 'Outros';
           categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
         }
@@ -219,9 +219,12 @@ const DashboardRH = () => {
 
       const colaboradorMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        const colab = colaboradores.find(c => c.id === l.colaborador_id);
-        const nome = colab?.nome || 'Desconhecido';
-        colaboradorMap.set(nome, (colaboradorMap.get(nome) || 0) + Number(l.valor_considerado));
+        // Incluir apenas lançamentos com status 'valido' (aprovados)
+        if (l.status === 'valido') {
+          const colab = colaboradores.find(c => c.id === l.colaborador_id);
+          const nome = colab?.nome || 'Desconhecido';
+          colaboradorMap.set(nome, (colaboradorMap.get(nome) || 0) + Number(l.valor_considerado));
+        }
       });
       const topColaboradores = Array.from(colaboradorMap.entries())
         .map(([name, value]) => ({ name, value }))
@@ -231,11 +234,11 @@ const DashboardRH = () => {
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const utilizationPercentage = totalUtilizado > 0 ? 100 : 0;
 
-      // Gráfico Evolução Mensal (excluindo rejeitadas)
+      // Gráfico Evolução Mensal (apenas aprovados)
       const monthMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        // Excluir lançamentos com status 'invalido'
-        if (l.status !== 'invalido') {
+        // Incluir apenas lançamentos com status 'valido' (aprovados)
+        if (l.status === 'valido') {
           const date = new Date(l.created_at);
           const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
           monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
@@ -288,6 +291,39 @@ const DashboardRH = () => {
       setLoading(false);
     }
   };
+
+  // Calcular domains explicitamente dos dados (ANTES de qualquer return condicional)
+  const monthDomain = useMemo(() => {
+    if (data.expensesByMonth.length === 0) return [0, 100];
+    const maxValue = Math.max(...data.expensesByMonth.map(d => d.value));
+    if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
+    const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
+    return [0, Math.ceil(maxValue + headroom)];
+  }, [data.expensesByMonth]);
+
+  const monthRejectedDomain = useMemo(() => {
+    if (data.expensesByMonthRejected.length === 0) return [0, 100];
+    const maxValue = Math.max(...data.expensesByMonthRejected.map(d => d.value));
+    if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
+    const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
+    return [0, Math.ceil(maxValue + headroom)];
+  }, [data.expensesByMonthRejected]);
+
+  const categoryDomain = useMemo(() => {
+    if (data.expensesByCategory.length === 0) return [0, 100];
+    const maxValue = Math.max(...data.expensesByCategory.map(d => d.value));
+    if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
+    const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
+    return [0, Math.ceil(maxValue + headroom)];
+  }, [data.expensesByCategory]);
+
+  const categoryRejectedDomain = useMemo(() => {
+    if (data.expensesByCategoryRejected.length === 0) return [0, 100];
+    const maxValue = Math.max(...data.expensesByCategoryRejected.map(d => d.value));
+    if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
+    const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
+    return [0, Math.ceil(maxValue + headroom)];
+  }, [data.expensesByCategoryRejected]);
 
   if (loading) {
     return (
@@ -461,6 +497,7 @@ const DashboardRH = () => {
                         tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={categoryDomain}
                       />
                       <YAxis 
                         type="category" 
@@ -564,15 +601,7 @@ const DashboardRH = () => {
                         tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
-                        domain={[0, (dataMin: number, dataMax: number) => {
-                          // Validar dataMax para evitar NaN
-                          if (!isFinite(dataMax) || dataMax === 0) {
-                            return 100; // Valor padrão quando não há dados
-                          }
-                          // Adicionar 20% de headroom no topo, mas no mínimo 10% do valor máximo
-                          const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
-                          return Math.ceil(dataMax + headroom);
-                        }]}
+                        domain={monthDomain}
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}
@@ -610,6 +639,7 @@ const DashboardRH = () => {
                         tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={categoryRejectedDomain}
                       />
                       <YAxis 
                         type="category" 

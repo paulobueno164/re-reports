@@ -113,7 +113,6 @@ router.post(
         tipo_arquivo: uploadResult.mimeType,
         storage_path: uploadResult.storagePath,
         tamanho: uploadResult.size,
-        file_content: file.buffer, // Para calcular hash e verificar duplicidade
       });
 
       res.status(201).json(anexo);
@@ -175,7 +174,6 @@ router.post(
             tipo_arquivo: uploadResult.mimeType,
             storage_path: uploadResult.storagePath,
             tamanho: uploadResult.size,
-            file_content: file.buffer,
           });
 
           results.push(anexo);

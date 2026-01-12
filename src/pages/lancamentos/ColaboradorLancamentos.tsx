@@ -83,6 +83,7 @@ const ColaboradorLancamentos = () => {
   const [loading, setLoading] = useState(true);
   const [totalUsado, setTotalUsado] = useState(0);
   const [totalPendente, setTotalPendente] = useState(0);
+  const [totalAprovado, setTotalAprovado] = useState(0);
   const [tetoCesta, setTetoCesta] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
   const [percentualUsado, setPercentualUsado] = useState(0);
@@ -232,20 +233,24 @@ const ColaboradorLancamentos = () => {
 
       setExpenses(mapped);
 
-      // Calcular utilizado incluindo pendentes + aprovados (excluindo apenas rejeitados)
-      const usado = mapped
-        .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados
+      // Calcular valores separadamente
+      const aprovado = mapped
+        .filter(e => e.status === 'valido') // Apenas aprovados
         .reduce((sum, e) => sum + e.valorConsiderado, 0);
       const pendente = mapped
         .filter(e => e.status === 'enviado' || e.status === 'em_analise')
         .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      const usado = mapped
+        .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados (para outros cálculos)
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
       
-      setTotalUsado(usado);
+      setTotalAprovado(aprovado);
       setTotalPendente(pendente);
+      setTotalUsado(usado);
       
-      // Saldo = Limite - Utilizado (pendentes + aprovados)
-      const saldo = Math.max(0, tetoCesta - usado);
-      const percentual = tetoCesta > 0 ? (usado / tetoCesta) * 100 : 0;
+      // Saldo = Limite - Aprovado (apenas valores aprovados)
+      const saldo = Math.max(0, tetoCesta - aprovado);
+      const percentual = tetoCesta > 0 ? (aprovado / tetoCesta) * 100 : 0;
       setSaldoDisponivel(saldo);
       setPercentualUsado(Math.min(100, percentual));
 
@@ -556,7 +561,7 @@ const ColaboradorLancamentos = () => {
                         <span className="w-2 h-2 rounded-full bg-success" />
                         Aprovado
                       </span>
-                      <span className="font-mono font-medium text-success">{formatCurrency(totalUsado)}</span>
+                      <span className="font-mono font-medium text-success">{formatCurrency(totalAprovado)}</span>
                     </div>
                     {totalPendente > 0 && (
                       <div className="flex justify-between text-xs sm:text-sm">
