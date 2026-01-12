@@ -47,6 +47,8 @@ interface DashboardData {
   expensesByCategory: { name: string; value: number }[];
   expensesByStatus: { name: string; value: number; color: string }[];
   expensesByMonth: { month: string; value: number }[];
+  expensesByCategoryRejected: { name: string; value: number }[];
+  expensesByMonthRejected: { month: string; value: number }[];
   topColaboradores: { name: string; value: number }[];
   utilizationPercentage: number;
 }
@@ -56,6 +58,14 @@ const STATUS_COLORS: Record<string, string> = {
   em_analise: '#3b82f6',
   valido: '#10b981',
   invalido: '#ef4444',
+};
+
+// Helper function para formatar valores dos eixos dos gráficos
+const formatAxisValue = (value: number): string => {
+  if (value >= 1000) {
+    return `R$ ${(value / 1000).toFixed(0)}k`;
+  }
+  return `R$ ${value.toFixed(0)}`;
 };
 
 const DashboardRH = () => {
@@ -75,6 +85,8 @@ const DashboardRH = () => {
     expensesByCategory: [],
     expensesByStatus: [],
     expensesByMonth: [],
+    expensesByCategoryRejected: [],
+    expensesByMonthRejected: [],
     topColaboradores: [],
     utilizationPercentage: 0,
   });
@@ -161,12 +173,30 @@ const DashboardRH = () => {
       const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const pendentesValidacao = pendingLancamentos?.length || 0;
 
+      // Gráfico Despesas por Categoria (excluindo rejeitadas)
       const categoryMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        const grupo = l.tipo_despesa?.grupo || 'Outros';
-        categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
+        // Excluir lançamentos com status 'invalido'
+        if (l.status !== 'invalido') {
+          const grupo = l.tipo_despesa?.grupo || 'Outros';
+          categoryMap.set(grupo, (categoryMap.get(grupo) || 0) + Number(l.valor_considerado));
+        }
       });
       const expensesByCategory = Array.from(categoryMap.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+      // Gráfico Despesas por Categoria Rejeitadas (apenas 'invalido')
+      const categoryRejectedMap = new Map<string, number>();
+      lancamentos?.forEach((l: any) => {
+        // Incluir apenas lançamentos com status 'invalido'
+        if (l.status === 'invalido') {
+          const grupo = l.tipo_despesa?.grupo || 'Outros';
+          categoryRejectedMap.set(grupo, (categoryRejectedMap.get(grupo) || 0) + Number(l.valor_considerado));
+        }
+      });
+      const expensesByCategoryRejected = Array.from(categoryRejectedMap.entries())
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 5);
@@ -201,13 +231,35 @@ const DashboardRH = () => {
       const totalUtilizado = lancamentos?.filter((l) => l.status === 'valido').reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
       const utilizationPercentage = totalUtilizado > 0 ? 100 : 0;
 
+      // Gráfico Evolução Mensal (excluindo rejeitadas)
       const monthMap = new Map<string, number>();
       lancamentos?.forEach((l: any) => {
-        const date = new Date(l.created_at);
-        const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
-        monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
+        // Excluir lançamentos com status 'invalido'
+        if (l.status !== 'invalido') {
+          const date = new Date(l.created_at);
+          const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
+          monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + Number(l.valor_considerado));
+        }
       });
       const expensesByMonth = Array.from(monthMap.entries())
+        .map(([month, value]) => ({ month, value }))
+        .sort((a, b) => {
+          const [am, ay] = a.month.split('/').map(Number);
+          const [bm, by] = b.month.split('/').map(Number);
+          return ay === by ? am - bm : ay - by;
+        });
+
+      // Gráfico Evolução Mensal de Despesas Rejeitadas (apenas 'invalido')
+      const monthRejectedMap = new Map<string, number>();
+      lancamentos?.forEach((l: any) => {
+        // Incluir apenas lançamentos com status 'invalido'
+        if (l.status === 'invalido') {
+          const date = new Date(l.created_at);
+          const monthKey = `${date.getMonth() + 1}/${date.getFullYear()}`;
+          monthRejectedMap.set(monthKey, (monthRejectedMap.get(monthKey) || 0) + Number(l.valor_considerado));
+        }
+      });
+      const expensesByMonthRejected = Array.from(monthRejectedMap.entries())
         .map(([month, value]) => ({ month, value }))
         .sort((a, b) => {
           const [am, ay] = a.month.split('/').map(Number);
@@ -225,6 +277,8 @@ const DashboardRH = () => {
         expensesByCategory,
         expensesByStatus,
         expensesByMonth,
+        expensesByCategoryRejected,
+        expensesByMonthRejected,
         topColaboradores,
         utilizationPercentage,
       });
@@ -400,11 +454,11 @@ const DashboardRH = () => {
               <CardContent>
                 {data.expensesByCategory.length > 0 ? (
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={data.expensesByCategory} layout="vertical" margin={{ left: 0, right: 20 }}>
+                    <BarChart data={data.expensesByCategory} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
                       <XAxis 
                         type="number" 
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
                       />
@@ -499,7 +553,7 @@ const DashboardRH = () => {
               <CardContent>
                 {data.expensesByMonth.length > 0 ? (
                   <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={data.expensesByMonth} margin={{ left: 0, right: 20 }}>
+                    <LineChart data={data.expensesByMonth} margin={{ left: 0, right: 20, top: 20, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis 
                         dataKey="month" 
@@ -507,9 +561,18 @@ const DashboardRH = () => {
                         axisLine={{ stroke: 'hsl(var(--border))' }}
                       />
                       <YAxis 
-                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={[0, (dataMin: number, dataMax: number) => {
+                          // Validar dataMax para evitar NaN
+                          if (!isFinite(dataMax) || dataMax === 0) {
+                            return 100; // Valor padrão quando não há dados
+                          }
+                          // Adicionar 20% de headroom no topo, mas no mínimo 10% do valor máximo
+                          const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
+                          return Math.ceil(dataMax + headroom);
+                        }]}
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}
@@ -520,6 +583,96 @@ const DashboardRH = () => {
                         }}
                       />
                       <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ fill: 'hsl(var(--primary))' }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[200px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Rejected Expenses Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Despesas por Categoria Rejeitadas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.expensesByCategoryRejected.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={data.expensesByCategoryRejected} layout="vertical" margin={{ left: 0, right: 20, top: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="hsl(var(--border))" />
+                      <XAxis 
+                        type="number" 
+                        tickFormatter={formatAxisValue}
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        type="category" 
+                        dataKey="name" 
+                        width={100} 
+                        tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [formatCurrency(value), 'Valor']}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Bar dataKey="value" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                    Sem dados para exibir
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg font-semibold">Evolução Mensal de Despesas Rejeitadas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {data.expensesByMonthRejected.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={data.expensesByMonthRejected} margin={{ left: 0, right: 20, top: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                      />
+                      <YAxis 
+                        tickFormatter={formatAxisValue}
+                        tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        domain={[0, (dataMin: number, dataMax: number) => {
+                          // Validar dataMax para evitar NaN
+                          if (!isFinite(dataMax) || dataMax === 0) {
+                            return 100; // Valor padrão quando não há dados
+                          }
+                          const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
+                          return Math.ceil(dataMax + headroom);
+                        }]}
+                      />
+                      <Tooltip
+                        formatter={(value: number) => [formatCurrency(value), 'Valor']}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--background))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Line type="monotone" dataKey="value" stroke="#ef4444" strokeWidth={2} dot={{ fill: '#ef4444' }} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (

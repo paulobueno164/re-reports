@@ -40,6 +40,11 @@ export const auditService = {
   },
 
   async getByEntity(entityType: string, entityId: string): Promise<AuditLog[]> {
+    // Se for um lançamento, usar a rota específica que permite colaborador acessar seus próprios
+    if (entityType === 'lancamento') {
+      return apiClient.get<AuditLog[]>(`/api/lancamentos/${entityId}/audit-logs`);
+    }
+    // Para outras entidades, usar a rota geral (requer ADMINISTRADOR)
     return this.getAll({ entityType, entityId });
   },
 };

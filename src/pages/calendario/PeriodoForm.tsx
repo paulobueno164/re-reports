@@ -27,6 +27,13 @@ const PeriodoForm = () => {
     if (id) fetchPeriod();
   }, [id]);
 
+  // Função auxiliar para formatar data ISO (YYYY-MM-DD) para formato brasileiro (DD/MM/YYYY)
+  // sem conversão de timezone
+  const formatDateBR = (dateString: string): string => {
+    const [year, month, day] = dateString.split('-');
+    return `${day}/${month}/${year}`;
+  };
+
   const fetchPeriod = async () => {
     setLoading(true);
     try {
@@ -88,8 +95,8 @@ const PeriodoForm = () => {
       });
 
       if (datasConflito) {
-        const inicioConflito = new Date(datasConflito.data_inicio).toLocaleDateString('pt-BR');
-        const fimConflito = new Date(datasConflito.data_final).toLocaleDateString('pt-BR');
+        const inicioConflito = formatDateBR(datasConflito.data_inicio);
+        const fimConflito = formatDateBR(datasConflito.data_final);
         toast({
           title: 'Erro de validação',
           description: `As datas informadas conflitam com o período ${datasConflito.periodo} (${inicioConflito} - ${fimConflito}).`,

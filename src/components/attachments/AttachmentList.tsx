@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { FileText, Image, Download, Eye, Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { FileText, Image, Download, Eye, Loader2, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,8 +43,17 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   const [deleting, setDeleting] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewType, setPreviewType] = useState<'image' | 'pdf'>('image');
+  const [previewName, setPreviewName] = useState('');
+  const [zoom, setZoom] = useState(100);
   const [inlinePreviewUrl, setInlinePreviewUrl] = useState<string | null>(null);
   const [loadingInlinePreview, setLoadingInlinePreview] = useState(false);
+  const previewUrlRef = useRef<string | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     fetchAttachments();
@@ -54,11 +63,23 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
       if (inlinePreviewUrl) {
         URL.revokeObjectURL(inlinePreviewUrl);
       }
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
       }
     };
   }, [lancamentoId]);
+
+  // Limpar blob URL quando o modal fechar (com delay para garantir que não está mais em uso)
+  useEffect(() => {
+    if (!previewOpen && previewUrlRef.current) {
+      const urlToRevoke = previewUrlRef.current;
+      previewUrlRef.current = null;
+      // Usar setTimeout para garantir que o React terminou de renderizar
+      setTimeout(() => {
+        URL.revokeObjectURL(urlToRevoke);
+      }, 100);
+    }
+  }, [previewOpen]);
 
   const fetchAttachments = async () => {
     setLoading(true);
@@ -124,20 +145,32 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
   };
 
   const handlePreview = async (attachment: Attachment) => {
+    setPreviewName(attachment.nomeArquivo);
+    setZoom(100);
+    
+    // Revogar blob URL anterior antes de criar um novo
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    
     try {
       if (attachment.tipoArquivo.startsWith('image/')) {
         // Para imagens, fazer download e criar blob URL
         const blob = await anexosService.download(attachment.id);
         const url = URL.createObjectURL(blob);
+        previewUrlRef.current = url;
+        setPreviewType('image');
         setPreviewUrl(url);
         setPreviewOpen(true);
       } else if (attachment.tipoArquivo === 'application/pdf') {
-        // Para PDFs, fazer download e abrir em nova aba
+        // Para PDFs, fazer download e abrir no modal
         const blob = await anexosService.download(attachment.id);
         const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        // Limpar o blob URL após um tempo para liberar memória
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        previewUrlRef.current = url;
+        setPreviewType('pdf');
+        setPreviewUrl(url);
+        setPreviewOpen(true);
       } else {
         // Para outros tipos, tentar abrir diretamente
         const url = anexosService.getViewUrl(attachment.id);
@@ -150,6 +183,45 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
         variant: 'destructive',
       });
     }
+  };
+
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + 25, 300));
+    setImagePosition({ x: 0, y: 0 });
+  };
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const newZoom = Math.max(prev - 25, 50);
+      if (newZoom === 100) {
+        setImagePosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom > 100 && e.button === 0) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - imagePosition.x, y: e.clientY - imagePosition.y });
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging && zoom > 100) {
+      setImagePosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
   };
 
   const handleDelete = async (attachment: Attachment) => {
@@ -313,32 +385,79 @@ export function AttachmentList({ lancamentoId, allowDelete = false, onDeleteComp
         </div>
       ))}
 
-      <Dialog open={previewOpen} onOpenChange={(open) => {
-        setPreviewOpen(open);
-        // Limpar blob URL quando fechar o dialog
-        if (!open && previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(null);
-        }
-      }}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Visualizar Comprovante</DialogTitle>
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="!w-auto !h-auto !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-auto">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="flex items-center justify-between pr-8">
+              <span className="truncate">{previewName}</span>
+              {previewType === 'image' && (
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="icon" onClick={handleZoomOut} title="Diminuir">
+                    <ZoomOut className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm text-muted-foreground w-12 text-center">{zoom}%</span>
+                  <Button variant="ghost" size="icon" onClick={handleZoomIn} title="Aumentar">
+                    <ZoomIn className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </DialogTitle>
           </DialogHeader>
-          {previewUrl && (
-            <div className="flex justify-center">
-              <img
-                src={previewUrl}
-                alt="Preview"
-                className="max-h-[70vh] object-contain rounded-lg"
-                onError={(e) => {
-                  toast({
-                    title: 'Erro ao carregar imagem',
-                    description: 'Não foi possível exibir a imagem',
-                    variant: 'destructive',
-                  });
-                }}
-              />
+          {(previewType === 'image' || previewType === 'pdf') && previewUrl && (
+            <div 
+              ref={containerRef}
+              className="flex items-center justify-center bg-muted/30 p-6 overflow-hidden relative"
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                minHeight: '400px',
+                maxHeight: 'calc(98vh - 120px)',
+                cursor: zoom > 100 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+              }}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseLeave}
+            >
+              {previewType === 'image' && (
+                <img
+                  ref={imageRef}
+                  src={previewUrl}
+                  alt={previewName}
+                  style={{
+                    maxWidth: zoom > 100 ? '100%' : 'none',
+                    maxHeight: zoom > 100 ? '100%' : 'none',
+                    width: 'auto',
+                    height: 'auto',
+                    transform: `scale(${zoom / 100}) translate(${imagePosition.x / (zoom / 100)}px, ${imagePosition.y / (zoom / 100)}px)`,
+                    transformOrigin: 'center center',
+                    transition: isDragging ? 'none' : 'transform 0.2s ease',
+                    display: 'block',
+                    userSelect: 'none',
+                  }}
+                  className="object-contain"
+                  draggable={false}
+                  onError={(e) => {
+                    toast({
+                      title: 'Erro ao carregar imagem',
+                      description: 'Não foi possível exibir a imagem',
+                      variant: 'destructive',
+                    });
+                  }}
+                  onLoad={(e) => {
+                    // Reset zoom quando uma nova imagem carrega
+                    setZoom(100);
+                    setImagePosition({ x: 0, y: 0 });
+                  }}
+                />
+              )}
+              {previewType === 'pdf' && (
+                <iframe
+                  src={previewUrl}
+                  title={previewName}
+                  className="w-full h-[calc(95vh-8rem)] rounded-lg border-0"
+                />
+              )}
             </div>
           )}
         </DialogContent>

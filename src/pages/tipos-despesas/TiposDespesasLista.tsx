@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { tiposDespesasService, TipoDespesa } from '@/services/tipos-despesas.service';
+import { grupoDespesaService } from '@/services/grupo-despesa.service';
 
 interface ExpenseType {
   id: string;
@@ -33,8 +34,6 @@ interface ExpenseType {
   ativo: boolean;
 }
 
-const expenseGroups = ['Equipamentos', 'Seguros', 'Educação', 'Saúde', 'Cultura'];
-
 const TiposDespesasLista = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,8 +42,18 @@ const TiposDespesasLista = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterGrupo, setFilterGrupo] = useState('all');
   const [filterClassificacao, setFilterClassificacao] = useState('all');
+  const [expenseGroups, setExpenseGroups] = useState<{id: string, nome: string}[]>([]);
 
   useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const data = await grupoDespesaService.getAll({ ativo: true });
+        setExpenseGroups(data.map(g => ({ id: g.id, nome: g.nome })));
+      } catch (error) {
+        console.error('Erro ao buscar grupos de despesa:', error);
+      }
+    };
+    fetchGroups();
     fetchExpenseTypes();
   }, []);
 
@@ -216,8 +225,8 @@ const TiposDespesasLista = () => {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               {expenseGroups.map((group) => (
-                <SelectItem key={group} value={group}>
-                  {group}
+                <SelectItem key={group.id} value={group.nome}>
+                  {group.nome}
                 </SelectItem>
               ))}
             </SelectContent>

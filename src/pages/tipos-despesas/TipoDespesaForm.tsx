@@ -15,8 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { tiposDespesasService } from '@/services/tipos-despesas.service';
-
-const expenseGroups = ['Equipamentos', 'Seguros', 'Educação', 'Saúde', 'Cultura'];
+import { grupoDespesaService } from '@/services/grupo-despesa.service';
 
 const TipoDespesaForm = () => {
   const { id } = useParams<{ id: string }>();
@@ -25,6 +24,7 @@ const TipoDespesaForm = () => {
   const [loading, setLoading] = useState(!!id);
   const [saving, setSaving] = useState(false);
   const isEditing = !!id;
+  const [expenseGroups, setExpenseGroups] = useState<{id: string, nome: string}[]>([]);
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -36,6 +36,18 @@ const TipoDespesaForm = () => {
     origemFilhos: false,
     ativo: true,
   });
+
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const data = await grupoDespesaService.getAll({ ativo: true });
+        setExpenseGroups(data.map(g => ({ id: g.id, nome: g.nome })));
+      } catch (error) {
+        console.error('Erro ao buscar grupos de despesa:', error);
+      }
+    };
+    fetchGroups();
+  }, []);
 
   useEffect(() => {
     if (id) fetchExpenseType();
@@ -157,8 +169,8 @@ const TipoDespesaForm = () => {
               </SelectTrigger>
               <SelectContent>
                 {expenseGroups.map((group) => (
-                  <SelectItem key={group} value={group}>
-                    {group}
+                  <SelectItem key={group.id} value={group.nome}>
+                    {group.nome}
                   </SelectItem>
                 ))}
               </SelectContent>

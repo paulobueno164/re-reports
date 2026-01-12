@@ -59,6 +59,7 @@ export interface CreateLancamentoInput {
   tipo_despesa_id: string;
   origem?: ExpenseOrigin;
   descricao_fato_gerador: string;
+  numero_documento?: string | null;
   valor_lancado: number;
   valor_considerado: number;
   valor_nao_considerado?: number;
@@ -68,6 +69,7 @@ export interface UpdateLancamentoInput {
   tipo_despesa_id?: string;
   origem?: ExpenseOrigin;
   descricao_fato_gerador?: string;
+  numero_documento?: string | null;
   valor_lancado?: number;
   valor_considerado?: number;
   valor_nao_considerado?: number;

@@ -232,8 +232,9 @@ const ColaboradorLancamentos = () => {
 
       setExpenses(mapped);
 
+      // Calcular utilizado incluindo pendentes + aprovados (excluindo apenas rejeitados)
       const usado = mapped
-        .filter(e => e.status === 'valido')
+        .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados
         .reduce((sum, e) => sum + e.valorConsiderado, 0);
       const pendente = mapped
         .filter(e => e.status === 'enviado' || e.status === 'em_analise')
@@ -242,13 +243,17 @@ const ColaboradorLancamentos = () => {
       setTotalUsado(usado);
       setTotalPendente(pendente);
       
+      // Saldo = Limite - Utilizado (pendentes + aprovados)
       const saldo = Math.max(0, tetoCesta - usado);
       const percentual = tetoCesta > 0 ? (usado / tetoCesta) * 100 : 0;
       setSaldoDisponivel(saldo);
       setPercentualUsado(Math.min(100, percentual));
 
+      // Corrigir: filtrar lançamentos inválidos antes de verificar bloqueio
       const bloqueio = verificarBloqueioAposLimite(
-        mapped.map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
+        mapped
+          .filter(e => e.status !== 'invalido') // Excluir rejeitados
+          .map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
       );
       setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
     } catch (error: any) {
@@ -375,7 +380,7 @@ const ColaboradorLancamentos = () => {
       totais: {
         total: expenses.reduce((sum, e) => sum + e.valorLancado, 0),
         totalConsiderado: totalUsado,
-        cestaTeto: 0,
+        cestaTeto: tetoCesta,
       },
       statusCounts,
     });

@@ -31,16 +31,7 @@ import { authService } from '@/services/auth.service';
 import { formatCurrency } from '@/lib/expense-validation';
 import { generateSimulationPDF, exportSimulationToExcel } from '@/lib/simulation-pdf';
 import { ExpenseTypesManager, ExpenseTypesManagerRef, ExpenseTypeSelection } from '@/components/colaboradores/ExpenseTypesManager';
-
-const departments = [
-  'Tecnologia da Informação',
-  'Financeiro',
-  'Recursos Humanos',
-  'Marketing',
-  'Comercial',
-  'Operações',
-  'Jurídico',
-];
+import { departamentoService } from '@/services/departamento.service';
 
 const ColaboradorForm = () => {
   const { toast } = useToast();
@@ -66,6 +57,7 @@ const ColaboradorForm = () => {
   const [newEmail, setNewEmail] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [processingUser, setProcessingUser] = useState(false);
+  const [departments, setDepartments] = useState<{id: string, nome: string}[]>([]);
 
   const [formData, setFormData] = useState({
     matricula: '',
@@ -94,6 +86,18 @@ const ColaboradorForm = () => {
       pidaTeto: checked ? formData.pidaTeto : 0
     });
   };
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await departamentoService.getAll({ ativo: true });
+        setDepartments(data.map(d => ({ id: d.id, nome: d.nome })));
+      } catch (error) {
+        console.error('Erro ao buscar departamentos:', error);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   useEffect(() => {
     if (isEditing) {
@@ -479,8 +483,8 @@ const ColaboradorForm = () => {
                     </SelectTrigger>
                     <SelectContent>
                       {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
+                        <SelectItem key={dept.id} value={dept.nome}>
+                          {dept.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>

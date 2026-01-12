@@ -178,8 +178,9 @@ const DashboardColaborador = () => {
         };
         setStatusCounts(counts);
 
+        // Calcular utilizado incluindo pendentes + aprovados (excluindo apenas rejeitados)
         const total = mapped
-          .filter(e => e.status === 'valido')
+          .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados
           .reduce((sum, e) => sum + e.valorConsiderado, 0);
         setTotalUsado(total);
 

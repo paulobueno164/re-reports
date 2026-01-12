@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Upload, Loader2, FileText, X, AlertCircle, CreditCard } from 'lucide-react';
+import { Upload, Loader2, FileText, X, AlertCircle, CreditCard, AlertTriangle } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -85,6 +95,15 @@ const LancamentoForm = () => {
   const [totalUsado, setTotalUsado] = useState(0);
   const [cestaTeto, setCestaTeto] = useState(0);
   const [saldoDisponivel, setSaldoDisponivel] = useState(0);
+
+  // Dialog state
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingValidation, setPendingValidation] = useState<{
+    valorLancado: number;
+    valorConsiderado: number;
+    valorNaoConsiderado: number;
+    validation: any;
+  } | null>(null);
 
 
   useEffect(() => {
@@ -191,6 +210,75 @@ const LancamentoForm = () => {
     setLoading(false);
   };
 
+  const executeSave = async (validation: any) => {
+    if (!colaborador) {
+      toast({ title: 'Erro', description: 'Você não está cadastrado como colaborador elegível.', variant: 'destructive' });
+      return;
+    }
+
+    const valorLancado = parseFloat(formValor);
+    
+    setSaving(true);
+    try {
+      const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
+      const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
+
+      let lancamentoId: string;
+
+      if (isEditing && id) {
+        await lancamentosService.update(id, {
+          tipo_despesa_id: formTipoDespesaId,
+          origem: formOrigem,
+          valor_lancado: valorLancado,
+          valor_considerado: validation.valorConsiderado,
+          valor_nao_considerado: validation.valorNaoConsiderado,
+          descricao_fato_gerador: formDescricao,
+          numero_documento: formNumeroDocumento || null,
+        });
+        lancamentoId = id;
+      } else {
+        const result = await lancamentosService.create({
+          colaborador_id: colaborador.id,
+          periodo_id: formPeriodoId,
+          tipo_despesa_id: formTipoDespesaId,
+          origem: formOrigem,
+          descricao_fato_gerador: formDescricao,
+          numero_documento: formNumeroDocumento || null,
+          valor_lancado: valorLancado,
+          valor_considerado: validation.valorConsiderado,
+          valor_nao_considerado: validation.valorNaoConsiderado,
+        });
+        lancamentoId = result.id;
+      }
+
+      // Upload attachment após criar o lançamento
+      if (formFile && lancamentoId) {
+        try {
+          await anexosService.upload(lancamentoId, formFile);
+        } catch (error: any) {
+          // Se o upload falhar, não bloquear o salvamento do lançamento
+          console.error('Erro ao fazer upload do comprovante:', error);
+          toast({
+            title: 'Aviso',
+            description: 'Lançamento salvo, mas houve erro ao fazer upload do comprovante. Você pode adicionar o comprovante depois.',
+            variant: 'default',
+          });
+        }
+      }
+
+      toast({
+        title: 'Lançamento enviado',
+        description: 'O lançamento foi enviado para análise.',
+      });
+
+      navigate('/lancamentos');
+    } catch (error: any) {
+      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSave = async () => {
     const status: 'enviado' = 'enviado';
     if (!colaborador) {
@@ -233,66 +321,19 @@ const LancamentoForm = () => {
     }
 
     if (validation.tipo === 'warning') {
-      if (!confirm(validation.mensagem + '\n\nDeseja continuar?')) return;
-    }
-
-    setSaving(true);
-    try {
-      const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
-      const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
-
-      let lancamentoId: string;
-
-      if (isEditing && id) {
-        await lancamentosService.update(id, {
-          tipo_despesa_id: formTipoDespesaId,
-          origem: formOrigem,
-          valor_lancado: valorLancado,
-          valor_considerado: validation.valorConsiderado,
-          valor_nao_considerado: validation.valorNaoConsiderado,
-          descricao_fato_gerador: formDescricao,
-        });
-        lancamentoId = id;
-      } else {
-        const result = await lancamentosService.create({
-          colaborador_id: colaborador.id,
-          periodo_id: formPeriodoId,
-          tipo_despesa_id: formTipoDespesaId,
-          origem: formOrigem,
-          descricao_fato_gerador: formDescricao,
-          valor_lancado: valorLancado,
-          valor_considerado: validation.valorConsiderado,
-          valor_nao_considerado: validation.valorNaoConsiderado,
-        });
-        lancamentoId = result.id;
-      }
-
-      // Upload attachment após criar o lançamento
-      if (formFile && lancamentoId) {
-        try {
-          await anexosService.upload(lancamentoId, formFile);
-        } catch (error: any) {
-          // Se o upload falhar, não bloquear o salvamento do lançamento
-          console.error('Erro ao fazer upload do comprovante:', error);
-          toast({
-            title: 'Aviso',
-            description: 'Lançamento salvo, mas houve erro ao fazer upload do comprovante. Você pode adicionar o comprovante depois.',
-            variant: 'default',
-          });
-        }
-      }
-
-      toast({
-        title: 'Lançamento enviado',
-        description: 'O lançamento foi enviado para análise.',
+      // Em vez de window.confirm, abrir o dialog
+      setPendingValidation({
+        valorLancado,
+        valorConsiderado: validation.valorConsiderado,
+        valorNaoConsiderado: validation.valorNaoConsiderado,
+        validation,
       });
-
-      navigate('/lancamentos');
-    } catch (error: any) {
-      toast({ title: 'Erro', description: error.message, variant: 'destructive' });
-    } finally {
-      setSaving(false);
+      setShowConfirmDialog(true);
+      return;
     }
+
+    // Se não for warning, salvar direto
+    await executeSave(validation);
   };
 
   const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
@@ -539,6 +580,56 @@ const LancamentoForm = () => {
           </Button>
         </div>
       </div>
+
+      {/* Confirmation Dialog for Limit Exceeded */}
+      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              Atenção: Limite Ultrapassado
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-4 pt-2">
+              {pendingValidation && (
+                <>
+                  <p className="text-base">
+                    Seu lançamento de <strong className="font-semibold">{formatCurrency(pendingValidation.valorLancado)}</strong> ultrapassa o limite disponível.
+                  </p>
+                  <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Será considerado:</span>
+                      <span className="font-semibold text-success">{formatCurrency(pendingValidation.valorConsiderado)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Não será considerado:</span>
+                      <span className="font-semibold text-destructive">{formatCurrency(pendingValidation.valorNaoConsiderado)}</span>
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Este será o último lançamento permitido no período.
+                  </p>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={saving}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (pendingValidation) {
+                  await executeSave(pendingValidation.validation);
+                }
+                setShowConfirmDialog(false);
+              }}
+              disabled={saving}
+              className="bg-primary hover:bg-primary/90"
+            >
+              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Lançamento
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </PageFormLayout>
   );
 };

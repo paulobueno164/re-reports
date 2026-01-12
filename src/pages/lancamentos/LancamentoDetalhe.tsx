@@ -211,6 +211,12 @@ const LancamentoDetalhe = () => {
             <p className="text-sm text-muted-foreground">Origem da Despesa</p>
             <p className="font-semibold text-lg">{originLabels[expense.origem] || expense.origem}</p>
           </div>
+          {expense.numero_documento && (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Número do Documento</p>
+              <p className="font-semibold text-lg">{expense.numero_documento}</p>
+            </div>
+          )}
           <div className="space-y-1">
             <p className="text-sm text-muted-foreground">Valor Lançado</p>
             <p className="font-mono font-bold text-xl text-primary">{formatCurrency(expense.valor_lancado)}</p>

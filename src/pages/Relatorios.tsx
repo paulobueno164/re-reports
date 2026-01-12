@@ -111,21 +111,26 @@ const Relatorios = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // For COLABORADOR, first fetch their own colaborador ID
-      if (user && !isRHorFinanceiro) {
-        const myColab = await colaboradoresService.getByUserId(user.id);
-        if (myColab) {
-          setMyColaboradorId(myColab.id);
-          setSelectedColaborador(myColab.id);
+      let colaboradoresData: Colaborador[] = [];
+
+      if (isRHorFinanceiro) {
+        // RH e FINANCEIRO podem buscar todos os colaboradores
+        colaboradoresData = await colaboradoresService.getAll({ ativo: true }) as any;
+      } else {
+        // COLABORADOR usa apenas seus próprios dados
+        if (user) {
+          const myColab = await colaboradoresService.getByUserId(user.id);
+          if (myColab) {
+            colaboradoresData = [myColab as any];
+            setMyColaboradorId(myColab.id);
+            setSelectedColaborador(myColab.id);
+          }
         }
       }
 
-      const [colaboradoresData, periodosData] = await Promise.all([
-        colaboradoresService.getAll({ ativo: true }),
-        periodosService.getAll(),
-      ]);
+      const periodosData = await periodosService.getAll();
 
-      if (colaboradoresData) setColaboradores(colaboradoresData as any);
+      if (colaboradoresData) setColaboradores(colaboradoresData);
       
       // Garantir que períodos seja um array válido
       if (periodosData && Array.isArray(periodosData) && periodosData.length > 0) {
@@ -198,8 +203,14 @@ const Relatorios = () => {
         resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
       }
 
-      // Calcular rendimento total com validação para evitar NaN
-      const rendimentoTotal = resumo.reduce((acc, r) => {
+      // Calcular rendimento total parametrizado (soma de todos os valores parametrizados)
+      const rendimentoTotalParametrizado = resumo.reduce((acc, r) => {
+        const valor = Number(r.valorParametrizado) || 0;
+        return acc + (isNaN(valor) ? 0 : valor);
+      }, 0);
+
+      // Calcular rendimento total utilizado (soma de todos os valores utilizados)
+      const rendimentoTotalUtilizado = resumo.reduce((acc, r) => {
         const valor = Number(r.valorUtilizado) || 0;
         return acc + (isNaN(valor) ? 0 : valor);
       }, 0);
@@ -208,7 +219,8 @@ const Relatorios = () => {
         colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
         periodo: periodo?.periodo || '',
         resumo,
-        rendimentoTotal: isNaN(rendimentoTotal) ? 0 : rendimentoTotal,
+        rendimentoTotalParametrizado: isNaN(rendimentoTotalParametrizado) ? 0 : rendimentoTotalParametrizado,
+        rendimentoTotalUtilizado: isNaN(rendimentoTotalUtilizado) ? 0 : rendimentoTotalUtilizado,
         utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, totalPendente, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
         despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado) || 0, status: d.status, data: new Date(d.created_at) })),
         totaisPorCategoria: Object.entries(categorias).map(([categoria, valor]) => ({ categoria, valor: Number(valor) || 0 })),
@@ -242,6 +254,8 @@ const Relatorios = () => {
       const reportData = {
         ...previewData,
         despesas: filteredDespesas,
+        rendimentoTotalParametrizado: previewData.rendimentoTotalParametrizado,
+        rendimentoTotalUtilizado: previewData.rendimentoTotalUtilizado,
       };
 
       const blob = await generatePDFReport(reportData);
@@ -306,11 +320,23 @@ const Relatorios = () => {
         if (colaborador.tem_pida) {
           resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
         }
+        
+        // Calcular rendimento total parametrizado e utilizado
+        const rendimentoTotalParametrizado = resumo.reduce((acc, r) => {
+          const valor = Number(r.valorParametrizado) || 0;
+          return acc + (isNaN(valor) ? 0 : valor);
+        }, 0);
+        const rendimentoTotalUtilizado = resumo.reduce((acc, r) => {
+          const valor = Number(r.valorUtilizado) || 0;
+          return acc + (isNaN(valor) ? 0 : valor);
+        }, 0);
+        
         const reportData = {
           colaborador: { nome: colaborador.nome, matricula: colaborador.matricula, departamento: colaborador.departamento, email: colaborador.email },
           periodo: periodo.periodo,
           resumo,
-          rendimentoTotal: resumo.reduce((acc, r) => acc + Number(r.valorUtilizado || 0), 0),
+          rendimentoTotalParametrizado: isNaN(rendimentoTotalParametrizado) ? 0 : rendimentoTotalParametrizado,
+          rendimentoTotalUtilizado: isNaN(rendimentoTotalUtilizado) ? 0 : rendimentoTotalUtilizado,
           utilizacao: { limiteCesta: colaborador.cesta_beneficios_teto, totalUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? Math.round((totalCesta / colaborador.cesta_beneficios_teto) * 100) : 0, diferencaPida: 0 },
           despesas: despesas.map((d: any) => ({ tipo: d.tipo_despesa?.nome || '', origem: d.origem, valor: Number(d.valor_lancado), status: d.status, data: new Date(d.created_at) })),
           totaisPorCategoria: [],
@@ -444,7 +470,7 @@ const Relatorios = () => {
                       <thead><tr className="bg-muted/50"><th className="text-left px-3 sm:px-4 py-2 font-medium">Componente</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">Parametrizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium">Utilizado</th><th className="text-right px-3 sm:px-4 py-2 font-medium hidden sm:table-cell">%</th></tr></thead>
                       <tbody>
                         {previewData.resumo.map((item: any, i: number) => <tr key={i} className="border-t"><td className="px-3 sm:px-4 py-2">{item.componente}</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(item.valorParametrizado)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(item.valorUtilizado)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">{item.percentual > 0 ? `${Math.round(item.percentual)}%` : '-'}</td></tr>)}
-                        <tr className="border-t bg-primary/5 font-bold"><td className="px-3 sm:px-4 py-2">Rendimento Total</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotal)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">100%</td></tr>
+                        <tr className="border-t bg-primary/5 font-bold"><td className="px-3 sm:px-4 py-2">Rendimento Total</td><td className="px-3 sm:px-4 py-2 text-right font-mono hidden sm:table-cell">{formatCurrency(previewData.rendimentoTotalParametrizado)}</td><td className="px-3 sm:px-4 py-2 text-right font-mono">{formatCurrency(previewData.rendimentoTotalUtilizado)}</td><td className="px-3 sm:px-4 py-2 text-right hidden sm:table-cell">{previewData.rendimentoTotalParametrizado > 0 ? `${Math.round((previewData.rendimentoTotalUtilizado / previewData.rendimentoTotalParametrizado) * 100)}%` : '-'}</td></tr>
                       </tbody>
                     </table>
                   </div>

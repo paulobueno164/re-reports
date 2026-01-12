@@ -111,14 +111,15 @@ const UsuarioRoles = () => {
       const rolesToRemove = currentRoles.filter(r => !selectedRoles.includes(r));
       const rolesToAdd = selectedRoles.filter(r => !currentRoles.includes(r));
 
-      // Remover roles desmarcadas
-      for (const role of rolesToRemove) {
-        await authService.removeUserRole(user.id, role);
-      }
-
-      // Adicionar novas roles
+      // IMPORTANTE: Adicionar novas roles ANTES de remover as antigas
+      // Isso garante que o usuário sempre tenha pelo menos uma role durante a operação
       for (const role of rolesToAdd) {
         await authService.addUserRole(user.id, role);
+      }
+
+      // Remover roles desmarcadas (após adicionar as novas)
+      for (const role of rolesToRemove) {
+        await authService.removeUserRole(user.id, role);
       }
 
       toast({

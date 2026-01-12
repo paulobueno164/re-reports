@@ -47,6 +47,7 @@ interface ColaboradorResumo {
 
 type SortField = 'nome' | 'departamento' | 'totalConsiderado' | 'qtdLancamentos';
 type SortDirection = 'asc' | 'desc';
+type LancamentoFilter = 'todos' | 'sem' | 'com';
 
 const LancamentosLista = () => {
   const { toast } = useToast();
@@ -62,7 +63,7 @@ const LancamentosLista = () => {
   const [redirecting, setRedirecting] = useState(false);
   const [sortField, setSortField] = useState<SortField>('nome');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [showOnlySemLancamentos, setShowOnlySemLancamentos] = useState(false);
+  const [lancamentoFilter, setLancamentoFilter] = useState<LancamentoFilter>('todos');
 
   const isRHorFinanceiro = hasRole('RH') || hasRole('FINANCEIRO');
 
@@ -155,7 +156,9 @@ const LancamentosLista = () => {
       const colaboradoresResumo: ColaboradorResumo[] = colabData.map(colab => {
         const colabExpenses = expensesData.filter(e => e.colaborador_id === colab.id);
         const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
-        const totalConsiderado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        const totalConsiderado = colabExpenses
+          .filter(e => e.status !== 'invalido') // Excluir rejeitados
+          .reduce((sum, e) => sum + Number(e.valor_considerado), 0);
         const qtdPendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status)).length;
         const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
 
@@ -185,8 +188,23 @@ const LancamentosLista = () => {
       const matchesDept = selectedDepartamento === 'todos' || colab.departamento === selectedDepartamento;
       const matchesSearch = colab.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            colab.matricula.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesSemLancamentos = !showOnlySemLancamentos || colab.qtdLancamentos === 0;
-      return matchesDept && matchesSearch && matchesSemLancamentos;
+      
+      // Nova lógica de filtro por lançamentos
+      let matchesLancamentoFilter = true;
+      switch (lancamentoFilter) {
+        case 'sem':
+          matchesLancamentoFilter = colab.qtdLancamentos === 0;
+          break;
+        case 'com':
+          matchesLancamentoFilter = colab.qtdLancamentos > 0;
+          break;
+        case 'todos':
+        default:
+          matchesLancamentoFilter = true;
+          break;
+      }
+      
+      return matchesDept && matchesSearch && matchesLancamentoFilter;
     });
 
     result = [...result].sort((a, b) => {
@@ -211,7 +229,7 @@ const LancamentosLista = () => {
     });
 
     return result;
-  }, [colaboradores, selectedDepartamento, searchTerm, sortField, sortDirection, showOnlySemLancamentos]);
+  }, [colaboradores, selectedDepartamento, searchTerm, sortField, sortDirection, lancamentoFilter]);
 
   const selectedPeriod = periods.find(p => p.id === selectedPeriodId);
 
@@ -397,16 +415,20 @@ const LancamentosLista = () => {
           </div>
         </div>
 
-        <Button
-          variant={showOnlySemLancamentos ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowOnlySemLancamentos(!showOnlySemLancamentos)}
-          className="h-10 whitespace-nowrap"
-        >
-          <Filter className="mr-2 h-4 w-4" />
-          <span className="hidden sm:inline">Sem lançamentos</span>
-          <span className="sm:hidden">Pendentes</span>
-        </Button>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Filtrar</Label>
+          <Select value={lancamentoFilter} onValueChange={(value) => setLancamentoFilter(value as LancamentoFilter)}>
+            <SelectTrigger className="w-[180px]">
+              <Filter className="mr-2 h-4 w-4" />
+              <SelectValue placeholder="Filtrar" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="sem">Sem lançamentos</SelectItem>
+              <SelectItem value="com">Com lançamentos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">

@@ -16,7 +16,8 @@ interface ReportData {
     valorUtilizado: number;
     percentual: number;
   }[];
-  rendimentoTotal: number;
+  rendimentoTotalParametrizado: number;
+  rendimentoTotalUtilizado: number;
   utilizacao: {
     limiteCesta: number;
     totalUtilizado: number;
@@ -90,9 +91,9 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
       ]),
       [
         { content: 'RENDIMENTO TOTAL', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
-        { content: formatCurrency(isNaN(data.rendimentoTotal) ? 0 : data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
-        { content: formatCurrency(isNaN(data.rendimentoTotal) ? 0 : data.rendimentoTotal), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
-        { content: '100%', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } }
+        { content: formatCurrency(isNaN(data.rendimentoTotalParametrizado) ? 0 : data.rendimentoTotalParametrizado), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
+        { content: formatCurrency(isNaN(data.rendimentoTotalUtilizado) ? 0 : data.rendimentoTotalUtilizado), styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } },
+        { content: data.rendimentoTotalParametrizado > 0 ? `${Math.round((data.rendimentoTotalUtilizado / data.rendimentoTotalParametrizado) * 100)}%` : '-', styles: { fontStyle: 'bold', fillColor: [239, 246, 255] } }
       ]
     ],
     headStyles: { fillColor: [59, 130, 246], textColor: 255 },
@@ -185,8 +186,7 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
         body: data.totaisPorCategoria.map(item => {
           const total = data.totaisPorCategoria.reduce((acc, i) => acc + i.valor, 0);
           const percent = total > 0 ? Math.round((item.valor / total) * 100) : 0;
-          const bar = '█'.repeat(Math.round(percent / 5)) + '░'.repeat(20 - Math.round(percent / 5));
-          return [item.categoria, formatCurrency(item.valor), `${bar} ${percent}%`];
+          return [item.categoria, formatCurrency(item.valor), `${percent}%`];
         }),
         headStyles: { fillColor: [59, 130, 246], textColor: 255 },
         alternateRowStyles: { fillColor: [249, 250, 251] },

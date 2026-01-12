@@ -11,6 +11,7 @@ export interface CreateLancamentoInput {
   tipo_despesa_id: string;
   origem?: ExpenseOrigin;
   descricao_fato_gerador: string;
+  numero_documento?: string | null;
   valor_lancado: number;
   valor_considerado: number;
   valor_nao_considerado?: number;
@@ -20,6 +21,7 @@ export interface UpdateLancamentoInput {
   tipo_despesa_id?: string;
   origem?: ExpenseOrigin;
   descricao_fato_gerador?: string;
+  numero_documento?: string | null;
   valor_lancado?: number;
   valor_considerado?: number;
   valor_nao_considerado?: number;
@@ -169,9 +171,9 @@ export const createLancamento = async (
   const result = await query(
     `INSERT INTO lancamentos (
       id, colaborador_id, periodo_id, tipo_despesa_id, origem,
-      descricao_fato_gerador, valor_lancado, valor_considerado, valor_nao_considerado,
+      descricao_fato_gerador, numero_documento, valor_lancado, valor_considerado, valor_nao_considerado,
       status, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'enviado', NOW(), NOW()) RETURNING *`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'enviado', NOW(), NOW()) RETURNING *`,
     [
       id,
       input.colaborador_id,
@@ -179,6 +181,7 @@ export const createLancamento = async (
       input.tipo_despesa_id,
       input.origem || 'proprio',
       input.descricao_fato_gerador,
+      input.numero_documento || null,
       input.valor_lancado,
       input.valor_considerado,
       input.valor_nao_considerado || 0,

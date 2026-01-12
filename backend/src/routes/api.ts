@@ -220,7 +220,35 @@ router.post('/exportacoes', requireRole('FINANCEIRO'), async (req: Authenticated
   res.status(201).json(result);
 });
 
-// Audit Logs
+// Audit Logs - Rota específica para logs de lançamentos (permite colaborador acessar seus próprios)
+router.get('/lancamentos/:id/audit-logs', async (req: AuthenticatedRequest, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Verificar se o lançamento existe
+    const lancamento = await lancamentoService.getLancamentoById(id);
+    if (!lancamento) {
+      return res.status(404).json({ error: 'Lançamento não encontrado' });
+    }
+    
+    // Verificar permissão: RH/FINANCEIRO/ADMINISTRADOR podem ver todos
+    // Colaborador pode ver apenas seus próprios lançamentos
+    if (!hasRole(req.user, 'RH') && !hasRole(req.user, 'FINANCEIRO') && !hasRole(req.user, 'ADMINISTRADOR')) {
+      const colab = await colaboradorService.getColaboradorByUserId(req.user!.id);
+      if (!colab || colab.id !== lancamento.colaborador_id) {
+        return res.status(403).json({ error: 'Acesso negado' });
+      }
+    }
+    
+    // Buscar logs de auditoria para este lançamento
+    const logs = await auditService.getAuditLogsByEntity('lancamento', id);
+    res.json(logs);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Audit Logs - Rota geral (mantém restrição para ADMINISTRADOR)
 router.get('/audit-logs', requireRole('ADMINISTRADOR'), async (req, res) => {
   const result = await auditService.getAuditLogs(req.query as any);
   res.json(result);

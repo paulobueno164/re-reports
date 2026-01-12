@@ -23,16 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { colaboradoresService, Colaborador } from '@/services/colaboradores.service';
 import { formatCurrency } from '@/lib/expense-validation';
-
-const departments = [
-  'Tecnologia da Informação',
-  'Financeiro',
-  'Recursos Humanos',
-  'Marketing',
-  'Comercial',
-  'Operações',
-  'Jurídico',
-];
+import { departamentoService } from '@/services/departamento.service';
 
 // Função para verificar se o colaborador está em férias
 const isOnVacation = (colaborador: Colaborador): boolean => {
@@ -58,8 +49,18 @@ const ColaboradoresLista = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartamento, setFilterDepartamento] = useState('all');
   const [filterEmFerias, setFilterEmFerias] = useState('all');
+  const [departments, setDepartments] = useState<{id: string, nome: string}[]>([]);
 
   useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const data = await departamentoService.getAll({ ativo: true });
+        setDepartments(data.map(d => ({ id: d.id, nome: d.nome })));
+      } catch (error) {
+        console.error('Erro ao buscar departamentos:', error);
+      }
+    };
+    fetchDepartments();
     fetchEmployees();
   }, []);
 
@@ -235,8 +236,8 @@ const ColaboradoresLista = () => {
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
+                <SelectItem key={dept.id} value={dept.nome}>
+                  {dept.nome}
                 </SelectItem>
               ))}
             </SelectContent>

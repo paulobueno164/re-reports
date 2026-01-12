@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { FileText, Image, Download, Eye, Loader2, X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -33,10 +33,35 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const previewUrlRef = useRef<string | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     fetchAttachments();
+    
+    // Cleanup: revogar blob URL quando o componente desmontar
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+      }
+    };
   }, [lancamentoId]);
+
+  // Limpar blob URL quando o modal fechar (com delay para garantir que não está mais em uso)
+  useEffect(() => {
+    if (!previewOpen && previewUrlRef.current) {
+      const urlToRevoke = previewUrlRef.current;
+      previewUrlRef.current = null;
+      // Usar setTimeout para garantir que o React terminou de renderizar
+      setTimeout(() => {
+        URL.revokeObjectURL(urlToRevoke);
+      }, 100);
+    }
+  }, [previewOpen]);
 
   const fetchAttachments = async () => {
     setLoading(true);
@@ -78,11 +103,19 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
     setPreviewName(attachment.nomeArquivo);
     setZoom(100);
     setRotation(0);
+    setImagePosition({ x: 0, y: 0 });
+
+    // Revogar blob URL anterior antes de criar um novo
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
 
     try {
       // Fazer download do arquivo e criar blob URL para garantir autenticação
       const blob = await anexosService.download(attachment.id);
       const url = URL.createObjectURL(blob);
+      previewUrlRef.current = url;
       
       if (attachment.tipoArquivo.startsWith('image/')) {
         setPreviewType('image');
@@ -124,9 +157,48 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
     return tipoArquivo.startsWith('image/') || tipoArquivo === 'application/pdf';
   };
 
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 25, 200));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 25, 50));
-  const handleRotate = () => setRotation((prev) => (prev + 90) % 360);
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(prev + 25, 200));
+    setImagePosition({ x: 0, y: 0 });
+  };
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const newZoom = Math.max(prev - 25, 50);
+      if (newZoom === 100) {
+        setImagePosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
+  };
+  const handleRotate = () => {
+    setRotation((prev) => (prev + 90) % 360);
+    setImagePosition({ x: 0, y: 0 });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoom > 100 && e.button === 0) {
+      setIsDragging(true);
+      setDragStart({ x: e.clientX - imagePosition.x, y: e.clientY - imagePosition.y });
+      e.preventDefault();
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging && zoom > 100) {
+      setImagePosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
 
   if (loading) {
     return (
@@ -205,16 +277,9 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
       ))}
 
       {/* Preview Dialog */}
-      <Dialog open={previewOpen} onOpenChange={(open) => {
-        setPreviewOpen(open);
-        // Limpar blob URL quando fechar o dialog
-        if (!open && previewUrl) {
-          URL.revokeObjectURL(previewUrl);
-          setPreviewUrl(null);
-        }
-      }}>
-        <DialogContent className="w-full max-w-4xl max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0">
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="!w-auto !h-auto !max-w-[98vw] !max-h-[98vh] flex flex-col p-0 m-0 overflow-auto">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6 pb-4 border-b">
             <DialogTitle className="flex items-center justify-between pr-8">
               <span className="truncate">{previewName}</span>
               {previewType === 'image' && (
@@ -234,23 +299,51 @@ export function AttachmentViewer({ lancamentoId, className }: AttachmentViewerPr
             </DialogTitle>
           </DialogHeader>
 
-          <div className="flex-1 overflow-auto flex items-center justify-center bg-muted/30 rounded-lg min-h-[400px]">
+          <div 
+            ref={containerRef}
+            className="flex items-center justify-center bg-muted/30 p-6 overflow-hidden relative"
+            style={{ 
+              width: '100%', 
+              height: '100%',
+              minHeight: '400px',
+              maxHeight: 'calc(98vh - 120px)',
+              cursor: zoom > 100 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+            }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+          >
             {previewType === 'image' && previewUrl && (
               <img
+                ref={imageRef}
                 src={previewUrl}
                 alt={previewName}
                 style={{
-                  transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
-                  transition: 'transform 0.2s ease',
+                  maxWidth: zoom > 100 ? '100%' : 'none',
+                  maxHeight: zoom > 100 ? '100%' : 'none',
+                  width: 'auto',
+                  height: 'auto',
+                  transform: `scale(${zoom / 100}) rotate(${rotation}deg) translate(${imagePosition.x / (zoom / 100)}px, ${imagePosition.y / (zoom / 100)}px)`,
+                  transformOrigin: 'center center',
+                  transition: isDragging ? 'none' : 'transform 0.2s ease',
+                  display: 'block',
+                  userSelect: 'none',
                 }}
-                className="max-w-full max-h-full object-contain"
+                className="object-contain"
+                draggable={false}
+                onLoad={(e) => {
+                  // Reset zoom quando uma nova imagem carrega
+                  setZoom(100);
+                  setImagePosition({ x: 0, y: 0 });
+                }}
               />
             )}
             {previewType === 'pdf' && previewUrl && (
               <iframe
                 src={previewUrl}
                 title={previewName}
-                className="w-full h-full min-h-[500px] rounded-lg"
+                className="w-full h-[calc(95vh-8rem)] rounded-lg border-0"
               />
             )}
           </div>
