@@ -163,7 +163,7 @@ const DashboardColaborador = () => {
         const mapped: Expense[] = expensesData.map((e: any) => ({
           id: e.id,
           tipoDespesaNome: e.tipo_despesa?.nome || '',
-          valorLancado: Number(e.valor_lancado),
+          valorLancado: e.parcelamento_ativo && e.parcelamento_valor_total ? Number(e.parcelamento_valor_total) : Number(e.valor_lancado),
           valorConsiderado: Number(e.valor_considerado),
           status: e.status,
           createdAt: new Date(e.created_at),

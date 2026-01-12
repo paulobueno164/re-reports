@@ -5,6 +5,187 @@ import * as periodoService from './periodoService';
 import * as tipoDespesaService from './tipoDespesaService';
 import * as auditService from './auditService';
 
+/**
+ * Deleta parcelas automáticas de um período específico
+ * Usado quando um período futuro fechado é excluído
+ */
+export const deletarParcelasAutomaticasDoPeriodo = async (
+  periodoId: string
+): Promise<number> => {
+  // Buscar todas as parcelas automáticas (com lancamento_origem_id) do período
+  const parcelasAutomaticas = await query(
+    `SELECT id, lancamento_origem_id, parcelamento_numero_parcela
+     FROM lancamentos
+     WHERE periodo_id = $1
+       AND lancamento_origem_id IS NOT NULL
+       AND parcelamento_ativo = true`,
+    [periodoId]
+  );
+
+  if (parcelasAutomaticas.rows.length === 0) {
+    return 0;
+  }
+
+  // Agrupar por lançamento origem para reordenar depois
+  const parcelasPorOrigem = new Map<string, any[]>();
+  for (const parcela of parcelasAutomaticas.rows) {
+    const origemId = parcela.lancamento_origem_id;
+    if (!parcelasPorOrigem.has(origemId)) {
+      parcelasPorOrigem.set(origemId, []);
+    }
+    parcelasPorOrigem.get(origemId)!.push(parcela);
+  }
+
+  // Deletar as parcelas
+  const idsParaDeletar = parcelasAutomaticas.rows.map(p => p.id);
+  await query(
+    `DELETE FROM lancamentos WHERE id = ANY($1::uuid[])`,
+    [idsParaDeletar]
+  );
+
+  // Reordenar parcelas para cada lançamento origem
+  for (const [origemId, parcelas] of parcelasPorOrigem.entries()) {
+    await reordenarParcelas(origemId);
+  }
+
+  return idsParaDeletar.length;
+};
+
+/**
+ * Reordena as parcelas de um lançamento origem após exclusão de parcelas
+ * Garante que os números das parcelas sejam sequenciais (1, 2, 3, ...)
+ */
+export const reordenarParcelas = async (lancamentoOrigemId: string): Promise<void> => {
+  // Buscar todas as parcelas (incluindo a original) ordenadas por data de criação
+  const todasParcelas = await query(
+    `SELECT id, parcelamento_numero_parcela, created_at
+     FROM lancamentos
+     WHERE (lancamento_origem_id = $1 OR id = $1)
+       AND parcelamento_ativo = true
+     ORDER BY created_at ASC`,
+    [lancamentoOrigemId]
+  );
+
+  // Reordenar: a primeira é sempre 1, as seguintes são 2, 3, 4, ...
+  for (let i = 0; i < todasParcelas.rows.length; i++) {
+    const parcela = todasParcelas.rows[i];
+    const novoNumero = i + 1;
+
+    // Só atualizar se o número mudou
+    if (parcela.parcelamento_numero_parcela !== novoNumero) {
+      await query(
+        `UPDATE lancamentos
+         SET parcelamento_numero_parcela = $1
+         WHERE id = $2`,
+        [novoNumero, parcela.id]
+      );
+    }
+  }
+};
+
+/**
+ * Verifica e cria parcelas pendentes para lançamentos com parcelamento
+ * quando novos períodos são criados
+ */
+export const processarParcelasPendentes = async (
+  novoPeriodoId: string,
+  novoPeriodoDataInicio: string
+): Promise<void> => {
+  // Buscar lançamentos com parcelamento que têm parcelas pendentes
+  // (lançamentos originais que não têm todas as parcelas criadas)
+  // IMPORTANTE: Excluir lançamentos rejeitados (status = 'invalido')
+  // pois se a primeira parcela foi rejeitada, não devemos criar novas parcelas
+  const lancamentosComParcelamento = await query(
+    `SELECT l.*, cp.data_final as periodo_data_final, cp.data_inicio as periodo_data_inicio
+     FROM lancamentos l
+     JOIN calendario_periodos cp ON cp.id = l.periodo_id
+     WHERE l.parcelamento_ativo = true
+       AND l.parcelamento_total_parcelas > 1
+       AND l.lancamento_origem_id IS NULL
+       AND l.status != 'invalido'
+     ORDER BY l.created_at ASC`,
+    []
+  );
+
+  for (const lancamentoOrigem of lancamentosComParcelamento.rows) {
+    // Verificar novamente se o lançamento original não foi rejeitado (dupla verificação)
+    if (lancamentoOrigem.status === 'invalido') {
+      continue; // Pular este lançamento, não criar parcelas para ele
+    }
+
+    const totalParcelas = lancamentoOrigem.parcelamento_total_parcelas;
+    const valorParcela = lancamentoOrigem.valor_lancado;
+    const valorTotal = lancamentoOrigem.parcelamento_valor_total || (valorParcela * totalParcelas);
+
+    // Contar quantas parcelas já foram criadas (incluindo a original)
+    // IMPORTANTE: Contar apenas parcelas que não foram rejeitadas
+    const parcelasExistentes = await query(
+      `SELECT COUNT(*) as total
+       FROM lancamentos
+       WHERE (lancamento_origem_id = $1 OR id = $1)
+         AND status != 'invalido'`,
+      [lancamentoOrigem.id]
+    );
+
+    const parcelasCriadas = parseInt(parcelasExistentes.rows[0].total);
+
+    // Se ainda há parcelas pendentes
+    if (parcelasCriadas < totalParcelas) {
+      const parcelaNumero = parcelasCriadas + 1; // Próxima parcela a ser criada
+      const parcelaId = uuidv4();
+
+      // Verificar se já existe uma parcela para este período
+      const parcelaExistente = await query(
+        `SELECT id FROM lancamentos
+         WHERE lancamento_origem_id = $1
+           AND parcelamento_numero_parcela = $2
+           AND periodo_id = $3`,
+        [lancamentoOrigem.id, parcelaNumero, novoPeriodoId]
+      );
+
+      // Se não existe, criar a parcela
+      if (parcelaExistente.rows.length === 0) {
+        await query(
+          `INSERT INTO lancamentos (
+            id, colaborador_id, periodo_id, tipo_despesa_id, origem,
+            descricao_fato_gerador, numero_documento, valor_lancado, valor_considerado, valor_nao_considerado,
+            parcelamento_ativo, parcelamento_valor_total, parcelamento_numero_parcela, parcelamento_total_parcelas, lancamento_origem_id,
+            status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'enviado', NOW(), NOW())`,
+          [
+            parcelaId,
+            lancamentoOrigem.colaborador_id,
+            novoPeriodoId,
+            lancamentoOrigem.tipo_despesa_id,
+            lancamentoOrigem.origem,
+            lancamentoOrigem.descricao_fato_gerador,
+            lancamentoOrigem.numero_documento,
+            valorParcela,
+            valorParcela, // valor_considerado igual ao valor_lancado por padrão
+            lancamentoOrigem.valor_nao_considerado || 0,
+            true, // parcelamento_ativo
+            valorTotal,
+            parcelaNumero,
+            totalParcelas,
+            lancamentoOrigem.id, // lancamento_origem_id
+          ]
+        );
+
+        // Criar audit log (usando UUID nulo para sistema)
+        await auditService.createAuditLog({
+          userId: '00000000-0000-0000-0000-000000000000',
+          userName: 'Sistema',
+          action: 'criar',
+          entityType: 'lancamento',
+          entityId: parcelaId,
+          entityDescription: `Parcela ${parcelaNumero}/${totalParcelas} de ${valorParcela} (parcelamento automático ao criar período)`,
+          newValues: { parcela: parcelaNumero, total: totalParcelas, origem_id: lancamentoOrigem.id },
+        });
+      }
+    }
+  }
+};
+
 export interface CreateLancamentoInput {
   colaborador_id: string;
   periodo_id: string;
@@ -15,6 +196,11 @@ export interface CreateLancamentoInput {
   valor_lancado: number;
   valor_considerado: number;
   valor_nao_considerado?: number;
+  parcelamento_ativo?: boolean;
+  parcelamento_valor_total?: number | null;
+  parcelamento_numero_parcela?: number | null;
+  parcelamento_total_parcelas?: number | null;
+  lancamento_origem_id?: string | null;
 }
 
 export interface UpdateLancamentoInput {
@@ -25,6 +211,11 @@ export interface UpdateLancamentoInput {
   valor_lancado?: number;
   valor_considerado?: number;
   valor_nao_considerado?: number;
+  parcelamento_ativo?: boolean;
+  parcelamento_valor_total?: number | null;
+  parcelamento_numero_parcela?: number | null;
+  parcelamento_total_parcelas?: number | null;
+  lancamento_origem_id?: string | null;
 }
 
 export interface LancamentoWithRelations extends Lancamento {
@@ -172,8 +363,9 @@ export const createLancamento = async (
     `INSERT INTO lancamentos (
       id, colaborador_id, periodo_id, tipo_despesa_id, origem,
       descricao_fato_gerador, numero_documento, valor_lancado, valor_considerado, valor_nao_considerado,
+      parcelamento_ativo, parcelamento_valor_total, parcelamento_numero_parcela, parcelamento_total_parcelas, lancamento_origem_id,
       status, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'enviado', NOW(), NOW()) RETURNING *`,
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'enviado', NOW(), NOW()) RETURNING *`,
     [
       id,
       input.colaborador_id,
@@ -185,6 +377,11 @@ export const createLancamento = async (
       input.valor_lancado,
       input.valor_considerado,
       input.valor_nao_considerado || 0,
+      input.parcelamento_ativo || false,
+      input.parcelamento_valor_total || null,
+      input.parcelamento_numero_parcela || null,
+      input.parcelamento_total_parcelas || null,
+      input.lancamento_origem_id || null,
     ]
   );
 
@@ -198,6 +395,73 @@ export const createLancamento = async (
     entityDescription: `Lançamento de ${input.valor_lancado}`,
     newValues: result.rows[0],
   });
+
+  // Se parcelamento está ativo, criar parcelas futuras automaticamente
+  if (input.parcelamento_ativo && input.parcelamento_total_parcelas && input.parcelamento_total_parcelas > 1) {
+    const totalParcelas = input.parcelamento_total_parcelas;
+    const valorParcela = input.valor_lancado; // Já é o valor da parcela
+    const valorTotal = input.parcelamento_valor_total || (valorParcela * totalParcelas);
+
+    // Buscar próximos períodos ordenados por data_inicio
+    // Buscar tanto períodos abertos quanto fechados (pois podem ser criados depois)
+    const nextPeriodsResult = await query(
+      `SELECT * FROM calendario_periodos 
+       WHERE data_inicio > $1
+       ORDER BY data_inicio ASC
+       LIMIT $2`,
+      [periodo.data_final, totalParcelas - 1] // -1 porque a primeira parcela já foi criada
+    );
+
+    const nextPeriods = nextPeriodsResult.rows;
+
+    // Criar parcelas futuras
+    for (let i = 0; i < Math.min(nextPeriods.length, totalParcelas - 1); i++) {
+      const parcelaNumero = i + 2; // Começa na parcela 2 (a primeira já foi criada)
+      const periodoFuturo = nextPeriods[i];
+      const parcelaId = uuidv4();
+
+      // Calcular valor considerado para a parcela futura (mesma lógica da primeira parcela)
+      // Por enquanto, usar o mesmo valor da parcela (pode ser ajustado conforme regra de negócio)
+      const valorConsideradoParcela = valorParcela;
+
+      await query(
+        `INSERT INTO lancamentos (
+          id, colaborador_id, periodo_id, tipo_despesa_id, origem,
+          descricao_fato_gerador, numero_documento, valor_lancado, valor_considerado, valor_nao_considerado,
+          parcelamento_ativo, parcelamento_valor_total, parcelamento_numero_parcela, parcelamento_total_parcelas, lancamento_origem_id,
+          status, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'enviado', NOW(), NOW())`,
+        [
+          parcelaId,
+          input.colaborador_id,
+          periodoFuturo.id,
+          input.tipo_despesa_id,
+          input.origem || 'proprio',
+          input.descricao_fato_gerador,
+          input.numero_documento || null,
+          valorParcela,
+          valorConsideradoParcela,
+          input.valor_nao_considerado || 0,
+          true, // parcelamento_ativo
+          valorTotal,
+          parcelaNumero,
+          totalParcelas,
+          id, // lancamento_origem_id aponta para o lançamento original
+        ]
+      );
+
+      // Criar audit log para cada parcela
+      await auditService.createAuditLog({
+        userId,
+        userName,
+        action: 'criar',
+        entityType: 'lancamento',
+        entityId: parcelaId,
+        entityDescription: `Parcela ${parcelaNumero}/${totalParcelas} de ${valorParcela} (parcelamento automático)`,
+        newValues: { parcela: parcelaNumero, total: totalParcelas, origem_id: id },
+      });
+    }
+  }
 
   return result.rows[0];
 };
@@ -365,6 +629,15 @@ export const rejeitarLancamento = async (
     throw new Error('Este lançamento não pode ser rejeitado');
   }
 
+  // Identificar o lançamento original e verificar se é parcela 1
+  // Se este lançamento tem lancamento_origem_id, então é uma parcela e o original é o lancamento_origem_id
+  // Se não tem lancamento_origem_id, então este é o lançamento original
+  const lancamentoOrigemId = existing.lancamento_origem_id || existing.id;
+  const numeroParcela = existing.parcelamento_numero_parcela || 1;
+  // É parcela 1 se: (não tem lancamento_origem_id E é o original) OU (tem lancamento_origem_id E numeroParcela === 1)
+  const isParcela1 = existing.parcelamento_ativo && numeroParcela === 1;
+
+  // Recusar o lançamento atual
   const result = await query(
     `UPDATE lancamentos 
      SET status = 'invalido', validado_por = $1, validado_em = NOW(), motivo_invalidacao = $2, updated_at = NOW() 
@@ -381,6 +654,45 @@ export const rejeitarLancamento = async (
     oldValues: { status: existing.status },
     newValues: { status: 'invalido', motivo_invalidacao: motivo },
   });
+
+  // Se for a primeira parcela (lançamento original), recusar todas as parcelas futuras também
+  if (isParcela1 && existing.parcelamento_ativo) {
+    // Buscar todas as parcelas futuras (com lancamento_origem_id = id do lançamento original)
+    const parcelasFuturas = await query(
+      `SELECT id FROM lancamentos
+       WHERE lancamento_origem_id = $1
+         AND status IN ('enviado', 'em_analise')`,
+      [lancamentoOrigemId]
+    );
+
+    // Recusar todas as parcelas futuras
+    if (parcelasFuturas.rows.length > 0) {
+      const idsParcelas = parcelasFuturas.rows.map(p => p.id);
+      await query(
+        `UPDATE lancamentos 
+         SET status = 'invalido', validado_por = $1, validado_em = NOW(), motivo_invalidacao = $2, updated_at = NOW() 
+         WHERE id = ANY($3::uuid[])`,
+        [userId, `Rejeitado automaticamente: primeira parcela foi rejeitada. ${motivo}`, idsParcelas]
+      );
+
+      // Criar audit log para cada parcela rejeitada
+      for (const parcela of parcelasFuturas.rows) {
+        await auditService.createAuditLog({
+          userId,
+          userName,
+          action: 'rejeitar',
+          entityType: 'lancamento',
+          entityId: parcela.id,
+          entityDescription: `Parcela rejeitada automaticamente: primeira parcela foi rejeitada`,
+          oldValues: { status: 'enviado' },
+          newValues: { status: 'invalido', motivo_invalidacao: `Rejeitado automaticamente: primeira parcela foi rejeitada. ${motivo}` },
+        });
+      }
+
+    }
+  } else if (numeroParcela > 1) {
+    // Se for parcela 2 ou superior, apenas recusar esta parcela (já foi recusada acima)
+  }
 
   return result.rows[0];
 };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2, CalendarDays } from 'lucide-react';
+import { Users, Receipt, Clock, AlertTriangle, TrendingUp, Loader2, CalendarDays, CheckCircle, XCircle } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -39,9 +39,9 @@ interface Period {
 
 interface DashboardData {
   totalColaboradores: number;
-  totalLancamentosMes: number;
-  valorTotalMes: number;
-  pendentesValidacao: number;
+  lancamentosAprovados: { quantidade: number; valor: number };
+  lancamentosPendentes: { quantidade: number; valor: number };
+  lancamentosReprovados: { quantidade: number; valor: number };
   diasParaLancamento: number;
   diasRestantes: number;
   expensesByCategory: { name: string; value: number }[];
@@ -77,9 +77,9 @@ const DashboardRH = () => {
   const [currentPeriodName, setCurrentPeriodName] = useState<string>('');
   const [data, setData] = useState<DashboardData>({
     totalColaboradores: 0,
-    totalLancamentosMes: 0,
-    valorTotalMes: 0,
-    pendentesValidacao: 0,
+    lancamentosAprovados: { quantidade: 0, valor: 0 },
+    lancamentosPendentes: { quantidade: 0, valor: 0 },
+    lancamentosReprovados: { quantidade: 0, valor: 0 },
     diasParaLancamento: 0,
     diasRestantes: 0,
     expensesByCategory: [],
@@ -165,13 +165,25 @@ const DashboardRH = () => {
             return colab?.departamento === selectedDepartment;
           });
 
-      const pendingLancamentos = lancamentos?.filter((l: any) => 
+      // Calcular lançamentos por status (mutuamente exclusivos)
+      const aprovados = lancamentos?.filter((l: any) => l.status === 'valido') || [];
+      const pendentes = lancamentos?.filter((l: any) => 
         ['enviado', 'em_analise'].includes(l.status)
-      );
+      ) || [];
+      const reprovados = lancamentos?.filter((l: any) => l.status === 'invalido') || [];
 
-      const totalLancamentosMes = lancamentos?.length || 0;
-      const valorTotalMes = lancamentos?.reduce((sum, l) => sum + Number(l.valor_considerado), 0) || 0;
-      const pendentesValidacao = pendingLancamentos?.length || 0;
+      const lancamentosAprovados = {
+        quantidade: aprovados.length,
+        valor: aprovados.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0),
+      };
+      const lancamentosPendentes = {
+        quantidade: pendentes.length,
+        valor: pendentes.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0),
+      };
+      const lancamentosReprovados = {
+        quantidade: reprovados.length,
+        valor: reprovados.reduce((sum: number, l: any) => sum + Number(l.valor_considerado), 0),
+      };
 
       // Gráfico Despesas por Categoria (apenas aprovados)
       const categoryMap = new Map<string, number>();
@@ -272,9 +284,9 @@ const DashboardRH = () => {
 
       setData({
         totalColaboradores,
-        totalLancamentosMes,
-        valorTotalMes,
-        pendentesValidacao,
+        lancamentosAprovados,
+        lancamentosPendentes,
+        lancamentosReprovados,
         diasParaLancamento,
         diasRestantes,
         expensesByCategory,
@@ -293,20 +305,41 @@ const DashboardRH = () => {
   };
 
   // Calcular domains explicitamente dos dados (ANTES de qualquer return condicional)
-  const monthDomain = useMemo(() => {
-    if (data.expensesByMonth.length === 0) return [0, 100];
-    const maxValue = Math.max(...data.expensesByMonth.map(d => d.value));
+  // Função auxiliar para calcular domínio com precisão
+  const calculateDomain = (values: number[]): [number, number] => {
+    if (values.length === 0) return [0, 100];
+    const maxValue = Math.max(...values);
     if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
+    
+    // Calcular headroom (10-20% do valor máximo)
     const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
-    return [0, Math.ceil(maxValue + headroom)];
+    const upperBound = maxValue + headroom;
+    
+    // Arredondar para cima para um valor "redondo" (múltiplo de 100, 500, 1000, etc.)
+    let roundedUpper: number;
+    if (upperBound < 100) {
+      roundedUpper = Math.ceil(upperBound / 10) * 10; // Arredondar para múltiplo de 10
+    } else if (upperBound < 500) {
+      roundedUpper = Math.ceil(upperBound / 50) * 50; // Arredondar para múltiplo de 50
+    } else if (upperBound < 1000) {
+      roundedUpper = Math.ceil(upperBound / 100) * 100; // Arredondar para múltiplo de 100
+    } else if (upperBound < 5000) {
+      roundedUpper = Math.ceil(upperBound / 500) * 500; // Arredondar para múltiplo de 500
+    } else {
+      roundedUpper = Math.ceil(upperBound / 1000) * 1000; // Arredondar para múltiplo de 1000
+    }
+    
+    return [0, roundedUpper];
+  };
+
+  const monthDomain = useMemo(() => {
+    const values = data.expensesByMonth.map(d => Number(d.value));
+    return calculateDomain(values);
   }, [data.expensesByMonth]);
 
   const monthRejectedDomain = useMemo(() => {
-    if (data.expensesByMonthRejected.length === 0) return [0, 100];
-    const maxValue = Math.max(...data.expensesByMonthRejected.map(d => d.value));
-    if (!isFinite(maxValue) || maxValue === 0) return [0, 100];
-    const headroom = Math.max(maxValue * 0.2, maxValue * 0.1);
-    return [0, Math.ceil(maxValue + headroom)];
+    const values = data.expensesByMonthRejected.map(d => Number(d.value));
+    return calculateDomain(values);
   }, [data.expensesByMonthRejected]);
 
   const categoryDomain = useMemo(() => {
@@ -404,7 +437,7 @@ const DashboardRH = () => {
       ) : (
         <>
           {/* Stats Cards Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
             <Card className="bg-card border">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
@@ -420,31 +453,49 @@ const DashboardRH = () => {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-primary to-primary/80 text-primary-foreground border-0">
+            {/* Lançamentos Aprovados */}
+            <Card className="bg-gradient-to-br from-success to-success/80 text-success-foreground border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-primary-foreground/80">Lançamentos no Mês</p>
-                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.totalLancamentosMes}</p>
-                    <p className="text-xs text-primary-foreground/80 mt-1 truncate">{formatCurrency(data.valorTotalMes)}</p>
+                    <p className="text-xs sm:text-sm font-medium text-success-foreground/80">Lançamentos Aprovados</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.lancamentosAprovados.quantidade}</p>
+                    <p className="text-xs text-success-foreground/80 mt-1 truncate">{formatCurrency(data.lancamentosAprovados.valor)}</p>
                   </div>
-                  <div className="p-2 sm:p-2.5 bg-primary-foreground/20 rounded-lg flex-shrink-0">
-                    <Receipt className="h-4 w-4 sm:h-5 sm:w-5 text-primary-foreground" />
+                  <div className="p-2 sm:p-2.5 bg-success-foreground/20 rounded-lg flex-shrink-0">
+                    <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5 text-success-foreground" />
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-card border">
+            {/* Lançamentos Pendentes */}
+            <Card className="bg-gradient-to-br from-warning to-warning/80 text-warning-foreground border-0">
               <CardContent className="p-4 sm:p-5">
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs sm:text-sm font-medium text-muted-foreground">Pendentes de Validação</p>
-                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.pendentesValidacao}</p>
-                    <p className="text-xs text-muted-foreground mt-1 truncate">Aguardando análise</p>
+                    <p className="text-xs sm:text-sm font-medium text-warning-foreground/80">Lançamentos Pendentes</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.lancamentosPendentes.quantidade}</p>
+                    <p className="text-xs text-warning-foreground/80 mt-1 truncate">{formatCurrency(data.lancamentosPendentes.valor)}</p>
                   </div>
-                  <div className="p-2 sm:p-2.5 bg-warning/10 rounded-lg flex-shrink-0">
-                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
+                  <div className="p-2 sm:p-2.5 bg-warning-foreground/20 rounded-lg flex-shrink-0">
+                    <Clock className="h-4 w-4 sm:h-5 sm:w-5 text-warning-foreground" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Lançamentos Reprovados */}
+            <Card className="bg-gradient-to-br from-destructive to-destructive/80 text-destructive-foreground border-0">
+              <CardContent className="p-4 sm:p-5">
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs sm:text-sm font-medium text-destructive-foreground/80">Lançamentos Reprovados</p>
+                    <p className="text-2xl sm:text-3xl font-bold mt-1">{data.lancamentosReprovados.quantidade}</p>
+                    <p className="text-xs text-destructive-foreground/80 mt-1 truncate">{formatCurrency(data.lancamentosReprovados.valor)}</p>
+                  </div>
+                  <div className="p-2 sm:p-2.5 bg-destructive-foreground/20 rounded-lg flex-shrink-0">
+                    <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-destructive-foreground" />
                   </div>
                 </div>
               </CardContent>
@@ -602,6 +653,8 @@ const DashboardRH = () => {
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
                         domain={monthDomain}
+                        allowDecimals={false}
+                        type="number"
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}
@@ -686,6 +739,8 @@ const DashboardRH = () => {
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
                         domain={monthRejectedDomain}
+                        allowDecimals={false}
+                        type="number"
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}

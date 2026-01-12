@@ -91,6 +91,19 @@ const LancamentoForm = () => {
   const [formParcelamentoTotalParcelas, setFormParcelamentoTotalParcelas] = useState('');
   const [formFile, setFormFile] = useState<File | null>(null);
 
+  // Calcular valor da parcela automaticamente
+  const valorParcelaCalculado = useMemo(() => {
+    if (!formParcelamentoAtivo || !formParcelamentoValorTotal || !formParcelamentoTotalParcelas) {
+      return 0;
+    }
+    const valorTotal = parseFloat(formParcelamentoValorTotal);
+    const numParcelas = parseInt(formParcelamentoTotalParcelas);
+    if (isNaN(valorTotal) || isNaN(numParcelas) || numParcelas <= 0) {
+      return 0;
+    }
+    return valorTotal / numParcelas;
+  }, [formParcelamentoAtivo, formParcelamentoValorTotal, formParcelamentoTotalParcelas]);
+
   // Calculated values
   const [totalUsado, setTotalUsado] = useState(0);
   const [cestaTeto, setCestaTeto] = useState(0);
@@ -109,6 +122,24 @@ const LancamentoForm = () => {
   useEffect(() => {
     fetchData();
   }, [user, id]);
+
+  // Quando parcelamento é ativado, preencher valor total automaticamente com formValor
+  useEffect(() => {
+    if (formParcelamentoAtivo && formValor) {
+      setFormParcelamentoValorTotal(formValor);
+    } else if (!formParcelamentoAtivo) {
+      // Quando desativado, limpar campos de parcelamento
+      setFormParcelamentoValorTotal('');
+      setFormParcelamentoTotalParcelas('');
+    }
+  }, [formParcelamentoAtivo, formValor]);
+
+  // Quando formValor muda e parcelamento está ativo, atualizar valor total
+  useEffect(() => {
+    if (formParcelamentoAtivo && formValor) {
+      setFormParcelamentoValorTotal(formValor);
+    }
+  }, [formValor, formParcelamentoAtivo]);
 
   const fetchData = async () => {
     if (!user) return;
@@ -193,13 +224,17 @@ const LancamentoForm = () => {
 
       // Calculate totals - usar o período vigente ou o período selecionado no formulário
       if (colabData && defaultPeriod) {
+        // Buscar todos os lançamentos do período (sem filtrar por status)
         const expenses = await lancamentosService.getAll({
           colaborador_id: colabData.id,
           periodo_id: defaultPeriod.id,
-          status: 'valido',
         });
 
-        const usado = expenses.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        // Calcular utilizado incluindo pendentes + aprovados (excluindo apenas rejeitados)
+        const usado = expenses
+          .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados
+          .reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        
         setTotalUsado(usado);
         setSaldoDisponivel((Number(colabData.cesta_beneficios_teto) || 0) - usado);
       }
@@ -216,12 +251,32 @@ const LancamentoForm = () => {
       return;
     }
 
-    const valorLancado = parseFloat(formValor);
+    // Se parcelamento está ativo, usar valor da parcela; senão, usar valor total
+    let valorLancado: number;
+    if (formParcelamentoAtivo) {
+      if (!formParcelamentoValorTotal || !formParcelamentoTotalParcelas) {
+        toast({ title: 'Erro', description: 'Informe o valor total e o número de parcelas.', variant: 'destructive' });
+        return;
+      }
+      const valorTotal = parseFloat(formParcelamentoValorTotal);
+      const numParcelas = parseInt(formParcelamentoTotalParcelas);
+      if (isNaN(valorTotal) || valorTotal <= 0 || isNaN(numParcelas) || numParcelas <= 0) {
+        toast({ title: 'Erro', description: 'Informe valores válidos para parcelamento.', variant: 'destructive' });
+        return;
+      }
+      valorLancado = valorTotal / numParcelas; // Valor da parcela
+    } else {
+      valorLancado = parseFloat(formValor);
+      if (isNaN(valorLancado) || valorLancado <= 0) {
+        toast({ title: 'Erro', description: 'Informe um valor válido.', variant: 'destructive' });
+        return;
+      }
+    }
     
     setSaving(true);
     try {
-      const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) || 1 : null;
-      const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) || valorLancado : null;
+      const totalParcelas = formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) : null;
+      const valorTotal = formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) : null;
 
       let lancamentoId: string;
 
@@ -234,6 +289,10 @@ const LancamentoForm = () => {
           valor_nao_considerado: validation.valorNaoConsiderado,
           descricao_fato_gerador: formDescricao,
           numero_documento: formNumeroDocumento || null,
+          parcelamento_ativo: formParcelamentoAtivo,
+          parcelamento_valor_total: formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) : null,
+          parcelamento_numero_parcela: formParcelamentoAtivo ? 1 : null, // Primeira parcela
+          parcelamento_total_parcelas: formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) : null,
         });
         lancamentoId = id;
       } else {
@@ -247,6 +306,10 @@ const LancamentoForm = () => {
           valor_lancado: valorLancado,
           valor_considerado: validation.valorConsiderado,
           valor_nao_considerado: validation.valorNaoConsiderado,
+          parcelamento_ativo: formParcelamentoAtivo,
+          parcelamento_valor_total: formParcelamentoAtivo ? parseFloat(formParcelamentoValorTotal) : null,
+          parcelamento_numero_parcela: formParcelamentoAtivo ? 1 : null, // Primeira parcela
+          parcelamento_total_parcelas: formParcelamentoAtivo ? parseInt(formParcelamentoTotalParcelas) : null,
         });
         lancamentoId = result.id;
       }
@@ -286,10 +349,26 @@ const LancamentoForm = () => {
       return;
     }
 
-    const valorLancado = parseFloat(formValor);
-    if (isNaN(valorLancado) || valorLancado <= 0) {
-      toast({ title: 'Erro', description: 'Informe um valor válido.', variant: 'destructive' });
-      return;
+    // Se parcelamento está ativo, usar valor da parcela; senão, usar valor total
+    let valorLancado: number;
+    if (formParcelamentoAtivo) {
+      if (!formParcelamentoValorTotal || !formParcelamentoTotalParcelas) {
+        toast({ title: 'Erro', description: 'Informe o valor total e o número de parcelas.', variant: 'destructive' });
+        return;
+      }
+      const valorTotal = parseFloat(formParcelamentoValorTotal);
+      const numParcelas = parseInt(formParcelamentoTotalParcelas);
+      if (isNaN(valorTotal) || valorTotal <= 0 || isNaN(numParcelas) || numParcelas <= 0) {
+        toast({ title: 'Erro', description: 'Informe valores válidos para parcelamento.', variant: 'destructive' });
+        return;
+      }
+      valorLancado = valorTotal / numParcelas; // Valor da parcela
+    } else {
+      valorLancado = parseFloat(formValor);
+      if (isNaN(valorLancado) || valorLancado <= 0) {
+        toast({ title: 'Erro', description: 'Informe um valor válido.', variant: 'destructive' });
+        return;
+      }
     }
 
     const selectedType = expenseTypes.find(t => t.id === formTipoDespesaId);
@@ -448,8 +527,22 @@ const LancamentoForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Valor da Despesa (R$)</Label>
-            <Input type="number" step="0.01" value={formValor} onChange={(e) => setFormValor(e.target.value)} placeholder="0,00" className="font-mono" />
+            <Label>
+              {formParcelamentoAtivo ? 'Valor Total da Despesa (R$)' : 'Valor da Despesa (R$)'}
+            </Label>
+            <Input 
+              type="number" 
+              step="0.01" 
+              value={formValor} 
+              onChange={(e) => setFormValor(e.target.value)} 
+              placeholder="0,00" 
+              className="font-mono" 
+            />
+            {formParcelamentoAtivo && (
+              <p className="text-xs text-muted-foreground">
+                Este é o valor total da nota que será dividido em parcelas
+              </p>
+            )}
           </div>
         </div>
 
@@ -490,9 +583,24 @@ const LancamentoForm = () => {
                   type="number"
                   step="0.01"
                   value={formParcelamentoValorTotal}
-                  onChange={(e) => setFormParcelamentoValorTotal(e.target.value)}
+                  onChange={(e) => {
+                    setFormParcelamentoValorTotal(e.target.value);
+                    setFormValor(e.target.value); // Sincronizar com formValor
+                  }}
                   placeholder="0,00"
                   className="font-mono"
+                  readOnly
+                />
+                <p className="text-xs text-muted-foreground">Preenchido automaticamente</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Número de Parcelas</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formParcelamentoTotalParcelas}
+                  onChange={(e) => setFormParcelamentoTotalParcelas(e.target.value)}
+                  placeholder="Ex: 10"
                 />
               </div>
               <div className="space-y-2">
@@ -500,20 +608,12 @@ const LancamentoForm = () => {
                 <Input
                   type="number"
                   step="0.01"
-                  value={formValor}
-                  onChange={(e) => setFormValor(e.target.value)}
+                  value={valorParcelaCalculado.toFixed(2)}
                   placeholder="0,00"
                   className="font-mono"
+                  readOnly
                 />
-              </div>
-              <div className="space-y-2">
-                <Label>Número de Parcelas</Label>
-                <Input
-                  type="number"
-                  value={formParcelamentoTotalParcelas}
-                  onChange={(e) => setFormParcelamentoTotalParcelas(e.target.value)}
-                  placeholder="Ex: 12"
-                />
+                <p className="text-xs text-muted-foreground">Calculado automaticamente</p>
               </div>
             </div>
           )}

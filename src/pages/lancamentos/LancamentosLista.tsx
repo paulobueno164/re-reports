@@ -40,6 +40,9 @@ interface ColaboradorResumo {
   departamento: string;
   totalLancado: number;
   totalConsiderado: number;
+  totalAprovado: number;
+  totalPendente: number;
+  totalRejeitado: number;
   qtdLancamentos: number;
   qtdPendentes: number;
   qtdValidos: number;
@@ -156,11 +159,21 @@ const LancamentosLista = () => {
       const colaboradoresResumo: ColaboradorResumo[] = colabData.map(colab => {
         const colabExpenses = expensesData.filter(e => e.colaborador_id === colab.id);
         const totalLancado = colabExpenses.reduce((sum, e) => sum + Number(e.valor_lancado), 0);
-        const totalConsiderado = colabExpenses
-          .filter(e => e.status !== 'invalido') // Excluir rejeitados
-          .reduce((sum, e) => sum + Number(e.valor_considerado), 0);
-        const qtdPendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status)).length;
-        const qtdValidos = colabExpenses.filter(e => e.status === 'valido').length;
+        
+        // Calcular valores separados por status (mutuamente exclusivos)
+        const aprovados = colabExpenses.filter(e => e.status === 'valido');
+        const pendentes = colabExpenses.filter(e => ['enviado', 'em_analise'].includes(e.status));
+        const rejeitados = colabExpenses.filter(e => e.status === 'invalido');
+        
+        const totalAprovado = aprovados.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        const totalPendente = pendentes.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        const totalRejeitado = rejeitados.reduce((sum, e) => sum + Number(e.valor_considerado), 0);
+        
+        // Manter totalConsiderado para compatibilidade (apenas aprovados + pendentes, excluindo rejeitados)
+        const totalConsiderado = totalAprovado + totalPendente;
+        
+        const qtdPendentes = pendentes.length;
+        const qtdValidos = aprovados.length;
 
         return {
           id: colab.id,
@@ -169,6 +182,9 @@ const LancamentosLista = () => {
           departamento: colab.departamento,
           totalLancado,
           totalConsiderado,
+          totalAprovado,
+          totalPendente,
+          totalRejeitado,
           qtdLancamentos: colabExpenses.length,
           qtdPendentes,
           qtdValidos,
@@ -343,7 +359,9 @@ const LancamentosLista = () => {
   const totalColaboradores = filteredAndSortedColaboradores.length;
   const totalComLancamentos = filteredAndSortedColaboradores.filter(c => c.qtdLancamentos > 0).length;
   const totalSemLancamentos = totalColaboradores - totalComLancamentos;
-  const totalValorConsiderado = filteredAndSortedColaboradores.reduce((sum, c) => sum + c.totalConsiderado, 0);
+  const totalValorAprovado = filteredAndSortedColaboradores.reduce((sum, c) => sum + c.totalAprovado, 0);
+  const totalValorPendente = filteredAndSortedColaboradores.reduce((sum, c) => sum + c.totalPendente, 0);
+  const totalValorRejeitado = filteredAndSortedColaboradores.reduce((sum, c) => sum + c.totalRejeitado, 0);
 
   if (loading && periods.length === 0) {
     return (
@@ -431,7 +449,7 @@ const LancamentosLista = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
@@ -481,18 +499,53 @@ const LancamentosLista = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Valor Aprovado */}
+        <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-              Valor Considerado
+            <CardTitle className="text-xs sm:text-sm font-medium text-success">
+              Valor Aprovado
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-xl sm:text-2xl font-bold font-mono">
-              {formatCurrency(totalValorConsiderado)}
+            <p className="text-xl sm:text-2xl font-bold font-mono text-success">
+              {formatCurrency(totalValorAprovado)}
             </p>
             <p className="text-xs text-muted-foreground">
-              total aprovado
+              apenas aprovados
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Valor Pendente */}
+        <Card className="bg-gradient-to-br from-warning/10 to-warning/5 border-warning/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-warning">
+              Valor Pendente
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl sm:text-2xl font-bold font-mono text-warning">
+              {formatCurrency(totalValorPendente)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              aguardando análise
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Valor Rejeitado */}
+        <Card className="bg-gradient-to-br from-destructive/10 to-destructive/5 border-destructive/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-xs sm:text-sm font-medium text-destructive">
+              Valor Rejeitado
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xl sm:text-2xl font-bold font-mono text-destructive">
+              {formatCurrency(totalValorRejeitado)}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              reprovados/inválidos
             </p>
           </CardContent>
         </Card>

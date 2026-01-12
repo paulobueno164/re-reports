@@ -109,9 +109,25 @@ router.get('/lancamentos', async (req: AuthenticatedRequest, res) => {
   const result = await lancamentoService.getAllLancamentos(filters);
   res.json(result);
 });
-router.get('/lancamentos/:id', async (req, res) => {
-  const result = await lancamentoService.getLancamentoById(req.params.id);
-  res.json(result);
+router.get('/lancamentos/:id', async (req: AuthenticatedRequest, res) => {
+  try {
+    const lancamento = await lancamentoService.getLancamentoById(req.params.id);
+    if (!lancamento) {
+      return res.status(404).json({ error: 'Lançamento não encontrado' });
+    }
+
+    // Se for FINANCEIRO, verificar se é o próprio lançamento
+    if (hasRole(req.user, 'FINANCEIRO') && !hasRole(req.user, 'RH')) {
+      const colab = await colaboradorService.getColaboradorByUserId(req.user!.id);
+      if (!colab || colab.id !== lancamento.colaborador_id) {
+        return res.status(403).json({ error: 'Acesso negado. Você só pode visualizar seus próprios lançamentos.' });
+      }
+    }
+
+    res.json(lancamento);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
 });
 router.post('/lancamentos', async (req: AuthenticatedRequest, res) => {
   try {
@@ -131,23 +147,23 @@ router.delete('/lancamentos/:id', async (req: AuthenticatedRequest, res) => {
     res.json({ success: true });
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
-router.post('/lancamentos/:id/aprovar', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+router.post('/lancamentos/:id/aprovar', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await lancamentoService.aprovarLancamento(req.params.id, req.user!.id, req.user!.nome);
     res.json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
-router.post('/lancamentos/:id/rejeitar', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+router.post('/lancamentos/:id/rejeitar', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
     const result = await lancamentoService.rejeitarLancamento(req.params.id, req.body.motivo, req.user!.id, req.user!.nome);
     res.json(result);
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
-router.post('/lancamentos/aprovar-lote', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+router.post('/lancamentos/aprovar-lote', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   const result = await lancamentoService.aprovarEmLote(req.body.ids, req.user!.id, req.user!.nome);
   res.json(result);
 });
-router.post('/lancamentos/rejeitar-lote', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+router.post('/lancamentos/rejeitar-lote', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   const result = await lancamentoService.rejeitarEmLote(req.body.ids, req.body.motivo, req.user!.id, req.user!.nome);
   res.json(result);
 });
@@ -405,7 +421,7 @@ router.delete('/grupos-despesa/:id', requireRole('ADMINISTRADOR'), async (req: A
 });
 
 // Iniciar análise de lançamento
-router.post('/lancamentos/:id/iniciar-analise', requireRole('RH', 'FINANCEIRO'), async (req: AuthenticatedRequest, res) => {
+router.post('/lancamentos/:id/iniciar-analise', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
     const lancamentoService = await import('../services/lancamentoService');
     const result = await lancamentoService.iniciarAnalise(req.params.id, req.user!.id, req.user!.nome);

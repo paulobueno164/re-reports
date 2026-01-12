@@ -53,6 +53,10 @@ interface Expense {
   status: string;
   motivoInvalidacao: string | null;
   createdAt: Date;
+  parcelamentoAtivo: boolean;
+  parcelamentoValorTotal: number | null;
+  parcelamentoTotalParcelas: number | null;
+  parcelamentoNumeroParcela: number | null;
 }
 
 type StatusFilter = 'todos' | 'pendentes' | 'valido' | 'invalido';
@@ -163,6 +167,45 @@ const ColaboradorLancamentos = () => {
     }
   }, [selectedPeriod, nextPeriod]);
 
+  // Recalcular saldo e bloqueio quando tetoCesta mudar (quando o limite é alterado)
+  // Isso garante que quando o limite é aumentado, o saldo e o bloqueio sejam recalculados
+  // Também recalcula quando expenses mudar para garantir que o cálculo está sempre atualizado
+  useEffect(() => {
+    if (expenses.length > 0 && tetoCesta > 0 && selectedPeriodId) {
+      const mapped = expenses;
+      
+      // Calcular valores separadamente
+      const aprovado = mapped
+        .filter(e => e.status === 'valido')
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      const pendente = mapped
+        .filter(e => e.status === 'enviado' || e.status === 'em_analise')
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      const usado = mapped
+        .filter(e => e.status !== 'invalido')
+        .reduce((sum, e) => sum + e.valorConsiderado, 0);
+      
+      setTotalAprovado(aprovado);
+      setTotalPendente(pendente);
+      setTotalUsado(usado);
+      
+      // Saldo = Limite - (Aprovado + Pendente)
+      const saldo = Math.max(0, tetoCesta - usado);
+      const percentual = tetoCesta > 0 ? (aprovado / tetoCesta) * 100 : 0;
+      setSaldoDisponivel(saldo);
+      setPercentualUsado(Math.min(100, percentual));
+
+      // Verificar bloqueio: só bloqueia se não houver saldo disponível
+      const bloqueio = verificarBloqueioAposLimite(
+        mapped
+          .filter(e => e.status !== 'invalido')
+          .map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado })),
+        saldo
+      );
+      setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
+    }
+  }, [tetoCesta, expenses, selectedPeriodId]); // Recalcular quando tetoCesta mudar (limite alterado) ou expenses mudar
+
   const fetchData = async () => {
     if (!id) return;
     setLoading(true);
@@ -229,38 +272,14 @@ const ColaboradorLancamentos = () => {
         status: e.status,
         motivoInvalidacao: e.motivo_invalidacao,
         createdAt: new Date(e.created_at),
+        parcelamentoAtivo: e.parcelamento_ativo || false,
+        parcelamentoValorTotal: e.parcelamento_valor_total ? Number(e.parcelamento_valor_total) : null,
+        parcelamentoTotalParcelas: e.parcelamento_total_parcelas ? Number(e.parcelamento_total_parcelas) : null,
+        parcelamentoNumeroParcela: e.parcelamento_numero_parcela ? Number(e.parcelamento_numero_parcela) : null,
       }));
 
       setExpenses(mapped);
-
-      // Calcular valores separadamente
-      const aprovado = mapped
-        .filter(e => e.status === 'valido') // Apenas aprovados
-        .reduce((sum, e) => sum + e.valorConsiderado, 0);
-      const pendente = mapped
-        .filter(e => e.status === 'enviado' || e.status === 'em_analise')
-        .reduce((sum, e) => sum + e.valorConsiderado, 0);
-      const usado = mapped
-        .filter(e => e.status !== 'invalido') // Incluir todos exceto rejeitados (para outros cálculos)
-        .reduce((sum, e) => sum + e.valorConsiderado, 0);
-      
-      setTotalAprovado(aprovado);
-      setTotalPendente(pendente);
-      setTotalUsado(usado);
-      
-      // Saldo = Limite - Aprovado (apenas valores aprovados)
-      const saldo = Math.max(0, tetoCesta - aprovado);
-      const percentual = tetoCesta > 0 ? (aprovado / tetoCesta) * 100 : 0;
-      setSaldoDisponivel(saldo);
-      setPercentualUsado(Math.min(100, percentual));
-
-      // Corrigir: filtrar lançamentos inválidos antes de verificar bloqueio
-      const bloqueio = verificarBloqueioAposLimite(
-        mapped
-          .filter(e => e.status !== 'invalido') // Excluir rejeitados
-          .map(e => ({ valorNaoConsiderado: e.valorNaoConsiderado }))
-      );
-      setBloqueadoPorUltimoLancamento(bloqueio.bloqueado);
+      // O cálculo do saldo e bloqueio será feito no useEffect quando expenses ou tetoCesta mudarem
     } catch (error: any) {
       toast({ title: 'Erro', description: error.message, variant: 'destructive' });
     }
@@ -394,7 +413,7 @@ const ColaboradorLancamentos = () => {
   };
 
   const selectedTotal = useMemo(() => 
-    pendingExpenses.filter(e => selectedIds.includes(e.id)).reduce((sum, e) => sum + e.valorLancado, 0),
+    pendingExpenses.filter(e => selectedIds.includes(e.id)).reduce((sum, e) => sum + e.valorConsiderado, 0),
     [pendingExpenses, selectedIds]
   );
 
@@ -448,7 +467,18 @@ const ColaboradorLancamentos = () => {
     { key: 'createdAt', header: 'Data', hideOnMobile: true, render: (item: Expense) => formatDate(item.createdAt) },
     { key: 'tipoDespesaNome', header: 'Tipo de Despesa' },
     { key: 'origem', header: 'Origem', hideOnMobile: true, render: (item: Expense) => ({ proprio: 'Próprio', conjuge: 'Cônjuge', filhos: 'Filhos' }[item.origem] || item.origem) },
-    { key: 'valorLancado', header: 'Valor', className: 'text-right font-mono', render: (item: Expense) => formatCurrency(item.valorLancado) },
+    { 
+      key: 'valorLancado', 
+      header: 'Valor', 
+      className: 'text-right font-mono', 
+      render: (item: Expense) => formatCurrency(item.parcelamentoAtivo && item.parcelamentoValorTotal ? item.parcelamentoValorTotal : item.valorLancado) 
+    },
+    { 
+      key: 'parcelamento', 
+      header: 'Parcelamento', 
+      hideOnMobile: true, 
+      render: (item: Expense) => item.parcelamentoAtivo && item.parcelamentoTotalParcelas ? `${item.parcelamentoTotalParcelas}x` : '-' 
+    },
     { key: 'valorConsiderado', header: 'Considerado', hideOnMobile: true, className: 'text-right font-mono', render: (item: Expense) => <span className={item.valorNaoConsiderado > 0 ? 'text-warning' : ''}>{formatCurrency(item.valorConsiderado)}</span> },
     { key: 'status', header: 'Status', render: (item: Expense) => <StatusBadge status={item.status} /> },
     {

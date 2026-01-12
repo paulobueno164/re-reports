@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Loader2, AlertCircle, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle, XCircle, Clock, CreditCard } from "lucide-react";
 import { PageFormLayout } from "@/components/ui/page-form-layout";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -20,7 +20,7 @@ const LancamentoDetalhe = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [expense, setExpense] = useState<Lancamento | null>(null);
   const [attachmentCount, setAttachmentCount] = useState(0);
@@ -32,7 +32,8 @@ const LancamentoDetalhe = () => {
   const rejectionReasonRef = useRef<HTMLTextAreaElement>(null);
 
   const isRHorFinanceiro = hasRole("RH") || hasRole("FINANCEIRO");
-  const canValidate = (hasRole("RH") || hasRole("FINANCEIRO")) && (expense?.status === "enviado" || expense?.status === "em_analise");
+  // Apenas RH pode validar (aprovar/rejeitar/iniciar análise)
+  const canValidate = hasRole("RH") && (expense?.status === "enviado" || expense?.status === "em_analise");
 
   useEffect(() => {
     fetchExpense();
@@ -217,11 +218,48 @@ const LancamentoDetalhe = () => {
               <p className="font-semibold text-lg">{expense.numero_documento}</p>
             </div>
           )}
-          <div className="space-y-1">
-            <p className="text-sm text-muted-foreground">Valor Lançado</p>
-            <p className="font-mono font-bold text-xl text-primary">{formatCurrency(expense.valor_lancado)}</p>
-          </div>
+          {expense.parcelamento_ativo && expense.parcelamento_valor_total ? (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Valor Total da Nota</p>
+              <p className="font-mono font-bold text-xl text-primary">{formatCurrency(expense.parcelamento_valor_total)}</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">Valor Lançado</p>
+              <p className="font-mono font-bold text-xl text-primary">{formatCurrency(expense.valor_lancado)}</p>
+            </div>
+          )}
         </div>
+
+        {/* Parcelamento Info */}
+        {expense.parcelamento_ativo && expense.parcelamento_valor_total && expense.parcelamento_total_parcelas && (
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <p className="font-semibold text-sm">Informações de Parcelamento</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Valor Total da Nota</p>
+                <p className="font-mono font-semibold text-base">{formatCurrency(expense.parcelamento_valor_total)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Parcelamento</p>
+                <p className="font-semibold text-base">{expense.parcelamento_total_parcelas}x</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Valor da Parcela (Considerado no Período)</p>
+                <p className="font-mono font-semibold text-base text-primary">{formatCurrency(expense.valor_considerado)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Parcela Atual / Parcelas Totais</p>
+                <p className="font-semibold text-base">
+                  {expense.parcelamento_numero_parcela || 1}/{expense.parcelamento_total_parcelas}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         <div className="space-y-2">

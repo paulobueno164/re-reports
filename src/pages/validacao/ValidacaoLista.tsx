@@ -50,6 +50,10 @@ interface Expense {
   motivoInvalidacao?: string;
   tempoEmAnalise?: string;
   horasEmAnalise?: number;
+  parcelamentoAtivo: boolean;
+  parcelamentoValorTotal: number | null;
+  parcelamentoTotalParcelas: number | null;
+  parcelamentoNumeroParcela: number | null;
 }
 
 const originLabels: Record<string, string> = {
@@ -140,6 +144,10 @@ const ValidacaoLista = () => {
           motivoInvalidacao: e.motivo_invalidacao || undefined,
           tempoEmAnalise,
           horasEmAnalise: diffHours,
+          parcelamentoAtivo: e.parcelamento_ativo || false,
+          parcelamentoValorTotal: e.parcelamento_valor_total ? Number(e.parcelamento_valor_total) : null,
+          parcelamentoTotalParcelas: e.parcelamento_total_parcelas ? Number(e.parcelamento_total_parcelas) : null,
+          parcelamentoNumeroParcela: e.parcelamento_numero_parcela ? Number(e.parcelamento_numero_parcela) : null,
         };
       });
       
@@ -269,7 +277,13 @@ const ValidacaoLista = () => {
       key: 'valorLancado',
       header: 'Valor',
       className: 'text-right font-mono',
-      render: (item: Expense) => formatCurrency(item.valorLancado),
+      render: (item: Expense) => formatCurrency(item.parcelamentoAtivo && item.parcelamentoValorTotal ? item.parcelamentoValorTotal : item.valorLancado),
+    },
+    {
+      key: 'parcelamento',
+      header: 'Parcelamento',
+      hideOnMobile: true,
+      render: (item: Expense) => item.parcelamentoAtivo && item.parcelamentoTotalParcelas ? `${item.parcelamentoTotalParcelas}x` : '-',
     },
     {
       key: 'status',

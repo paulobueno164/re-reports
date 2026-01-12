@@ -63,6 +63,11 @@ export interface CreateLancamentoInput {
   valor_lancado: number;
   valor_considerado: number;
   valor_nao_considerado?: number;
+  parcelamento_ativo?: boolean;
+  parcelamento_valor_total?: number | null;
+  parcelamento_numero_parcela?: number | null;
+  parcelamento_total_parcelas?: number | null;
+  lancamento_origem_id?: string | null;
 }
 
 export interface UpdateLancamentoInput {
@@ -73,6 +78,11 @@ export interface UpdateLancamentoInput {
   valor_lancado?: number;
   valor_considerado?: number;
   valor_nao_considerado?: number;
+  parcelamento_ativo?: boolean;
+  parcelamento_valor_total?: number | null;
+  parcelamento_numero_parcela?: number | null;
+  parcelamento_total_parcelas?: number | null;
+  lancamento_origem_id?: string | null;
 }
 
 export interface LancamentoFilters {

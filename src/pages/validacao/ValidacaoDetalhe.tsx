@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Loader2, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Clock, CreditCard } from 'lucide-react';
 import { PageFormLayout } from '@/components/ui/page-form-layout';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ const ValidacaoDetalhe = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, hasRole } = useAuth();
   const [expense, setExpense] = useState<Lancamento | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -104,7 +104,8 @@ const ValidacaoDetalhe = () => {
 
   if (!expense) return null;
 
-  const canValidate = expense.status === 'enviado' || expense.status === 'em_analise';
+  // Apenas RH pode validar (aprovar/rejeitar/iniciar análise)
+  const canValidate = hasRole('RH') && (expense.status === 'enviado' || expense.status === 'em_analise');
   const colaboradorNome = expense.colaborador?.nome || '';
   const tipoDespesaNome = expense.tipo_despesa?.nome || '';
   const departamento = expense.colaborador?.departamento || '';
@@ -171,10 +172,17 @@ const ValidacaoDetalhe = () => {
             <Label className="text-muted-foreground">Origem</Label>
             <p className="font-medium">{originLabels[expense.origem] || expense.origem}</p>
           </div>
-          <div>
-            <Label className="text-muted-foreground">Valor Lançado</Label>
-            <p className="font-mono text-lg font-bold">{formatCurrency(expense.valor_lancado)}</p>
-          </div>
+          {expense.parcelamento_ativo && expense.parcelamento_valor_total ? (
+            <div>
+              <Label className="text-muted-foreground">Valor Total da Nota</Label>
+              <p className="font-mono text-lg font-bold">{formatCurrency(expense.parcelamento_valor_total)}</p>
+            </div>
+          ) : (
+            <div>
+              <Label className="text-muted-foreground">Valor Lançado</Label>
+              <p className="font-mono text-lg font-bold">{formatCurrency(expense.valor_lancado)}</p>
+            </div>
+          )}
           <div>
             <Label className="text-muted-foreground">Status Atual</Label>
             <div className="mt-1">
@@ -182,6 +190,36 @@ const ValidacaoDetalhe = () => {
             </div>
           </div>
         </div>
+
+        {/* Parcelamento Info */}
+        {expense.parcelamento_ativo && expense.parcelamento_valor_total && expense.parcelamento_total_parcelas && (
+          <div className="p-4 border rounded-lg bg-muted/30 space-y-3">
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <p className="font-semibold text-sm">Informações de Parcelamento</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Valor Total da Nota</p>
+                <p className="font-mono font-semibold text-base">{formatCurrency(expense.parcelamento_valor_total)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Parcelamento</p>
+                <p className="font-semibold text-base">{expense.parcelamento_total_parcelas}x</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Valor da Parcela (Considerado no Período)</p>
+                <p className="font-mono font-semibold text-base text-primary">{formatCurrency(expense.valor_considerado)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Parcela Atual / Parcelas Totais</p>
+                <p className="font-semibold text-base">
+                  {expense.parcelamento_numero_parcela || 1}/{expense.parcelamento_total_parcelas}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Separator />
 

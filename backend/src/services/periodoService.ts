@@ -132,6 +132,17 @@ export const createPeriodo = async (
     newValues: novoPeriodo,
   });
 
+  // Processar parcelas pendentes de lançamentos com parcelamento
+  // Quando um novo período é criado, verificar se há parcelas que devem ser criadas
+  // Usar importação dinâmica para evitar dependência circular
+  try {
+    const { processarParcelasPendentes } = await import('./lancamentoService');
+    await processarParcelasPendentes(novoPeriodo.id, novoPeriodo.data_inicio);
+  } catch (error: any) {
+    // Log do erro mas não falha a criação do período
+    console.error('Erro ao processar parcelas pendentes:', error);
+  }
+
   return novoPeriodo;
 };
 
@@ -192,7 +203,62 @@ export const deletePeriodo = async (
   executorName: string
 ): Promise<boolean> => {
   const periodo = await getPeriodoById(id);
+  
+  if (!periodo) {
+    throw new Error('Período não encontrado');
+  }
 
+  // Verificar se é um período futuro e fechado
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const periodoDataInicio = new Date(periodo.data_inicio);
+  periodoDataInicio.setHours(0, 0, 0, 0);
+  const isPeriodoFuturo = periodoDataInicio > today;
+  const isPeriodoFechado = periodo.status === 'fechado';
+
+  // Sempre tentar deletar parcelas automáticas se o período estiver fechado
+  // Mas só permitir exclusão completa se for período futuro e fechado
+  if (isPeriodoFechado) {
+    try {
+      const { deletarParcelasAutomaticasDoPeriodo } = await import('./lancamentoService');
+      await deletarParcelasAutomaticasDoPeriodo(id);
+    } catch (error: any) {
+      console.error('Erro ao deletar parcelas automáticas:', error);
+      // Continuar mesmo se houver erro ao deletar parcelas
+    }
+  }
+
+  // Só permitir exclusão completa se for período futuro e fechado
+  if (!isPeriodoFuturo || !isPeriodoFechado) {
+    // Verificar se há lançamentos não automáticos (manuais) no período
+    const lancamentosManuais = await query(
+      `SELECT COUNT(*) as total
+       FROM lancamentos
+       WHERE periodo_id = $1
+         AND (lancamento_origem_id IS NULL OR parcelamento_ativo = false)`,
+      [id]
+    );
+
+    const countManuais = parseInt(lancamentosManuais.rows[0].total);
+
+    if (countManuais > 0) {
+      throw new Error('Não é possível excluir este período. Existem lançamentos manuais vinculados a ele.');
+    }
+  }
+
+  // Verificar se ainda há lançamentos no período
+  const lancamentosRestantes = await query(
+    `SELECT COUNT(*) as total FROM lancamentos WHERE periodo_id = $1`,
+    [id]
+  );
+
+  const countRestantes = parseInt(lancamentosRestantes.rows[0].total);
+
+  if (countRestantes > 0) {
+    throw new Error('Não é possível excluir este período. Ainda existem lançamentos vinculados a ele.');
+  }
+
+  // Deletar o período
   const result = await query(
     'DELETE FROM calendario_periodos WHERE id = $1',
     [id]
@@ -206,9 +272,10 @@ export const deletePeriodo = async (
       action: 'excluir',
       entityType: 'periodo',
       entityId: id,
-      entityDescription: `Exclusão do período ${periodo?.periodo || id}`,
-      oldValues: periodo || undefined,
+      entityDescription: `Exclusão do período ${periodo.periodo}`,
+      oldValues: periodo,
     });
+
     return true;
   }
   return false;

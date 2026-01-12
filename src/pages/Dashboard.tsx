@@ -161,7 +161,7 @@ const Dashboard = () => {
         id: l.id,
         colaboradorNome: l.colaborador?.nome || '',
         tipoDespesaNome: l.tipo_despesa?.nome || '',
-        valorLancado: Number(l.valor_lancado),
+        valorLancado: l.parcelamento_ativo && l.parcelamento_valor_total ? Number(l.parcelamento_valor_total) : Number(l.valor_lancado),
         status: l.status,
         createdAt: new Date(l.created_at),
       }));

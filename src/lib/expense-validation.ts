@@ -93,17 +93,23 @@ export function validarLancamentoCesta(params: LancamentoValidation): Validation
 
 /**
  * Verifica se já houve um lançamento que ultrapassou o limite (bloqueio após último lançamento)
+ * 
+ * IMPORTANTE: O bloqueio só deve ser aplicado se NÃO houver saldo disponível.
+ * Se o limite foi aumentado e há saldo disponível, o bloqueio deve ser removido.
  */
 export function verificarBloqueioAposLimite(
-  lancamentosNoPeriodo: { valorNaoConsiderado: number }[]
+  lancamentosNoPeriodo: { valorNaoConsiderado: number }[],
+  saldoDisponivel: number
 ): { bloqueado: boolean; mensagem: string } {
   // Verifica se existe algum lançamento com valor_nao_considerado > 0
   const temLancamentoQueUltrapassou = lancamentosNoPeriodo.some(l => l.valorNaoConsiderado > 0);
   
-  if (temLancamentoQueUltrapassou) {
+  // Se há saldo disponível, não deve haver bloqueio (mesmo que tenha havido um lançamento que ultrapassou anteriormente)
+  // O bloqueio só deve ser aplicado se não houver saldo disponível
+  if (temLancamentoQueUltrapassou && saldoDisponivel <= 0) {
     return {
       bloqueado: true,
-      mensagem: 'Você já fez um lançamento que ultrapassou o limite da Cesta de Benefícios. Não é possível fazer novos lançamentos neste período.',
+      mensagem: 'Já foi feito um lançamento que ultrapassou o limite. Não é possível fazer novos lançamentos neste período.',
     };
   }
   
