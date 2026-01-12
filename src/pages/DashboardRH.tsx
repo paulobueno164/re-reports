@@ -685,14 +685,7 @@ const DashboardRH = () => {
                         tickFormatter={formatAxisValue}
                         tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                         axisLine={{ stroke: 'hsl(var(--border))' }}
-                        domain={[0, (dataMin: number, dataMax: number) => {
-                          // Validar dataMax para evitar NaN
-                          if (!isFinite(dataMax) || dataMax === 0) {
-                            return 100; // Valor padrão quando não há dados
-                          }
-                          const headroom = Math.max(dataMax * 0.2, dataMax * 0.1);
-                          return Math.ceil(dataMax + headroom);
-                        }]}
+                        domain={monthRejectedDomain}
                       />
                       <Tooltip
                         formatter={(value: number) => [formatCurrency(value), 'Valor']}
