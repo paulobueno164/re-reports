@@ -3,10 +3,13 @@ import * as XLSX from 'xlsx';
 interface ExportRow {
   matricula: string;
   nome: string;
-  departamento: string;
-  descricaoEvento: string;
+  departamento?: string;
+  codigo_evento?: string;
+  descricao_evento?: string;
+  codigoEvento?: string; // compatibilidade com código antigo
+  descricaoEvento?: string; // compatibilidade com código antigo
   valor: number;
-  periodo: string;
+  periodo?: string;
 }
 
 export function exportToExcel(data: ExportRow[], periodo: string): void {
@@ -15,16 +18,21 @@ export function exportToExcel(data: ExportRow[], periodo: string): void {
   const dataFormatada = `${hoje.getFullYear()}${String(hoje.getMonth() + 1).padStart(2, '0')}${String(hoje.getDate()).padStart(2, '0')}`;
   const periodoFormatado = periodo.replace('/', '');
 
-  // Criar worksheet
+  // CNPJ e Empresa sempre fixos
+  const CNPJ = '1091850000105';
+  const EMPRESA = 'ONSET';
+
+  // Criar worksheet com formato: CNPJ, EMPRESA, COD FUNC, NOME FUNC, COD EVENTO, NOME EVENTO, VALOR
   const wsData = [
-    ['Matrícula', 'Nome', 'Departamento', 'Descrição Evento', 'Valor (R$)', 'Período'],
+    ['CNPJ', 'EMPRESA', 'COD FUNC', 'NOME FUNC', 'COD EVENTO', 'NOME EVENTO', 'VALOR'],
     ...data.map(row => [
+      CNPJ,
+      EMPRESA,
       row.matricula,
       row.nome,
-      row.departamento,
-      row.descricaoEvento,
+      row.codigo_evento || row.codigoEvento || '',
+      row.descricao_evento || row.descricaoEvento || '',
       row.valor,
-      row.periodo,
     ])
   ];
 
@@ -32,12 +40,13 @@ export function exportToExcel(data: ExportRow[], periodo: string): void {
 
   // Definir largura das colunas
   ws['!cols'] = [
-    { wch: 12 }, // Matrícula
-    { wch: 30 }, // Nome
-    { wch: 25 }, // Departamento
-    { wch: 25 }, // Descrição Evento
-    { wch: 15 }, // Valor
-    { wch: 10 }, // Período
+    { wch: 15 }, // CNPJ
+    { wch: 15 }, // EMPRESA
+    { wch: 12 }, // COD FUNC
+    { wch: 30 }, // NOME FUNC
+    { wch: 12 }, // COD EVENTO
+    { wch: 30 }, // NOME EVENTO
+    { wch: 15 }, // VALOR
   ];
 
   // Criar workbook

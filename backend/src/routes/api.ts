@@ -175,8 +175,14 @@ router.get('/fechamentos', requireRole('RH', 'FINANCEIRO'), async (req, res) => 
 });
 router.post('/fechamentos', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await fechamentoService.processarFechamento(req.body.periodo_id, req.user!.id);
+    const result = await fechamentoService.processarFechamento(req.body.periodo_id, req.user!.id, req.user!.nome);
     res.status(201).json(result);
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+router.delete('/fechamentos/:id', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    await fechamentoService.deleteFechamento(req.params.id, req.user!.id, req.user!.nome);
+    res.json({ success: true });
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 router.get('/fechamentos/:id', requireRole('RH', 'FINANCEIRO'), async (req, res) => {

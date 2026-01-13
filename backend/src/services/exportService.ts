@@ -26,91 +26,190 @@ export const getExportData = async (
   periodoId: string,
   fechamentoId?: string
 ): Promise<ExportDataRow[]> => {
+  // Buscar período para usar no resultado
+  const periodoResult = await query(
+    'SELECT periodo FROM calendario_periodos WHERE id = $1',
+    [periodoId]
+  );
+  const periodo = periodoResult.rows[0]?.periodo || '';
+
+  // Mapeamento de componentes para nomes (conforme tabela de eventos folha)
+  const componenteNomeMap = new Map<string, string>([
+    ['vale_alimentacao', 'Vale Alimentação'],
+    ['vale_refeicao', 'Vale Refeição'],
+    ['ajuda_custo', 'Ajuda de Custo'],
+    ['mobilidade', 'Mobilidade'],
+    ['cesta_beneficios', 'Cesta de Benefícios'],
+    ['pida', 'PI/DA'],
+  ]);
+
   // Buscar eventos de folha cadastrados por componente
   const eventosResult = await query(
     'SELECT componente, codigo_evento, descricao_evento FROM tipos_despesas_eventos'
   );
   
-  const eventosMap = new Map<string, { codigo: string; descricao: string }>();
+  const eventosMap = new Map<string, { codigo: string; nome: string }>();
   for (const e of eventosResult.rows) {
-    eventosMap.set(e.componente, { codigo: e.codigo_evento, descricao: e.descricao_evento });
+    const nomeComponente = componenteNomeMap.get(e.componente) || e.componente;
+    eventosMap.set(e.componente, { codigo: e.codigo_evento, nome: nomeComponente });
   }
 
-  // Buscar lançamentos válidos (todos vão para Cesta de Benefícios)
-  const cestaEvento = eventosMap.get('cesta_beneficios') || { codigo: 'CESTA', descricao: 'Cesta de Benefícios' };
-  
-  const lancamentosResult = await query(
+  // Buscar todos os colaboradores ativos do período
+  const colaboradoresResult = await query(
     `SELECT 
+      c.id,
       c.matricula,
       c.nome,
       c.departamento,
-      l.valor_considerado as valor,
-      cp.periodo
-    FROM lancamentos l
-    JOIN colaboradores_elegiveis c ON c.id = l.colaborador_id
-    JOIN calendario_periodos cp ON cp.id = l.periodo_id
-    WHERE l.periodo_id = $1 AND l.status = 'valido'
+      c.vale_alimentacao,
+      c.vale_refeicao,
+      c.ajuda_custo,
+      c.mobilidade,
+      c.tem_pida
+    FROM colaboradores_elegiveis c
+    WHERE c.ativo = true
     ORDER BY c.nome`,
-    [periodoId]
+    []
   );
 
-  // Map lancamentos to export format with cesta evento
-  const lancamentosData = lancamentosResult.rows.map(row => ({
-    matricula: row.matricula,
-    nome: row.nome,
-    departamento: row.departamento,
-    codigo_evento: cestaEvento.codigo,
-    descricao_evento: cestaEvento.descricao,
-    valor: parseFloat(row.valor),
-    periodo: row.periodo,
-  }));
+  const allData: ExportDataRow[] = [];
 
-  // Buscar eventos PIDA
-  const pidaEvento = eventosMap.get('pida') || { codigo: 'PIDA', descricao: 'Propriedade Intelectual / Direitos Autorais' };
-  
-  const pidaResult = await query(
-    `SELECT 
-      c.matricula,
-      c.nome,
-      c.departamento,
-      ep.valor_total_pida as valor,
-      cp.periodo
-    FROM eventos_pida ep
-    JOIN colaboradores_elegiveis c ON c.id = ep.colaborador_id
-    JOIN calendario_periodos cp ON cp.id = ep.periodo_id
-    WHERE ep.periodo_id = $1
-    ORDER BY c.nome`,
-    [periodoId]
-  );
+  // Para cada colaborador, criar linhas para componentes fixos
+  for (const colab of colaboradoresResult.rows) {
+    // Vale Alimentação
+    const valeAlimentacaoEvento = eventosMap.get('vale_alimentacao');
+    const valorValeAlimentacao = Number(colab.vale_alimentacao) || 0;
+    if (valeAlimentacaoEvento && valorValeAlimentacao > 0) {
+      allData.push({
+        matricula: colab.matricula,
+        nome: colab.nome,
+        departamento: colab.departamento,
+        codigo_evento: valeAlimentacaoEvento.codigo,
+        descricao_evento: valeAlimentacaoEvento.nome,
+        valor: valorValeAlimentacao,
+        periodo: periodo,
+      });
+    }
 
-  const pidaData = pidaResult.rows.map(row => ({
-    matricula: row.matricula,
-    nome: row.nome,
-    departamento: row.departamento,
-    codigo_evento: pidaEvento.codigo,
-    descricao_evento: pidaEvento.descricao,
-    valor: parseFloat(row.valor),
-    periodo: row.periodo,
-  }));
+    // Vale Refeição
+    const valeRefeicaoEvento = eventosMap.get('vale_refeicao');
+    const valorValeRefeicao = Number(colab.vale_refeicao) || 0;
+    if (valeRefeicaoEvento && valorValeRefeicao > 0) {
+      allData.push({
+        matricula: colab.matricula,
+        nome: colab.nome,
+        departamento: colab.departamento,
+        codigo_evento: valeRefeicaoEvento.codigo,
+        descricao_evento: valeRefeicaoEvento.nome,
+        valor: valorValeRefeicao,
+        periodo: periodo,
+      });
+    }
 
-  // Combinar e agrupar por colaborador + evento
-  const allData = [...lancamentosData, ...pidaData];
+    // Ajuda de Custo
+    const ajudaCustoEvento = eventosMap.get('ajuda_custo');
+    const valorAjudaCusto = Number(colab.ajuda_custo) || 0;
+    if (ajudaCustoEvento && valorAjudaCusto > 0) {
+      allData.push({
+        matricula: colab.matricula,
+        nome: colab.nome,
+        departamento: colab.departamento,
+        codigo_evento: ajudaCustoEvento.codigo,
+        descricao_evento: ajudaCustoEvento.nome,
+        valor: valorAjudaCusto,
+        periodo: periodo,
+      });
+    }
 
-  // Agrupar por matricula + codigo_evento
-  const grouped = new Map<string, ExportDataRow>();
-
-  for (const row of allData) {
-    const key = `${row.matricula}-${row.codigo_evento}`;
-    const existing = grouped.get(key);
-
-    if (existing) {
-      existing.valor += row.valor;
-    } else {
-      grouped.set(key, { ...row });
+    // Mobilidade
+    const mobilidadeEvento = eventosMap.get('mobilidade');
+    const valorMobilidade = Number(colab.mobilidade) || 0;
+    if (mobilidadeEvento && valorMobilidade > 0) {
+      allData.push({
+        matricula: colab.matricula,
+        nome: colab.nome,
+        departamento: colab.departamento,
+        codigo_evento: mobilidadeEvento.codigo,
+        descricao_evento: mobilidadeEvento.nome,
+        valor: valorMobilidade,
+        periodo: periodo,
+      });
     }
   }
 
-  return Array.from(grouped.values()).sort((a, b) => {
+  // Buscar lançamentos válidos (Cesta de Benefícios - valor aprovado)
+  const cestaEvento = eventosMap.get('cesta_beneficios');
+  
+  // Só incluir Cesta de Benefícios se o evento estiver cadastrado
+  if (cestaEvento) {
+    const lancamentosResult = await query(
+      `SELECT 
+        c.matricula,
+        c.nome,
+        c.departamento,
+        SUM(l.valor_considerado) as valor
+      FROM lancamentos l
+      JOIN colaboradores_elegiveis c ON c.id = l.colaborador_id
+      WHERE l.periodo_id = $1 AND l.status = 'valido'
+      GROUP BY c.id, c.matricula, c.nome, c.departamento
+      ORDER BY c.nome`,
+      [periodoId]
+    );
+
+    // Map lançamentos to export format with cesta evento
+    for (const row of lancamentosResult.rows) {
+      const valor = Number(row.valor) || 0;
+      if (valor > 0) {
+        allData.push({
+          matricula: row.matricula,
+          nome: row.nome,
+          departamento: row.departamento,
+          codigo_evento: cestaEvento.codigo,
+          descricao_evento: cestaEvento.nome,
+          valor: valor,
+          periodo: periodo,
+        });
+      }
+    }
+  }
+
+  // Buscar eventos PIDA (apenas colaboradores com tem_pida = true)
+  const pidaEvento = eventosMap.get('pida');
+  
+  // Só incluir PIDA se o evento estiver cadastrado
+  if (pidaEvento) {
+    // Buscar colaboradores com PIDA ativo (usar pida_teto diretamente do colaborador)
+    const colaboradoresComPidaResult = await query(
+      `SELECT 
+        c.matricula,
+        c.nome,
+        c.departamento,
+        c.pida_teto
+      FROM colaboradores_elegiveis c
+      WHERE c.ativo = true AND c.tem_pida = true
+      ORDER BY c.nome`,
+      []
+    );
+
+    // Criar linhas para colaboradores com PIDA (usar pida_teto diretamente)
+    for (const row of colaboradoresComPidaResult.rows) {
+      const valor = Number(row.pida_teto) || 0;
+      if (valor > 0) {
+        allData.push({
+          matricula: row.matricula,
+          nome: row.nome,
+          departamento: row.departamento,
+          codigo_evento: pidaEvento.codigo,
+          descricao_evento: pidaEvento.nome,
+          valor: valor,
+          periodo: periodo,
+        });
+      }
+    }
+  }
+
+  // Ordenar por nome do colaborador e código do evento
+  return allData.sort((a, b) => {
     if (a.nome !== b.nome) return a.nome.localeCompare(b.nome);
     return a.codigo_evento.localeCompare(b.codigo_evento);
   });

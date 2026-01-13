@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query, transaction } from '../config/database';
 import { Fechamento, EventoPida } from '../types';
+import * as auditService from './auditService';
 
 export interface FechamentoWithRelations extends Fechamento {
   periodo?: {
@@ -11,9 +12,12 @@ export interface FechamentoWithRelations extends Fechamento {
 
 export const getFechamentos = async (periodoId?: string): Promise<FechamentoWithRelations[]> => {
   let sql = `
-    SELECT f.*, json_build_object('id', cp.id, 'periodo', cp.periodo) as periodo
+    SELECT f.*, 
+           json_build_object('id', cp.id, 'periodo', cp.periodo) as periodo,
+           p.nome as usuario_nome
     FROM fechamentos f
     JOIN calendario_periodos cp ON cp.id = f.periodo_id
+    LEFT JOIN profiles p ON p.id = f.usuario_id
     WHERE 1=1
   `;
   const params: any[] = [];
@@ -53,7 +57,8 @@ export interface ProcessarFechamentoResult {
 
 export const processarFechamento = async (
   periodoId: string,
-  usuarioId: string
+  usuarioId: string,
+  usuarioName: string
 ): Promise<ProcessarFechamentoResult> => {
   // Verificar se há lançamentos pendentes
   const pendingResult = await query(
@@ -92,63 +97,140 @@ export const processarFechamento = async (
       porColaborador.set(lanc.colaborador_id, existing);
     }
 
-    // Calcular totais e eventos PIDA
+    // Buscar eventos de folha cadastrados
+    const eventosResult = await client.query(
+      'SELECT componente, codigo_evento FROM tipos_despesas_eventos',
+      []
+    );
+    
+    const eventosCadastrados = new Set<string>();
+    for (const e of eventosResult.rows) {
+      eventosCadastrados.add(e.componente);
+    }
+
+    // Buscar todos os colaboradores ativos para calcular componentes fixos
+    const todosColaboradoresResult = await client.query(
+      `SELECT 
+        c.id,
+        c.vale_alimentacao,
+        c.vale_refeicao,
+        c.ajuda_custo,
+        c.mobilidade,
+        c.pida_teto,
+        c.tem_pida
+      FROM colaboradores_elegiveis c
+      WHERE c.ativo = true`,
+      []
+    );
+
+    // Calcular totais de componentes fixos (apenas os que têm evento cadastrado)
+    let valorTotalFixos = 0;
+    let valorTotalPida = 0;
+    for (const colab of todosColaboradoresResult.rows) {
+      if (eventosCadastrados.has('vale_alimentacao')) {
+        valorTotalFixos += Number(colab.vale_alimentacao) || 0;
+      }
+      if (eventosCadastrados.has('vale_refeicao')) {
+        valorTotalFixos += Number(colab.vale_refeicao) || 0;
+      }
+      if (eventosCadastrados.has('ajuda_custo')) {
+        valorTotalFixos += Number(colab.ajuda_custo) || 0;
+      }
+      if (eventosCadastrados.has('mobilidade')) {
+        valorTotalFixos += Number(colab.mobilidade) || 0;
+      }
+      
+      // PIDA só conta se o evento estiver cadastrado
+      if (colab.tem_pida && eventosCadastrados.has('pida')) {
+        valorTotalPida += Number(colab.pida_teto) || 0;
+      }
+    }
+
+    // Calcular totais e eventos PIDA (sem inserir ainda)
     let totalColaboradores = porColaborador.size;
     let totalEventos = lancamentos.length;
-    let valorTotal = 0;
-    let valorPidaTotal = 0;
-    const eventosPida: EventoPida[] = [];
+    let valorTotalCesta = 0;
+    const eventosPidaData: Array<{
+      id: string;
+      colaborador_id: string;
+      periodo_id: string;
+      valor_base_pida: number;
+      valor_diferenca_cesta: number;
+      valor_total_pida: number;
+    }> = [];
 
     for (const [colaboradorId, lancs] of porColaborador) {
       const primeiro = lancs[0];
-      const cestaTeto = primeiro.cesta_beneficios_teto || 0;
-      const pidaTeto = primeiro.pida_teto || 0;
+      // Garantir conversão numérica correta (evitar concatenação de strings)
+      const cestaTeto = Number(primeiro.cesta_beneficios_teto) || 0;
+      const pidaTeto = Number(primeiro.pida_teto) || 0;
       const temPida = primeiro.tem_pida || false;
 
       // Somar valor considerado de despesas variáveis (Cesta de Benefícios)
-      const totalCesta = lancs.reduce((sum: number, l: any) => sum + parseFloat(l.valor_considerado || 0), 0);
-      valorTotal += totalCesta;
+      // Calcular sempre (necessário para PIDA), mas só adicionar ao total se o evento estiver cadastrado
+      const totalCesta = lancs.reduce((sum: number, l: any) => {
+        const valor = Number(l.valor_considerado) || 0;
+        return sum + valor;
+      }, 0);
+      
+      if (eventosCadastrados.has('cesta_beneficios')) {
+        valorTotalCesta += totalCesta;
+      }
 
-      // Se colaborador tem PIDA, calcular diferença da cesta
+      // Se colaborador tem PIDA, calcular diferença da cesta (para eventos_pida, mas não usar no valor total)
       if (temPida && cestaTeto > 0) {
         const diferencaCesta = Math.max(0, cestaTeto - totalCesta);
-        const valorTotalPida = pidaTeto + diferencaCesta;
+        const valorTotalPidaCalculado = Number(pidaTeto) + Number(diferencaCesta);
 
-        if (valorTotalPida > 0) {
-          const eventoPidaId = uuidv4();
-          await client.query(
-            `INSERT INTO eventos_pida (
-              id, colaborador_id, periodo_id, fechamento_id,
-              valor_base_pida, valor_diferenca_cesta, valor_total_pida, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
-            [eventoPidaId, colaboradorId, periodoId, fechamentoId, pidaTeto, diferencaCesta, valorTotalPida]
-          );
-
-          eventosPida.push({
-            id: eventoPidaId,
+        if (valorTotalPidaCalculado > 0) {
+          eventosPidaData.push({
+            id: uuidv4(),
             colaborador_id: colaboradorId,
             periodo_id: periodoId,
-            fechamento_id: fechamentoId,
             valor_base_pida: pidaTeto,
             valor_diferenca_cesta: diferencaCesta,
-            valor_total_pida: valorTotalPida,
-            created_at: new Date().toISOString(),
+            valor_total_pida: valorTotalPidaCalculado,
           });
 
-          valorPidaTotal += valorTotalPida;
           totalEventos++; // PIDA é um evento adicional
         }
       }
     }
 
-    // Criar registro de fechamento
+    // Valor total = Componentes fixos + Cesta de Benefícios + PI/DA
+    const valorTotalFinal = valorTotalFixos + valorTotalCesta + valorTotalPida;
+
+    // Criar registro de fechamento PRIMEIRO (antes de inserir eventos_pida)
     const fechamentoResult = await client.query(
       `INSERT INTO fechamentos (
         id, periodo_id, usuario_id, data_processamento, status,
         total_colaboradores, total_eventos, valor_total, created_at
       ) VALUES ($1, $2, $3, NOW(), 'sucesso', $4, $5, $6, NOW()) RETURNING *`,
-      [fechamentoId, periodoId, usuarioId, totalColaboradores, totalEventos, valorTotal + valorPidaTotal]
+      [fechamentoId, periodoId, usuarioId, totalColaboradores, totalEventos, valorTotalFinal]
     );
+
+    // Agora inserir os eventos_pida (após criar o fechamento)
+    const eventosPida: EventoPida[] = [];
+    for (const eventoData of eventosPidaData) {
+      await client.query(
+        `INSERT INTO eventos_pida (
+          id, colaborador_id, periodo_id, fechamento_id,
+          valor_base_pida, valor_diferenca_cesta, valor_total_pida, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())`,
+        [eventoData.id, eventoData.colaborador_id, eventoData.periodo_id, fechamentoId, eventoData.valor_base_pida, eventoData.valor_diferenca_cesta, eventoData.valor_total_pida]
+      );
+
+      eventosPida.push({
+        id: eventoData.id,
+        colaborador_id: eventoData.colaborador_id,
+        periodo_id: eventoData.periodo_id,
+        fechamento_id: fechamentoId,
+        valor_base_pida: eventoData.valor_base_pida,
+        valor_diferenca_cesta: eventoData.valor_diferenca_cesta,
+        valor_total_pida: eventoData.valor_total_pida,
+        created_at: new Date().toISOString(),
+      });
+    }
 
     // Fechar o período
     await client.query(
@@ -156,16 +238,37 @@ export const processarFechamento = async (
       [periodoId]
     );
 
+    const fechamentoFinal = fechamentoResult.rows[0];
+
     return {
-      fechamento: fechamentoResult.rows[0],
+      fechamento: fechamentoFinal,
       eventos_pida: eventosPida,
       resumo: {
         total_colaboradores: totalColaboradores,
         total_eventos: totalEventos,
-        valor_total: valorTotal + valorPidaTotal,
-        valor_pida: valorPidaTotal,
+        valor_total: valorTotalFinal,
+        valor_pida: valorTotalPida,
       },
     };
+  }).then(async (result) => {
+    // Log de auditoria FORA da transação (após commit)
+    await auditService.createAuditLog({
+      userId: usuarioId,
+      userName: usuarioName,
+      action: 'processar',
+      entityType: 'fechamento',
+      entityId: result.fechamento.id,
+      entityDescription: `Processamento de fechamento para período ${periodoId}`,
+      newValues: {
+        periodo_id: periodoId,
+        total_colaboradores: result.resumo.total_colaboradores,
+        total_eventos: result.resumo.total_eventos,
+        valor_total: result.resumo.valor_total,
+        valor_pida: result.resumo.valor_pida,
+      },
+    });
+
+    return result;
   });
 };
 
@@ -230,4 +333,49 @@ export const getResumoFechamento = async (periodoId: string) => {
     pendentes: pendingResult.rows[0],
     total_colaboradores: parseInt(colaboradoresResult.rows[0].count),
   };
+};
+
+export const deleteFechamento = async (
+  id: string,
+  usuarioId: string,
+  usuarioName: string
+): Promise<void> => {
+  // Buscar fechamento antes de excluir para log de auditoria
+  const fechamento = await getFechamentoById(id);
+  if (!fechamento) {
+    throw new Error('Fechamento não encontrado');
+  }
+
+  return transaction(async (client) => {
+    // Verificar se há eventos_pida vinculados (deve excluir primeiro devido à FK)
+    const eventosPida = await client.query(
+      `SELECT id FROM eventos_pida WHERE fechamento_id = $1`,
+      [id]
+    );
+
+    // Excluir eventos_pida primeiro
+    if (eventosPida.rows.length > 0) {
+      await client.query(
+        `DELETE FROM eventos_pida WHERE fechamento_id = $1`,
+        [id]
+      );
+    }
+
+    // Excluir fechamento
+    await client.query(
+      `DELETE FROM fechamentos WHERE id = $1`,
+      [id]
+    );
+
+    // Log de auditoria
+    await auditService.createAuditLog({
+      userId: usuarioId,
+      userName: usuarioName,
+      action: 'excluir',
+      entityType: 'fechamento',
+      entityId: id,
+      entityDescription: `Exclusão de fechamento do período ${fechamento.periodo_id}`,
+      oldValues: fechamento,
+    });
+  });
 };

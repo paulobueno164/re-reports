@@ -5,8 +5,8 @@ import { AuditLog } from '../types';
 export interface CreateAuditLogInput {
   userId: string;
   userName: string;
-  action: 'aprovar' | 'rejeitar' | 'criar' | 'atualizar' | 'excluir' | 'iniciar_analise';
-  entityType: 'lancamento' | 'colaborador' | 'tipo_despesa' | 'periodo' | 'evento_folha' | 'departamento' | 'grupo_despesa';
+  action: 'aprovar' | 'rejeitar' | 'criar' | 'atualizar' | 'excluir' | 'iniciar_analise' | 'processar';
+  entityType: 'lancamento' | 'colaborador' | 'tipo_despesa' | 'periodo' | 'evento_folha' | 'departamento' | 'grupo_despesa' | 'fechamento';
   entityId: string;
   entityDescription?: string;
   oldValues?: Record<string, any>;

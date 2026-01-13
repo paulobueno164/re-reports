@@ -4,6 +4,7 @@ export interface Fechamento {
   id: string;
   periodo_id: string;
   usuario_id: string;
+  usuario_nome?: string;
   data_processamento: string;
   status: string;
   detalhes_erro: string | null;
@@ -78,6 +79,10 @@ export const fechamentoService = {
     if (fechamentoId) params.append('fechamento_id', fechamentoId);
     const query = params.toString();
     return apiClient.get<EventoPida[]>(`/api/eventos-pida${query ? `?${query}` : ''}`);
+  },
+
+  async delete(id: string): Promise<void> {
+    await apiClient.delete(`/api/fechamentos/${id}`);
   },
 };
 

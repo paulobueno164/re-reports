@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Play, Download, FileSpreadsheet, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Play, Download, FileSpreadsheet, CheckCircle, AlertCircle, Clock, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,16 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -70,11 +80,15 @@ const Fechamento = () => {
   const [pendingEmAnalise, setPendingEmAnalise] = useState(0);
   const [totalLancamentos, setTotalLancamentos] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [fechamentoToDelete, setFechamentoToDelete] = useState<ClosingLog | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const viewingPeriod = periods.find(p => p.id === filterPeriod);
   const pendingValidation = pendingEnviado + pendingEmAnalise;
   const canProcess = pendingValidation === 0 && hasRole('RH');
   const canExport = hasRole('FINANCEIRO') || hasRole('RH');
+  const canDelete = hasRole('RH');
 
   useEffect(() => {
     fetchPeriods();
@@ -123,7 +137,7 @@ const Fechamento = () => {
           id: f.id,
           periodo: f.periodo?.periodo || '',
           dataProcessamento: new Date(f.data_processamento),
-          usuario: 'Sistema',
+          usuario: f.usuario_nome || 'Sistema',
           totalColaboradores: f.total_colaboradores,
           totalEventos: f.total_eventos,
           valorTotal: Number(f.valor_total),
@@ -158,33 +172,33 @@ const Fechamento = () => {
       render: (item: ClosingLog) => formatCurrency(item.valorTotal),
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (item: ClosingLog) => (
-        <span
-          className={`status-badge ${
-            item.status === 'sucesso' ? 'status-valid' : 'status-invalid'
-          }`}
-        >
-          {item.status === 'sucesso' ? 'OK' : 'Erro'}
-        </span>
-      ),
-    },
-    {
       key: 'actions',
       header: '',
       className: 'text-right',
       render: (item: ClosingLog) => (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 px-2 sm:px-3"
-          onClick={() => handleExport(item)}
-          disabled={!canExport}
-        >
-          <Download className="h-4 w-4 sm:mr-2" />
-          <span className="hidden sm:inline">Exportar</span>
-        </Button>
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2 sm:px-3"
+            onClick={() => handleExport(item)}
+            disabled={!canExport}
+          >
+            <Download className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Exportar</span>
+          </Button>
+          {canDelete && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 sm:px-3 text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => handleDeleteClick(item)}
+            >
+              <Trash2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Excluir</span>
+            </Button>
+          )}
+        </div>
       ),
     },
   ];
@@ -218,7 +232,14 @@ const Fechamento = () => {
       });
 
       setIsDialogOpen(false);
-      fetchPeriods();
+      
+      // Atualizar períodos e lista de fechamentos
+      await fetchPeriods();
+      
+      // Atualizar a lista de fechamentos do período processado
+      if (selectedPeriod) {
+        await fetchDataForPeriod(selectedPeriod);
+      }
     } catch (error: any) {
       toast({
         title: 'Erro no processamento',
@@ -235,66 +256,43 @@ const Fechamento = () => {
       const period = periods.find(p => p.periodo === log.periodo);
       if (!period) return;
 
-      // Fetch eventos de folha
-      const eventosFolha = await eventosFolhaService.getAll();
-      const eventosMap = new Map(
-        (eventosFolha || []).map((e: any) => [e.componente, { codigo: e.codigo_evento, descricao: e.descricao_evento }])
-      );
+      // Usar o serviço do backend para buscar dados de exportação
+      const exportData = await exportService.getExportData(period.id);
 
-      // Fetch lancamentos from backend
-      const lancamentos = await lancamentosService.getAll({ periodo_id: period.id, status: 'valido' });
-      
-      // Map lancamentos
-      const cestaEvento = eventosMap.get('cesta_beneficios');
-      const lancamentosData = (lancamentos || []).map((l: any) => ({
-        matricula: l.colaborador?.matricula || '',
-        nome: l.colaborador?.nome || '',
-        departamento: l.colaborador?.departamento || '',
-        codigoEvento: cestaEvento?.codigo || 'CESTA',
-        descricaoEvento: cestaEvento?.descricao || 'Cesta de Benefícios',
-        valor: Number(l.valor_considerado),
-        periodo: log.periodo,
-      }));
-
-      // Fetch eventos PIDA for this fechamento
-      const eventosPida = await fechamentoService.getEventosPida(undefined, log.id);
-      const pidaEvento = eventosMap.get('pida');
-      const pidaExportData = (eventosPida || []).map((e: any) => ({
-        matricula: e.matricula || '',
-        nome: e.colaborador_nome || '',
-        departamento: '',
-        codigoEvento: pidaEvento?.codigo || 'PIDA',
-        descricaoEvento: pidaEvento?.descricao || 'PI/DA - Propriedade Intelectual / Direitos Autorais',
-        valor: Number(e.valor_total_pida),
-        periodo: log.periodo,
-      }));
-
-      const allExportData = [...lancamentosData, ...pidaExportData];
-
-      if (allExportData.length === 0) {
+      if (!exportData || exportData.length === 0) {
         toast({
           title: 'Sem dados',
-          description: 'Não há lançamentos ou eventos PI/DA para exportar.',
+          description: 'Não há dados para exportar.',
           variant: 'destructive',
         });
         return;
       }
 
-      exportToExcel(allExportData, log.periodo);
+      // Converter formato do backend para formato do Excel
+      const excelData = exportData.map(row => ({
+        matricula: row.matricula,
+        nome: row.nome,
+        codigo_evento: row.codigo_evento,
+        descricao_evento: row.descricao_evento,
+        valor: row.valor,
+        periodo: row.periodo,
+      }));
+
+      exportToExcel(excelData, log.periodo);
 
       // Log the export
       if (user) {
         await exportService.createRecord(
           period.id,
           `RemuneracaoEstrategica_${log.periodo.replace('/', '')}.xlsx`,
-          allExportData.length,
+          exportData.length,
           log.id
         );
       }
 
       toast({
         title: 'Exportação concluída',
-        description: `Arquivo Excel gerado com ${allExportData.length} registros.`,
+        description: `Arquivo Excel gerado com ${exportData.length} registros.`,
       });
     } catch (error: any) {
       toast({
@@ -302,6 +300,37 @@ const Fechamento = () => {
         description: error.message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const handleDeleteClick = (log: ClosingLog) => {
+    setFechamentoToDelete(log);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!fechamentoToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await fechamentoService.delete(fechamentoToDelete.id);
+      toast({
+        title: 'Fechamento excluído',
+        description: `Fechamento do período ${fechamentoToDelete.periodo} foi excluído com sucesso.`,
+      });
+      setDeleteDialogOpen(false);
+      setFechamentoToDelete(null);
+      if (filterPeriod) {
+        fetchDataForPeriod(filterPeriod);
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -514,6 +543,35 @@ const Fechamento = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+              Excluir Fechamento
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o fechamento do período{' '}
+              <strong>{fechamentoToDelete?.periodo}</strong>?
+              <br />
+              <br />
+              Esta ação não pode ser desfeita. Todos os dados relacionados a este fechamento serão removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
