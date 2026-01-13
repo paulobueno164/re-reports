@@ -20,18 +20,41 @@ export interface ExportDataRow {
   descricao_evento: string;
   valor: number;
   periodo: string;
+  ano_ref: number;
+  mes_ref: number;
 }
 
 export const getExportData = async (
   periodoId: string,
   fechamentoId?: string
 ): Promise<ExportDataRow[]> => {
-  // Buscar período para usar no resultado
+  // Buscar período para usar no resultado (incluindo data_final para ANO REF e MES REF)
   const periodoResult = await query(
-    'SELECT periodo FROM calendario_periodos WHERE id = $1',
+    'SELECT periodo, data_final FROM calendario_periodos WHERE id = $1',
     [periodoId]
   );
   const periodo = periodoResult.rows[0]?.periodo || '';
+  const dataFinal = periodoResult.rows[0]?.data_final;
+  
+  // Extrair ano e mês da data_final
+  // O PostgreSQL pode retornar como Date object ou string, então tratamos ambos os casos
+  let anoRef = 0;
+  let mesRef = 0;
+  if (dataFinal) {
+    let data: Date;
+    
+    // Se já é um objeto Date, usar diretamente; caso contrário, criar a partir da string
+    if (dataFinal instanceof Date) {
+      data = dataFinal;
+    } else {
+      // Se for string no formato YYYY-MM-DD, criar Date
+      data = new Date(String(dataFinal));
+    }
+    
+    // Extrair ano e mês do objeto Date
+    anoRef = data.getFullYear();
+    mesRef = data.getMonth() + 1; // getMonth() retorna 0-11, então adicionamos 1
+  }
 
   // Mapeamento de componentes para nomes (conforme tabela de eventos folha)
   const componenteNomeMap = new Map<string, string>([
@@ -88,6 +111,8 @@ export const getExportData = async (
         descricao_evento: valeAlimentacaoEvento.nome,
         valor: valorValeAlimentacao,
         periodo: periodo,
+        ano_ref: anoRef,
+        mes_ref: mesRef,
       });
     }
 
@@ -103,6 +128,8 @@ export const getExportData = async (
         descricao_evento: valeRefeicaoEvento.nome,
         valor: valorValeRefeicao,
         periodo: periodo,
+        ano_ref: anoRef,
+        mes_ref: mesRef,
       });
     }
 
@@ -118,6 +145,8 @@ export const getExportData = async (
         descricao_evento: ajudaCustoEvento.nome,
         valor: valorAjudaCusto,
         periodo: periodo,
+        ano_ref: anoRef,
+        mes_ref: mesRef,
       });
     }
 
@@ -133,6 +162,8 @@ export const getExportData = async (
         descricao_evento: mobilidadeEvento.nome,
         valor: valorMobilidade,
         periodo: periodo,
+        ano_ref: anoRef,
+        mes_ref: mesRef,
       });
     }
   }
@@ -168,6 +199,8 @@ export const getExportData = async (
           descricao_evento: cestaEvento.nome,
           valor: valor,
           periodo: periodo,
+          ano_ref: anoRef,
+          mes_ref: mesRef,
         });
       }
     }
@@ -203,6 +236,8 @@ export const getExportData = async (
           descricao_evento: pidaEvento.nome,
           valor: valor,
           periodo: periodo,
+          ano_ref: anoRef,
+          mes_ref: mesRef,
         });
       }
     }

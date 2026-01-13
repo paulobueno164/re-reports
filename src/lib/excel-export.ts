@@ -10,6 +10,8 @@ interface ExportRow {
   descricaoEvento?: string; // compatibilidade com código antigo
   valor: number;
   periodo?: string;
+  ano_ref?: number;
+  mes_ref?: number;
 }
 
 export function exportToExcel(data: ExportRow[], periodo: string): void {
@@ -22,12 +24,14 @@ export function exportToExcel(data: ExportRow[], periodo: string): void {
   const CNPJ = '1091850000105';
   const EMPRESA = 'ONSET';
 
-  // Criar worksheet com formato: CNPJ, EMPRESA, COD FUNC, NOME FUNC, COD EVENTO, NOME EVENTO, VALOR
+  // Criar worksheet com formato: CNPJ, EMPRESA, ANO REF, MES REF, COD FUNC, NOME FUNC, COD EVENTO, NOME EVENTO, VALOR
   const wsData = [
-    ['CNPJ', 'EMPRESA', 'COD FUNC', 'NOME FUNC', 'COD EVENTO', 'NOME EVENTO', 'VALOR'],
+    ['CNPJ', 'EMPRESA', 'ANO REF', 'MES REF', 'COD FUNC', 'NOME FUNC', 'COD EVENTO', 'NOME EVENTO', 'VALOR'],
     ...data.map(row => [
       CNPJ,
       EMPRESA,
+      row.ano_ref || '',
+      row.mes_ref || '',
       row.matricula,
       row.nome,
       row.codigo_evento || row.codigoEvento || '',
@@ -42,6 +46,8 @@ export function exportToExcel(data: ExportRow[], periodo: string): void {
   ws['!cols'] = [
     { wch: 15 }, // CNPJ
     { wch: 15 }, // EMPRESA
+    { wch: 10 }, // ANO REF
+    { wch: 10 }, // MES REF
     { wch: 12 }, // COD FUNC
     { wch: 30 }, // NOME FUNC
     { wch: 12 }, // COD EVENTO

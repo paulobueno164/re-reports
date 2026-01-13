@@ -276,6 +276,8 @@ const Fechamento = () => {
         descricao_evento: row.descricao_evento,
         valor: row.valor,
         periodo: row.periodo,
+        ano_ref: row.ano_ref,
+        mes_ref: row.mes_ref,
       }));
 
       exportToExcel(excelData, log.periodo);
