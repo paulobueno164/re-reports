@@ -115,6 +115,33 @@ router.post(
         tamanho: uploadResult.size,
       });
 
+      // Se o lançamento tem parcelamento, copiar anexo para todas as parcelas
+      if (lancamento.parcelamento_ativo && lancamento.parcelamento_total_parcelas && lancamento.parcelamento_total_parcelas > 1) {
+        // Determinar se é o lançamento original ou uma parcela
+        const lancamentoOrigemId = lancamento.lancamento_origem_id || lancamentoId;
+        
+        // Buscar todas as parcelas (incluindo a original se este for uma parcela)
+        const { query } = await import('../config/database');
+        const todasParcelas = await query(
+          `SELECT id FROM lancamentos
+           WHERE (id = $1 OR lancamento_origem_id = $1)
+             AND parcelamento_ativo = true
+             AND id != $2`, // Excluir o lançamento atual (já tem o anexo)
+          [lancamentoOrigemId, lancamentoId]
+        );
+
+        // Copiar anexo para todas as parcelas
+        for (const parcela of todasParcelas.rows) {
+          await anexoService.createAnexo({
+            lancamento_id: parcela.id,
+            nome_arquivo: uploadResult.originalName,
+            tipo_arquivo: uploadResult.mimeType,
+            storage_path: uploadResult.storagePath,
+            tamanho: uploadResult.size,
+          });
+        }
+      }
+
       res.status(201).json(anexo);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -175,6 +202,33 @@ router.post(
             storage_path: uploadResult.storagePath,
             tamanho: uploadResult.size,
           });
+
+          // Se o lançamento tem parcelamento, copiar anexo para todas as parcelas
+          if (lancamento.parcelamento_ativo && lancamento.parcelamento_total_parcelas && lancamento.parcelamento_total_parcelas > 1) {
+            // Determinar se é o lançamento original ou uma parcela
+            const lancamentoOrigemId = lancamento.lancamento_origem_id || lancamentoId;
+            
+            // Buscar todas as parcelas (incluindo a original se este for uma parcela)
+            const { query } = await import('../config/database');
+            const todasParcelas = await query(
+              `SELECT id FROM lancamentos
+               WHERE (id = $1 OR lancamento_origem_id = $1)
+                 AND parcelamento_ativo = true
+                 AND id != $2`, // Excluir o lançamento atual (já tem o anexo)
+              [lancamentoOrigemId, lancamentoId]
+            );
+
+            // Copiar anexo para todas as parcelas
+            for (const parcela of todasParcelas.rows) {
+              await anexoService.createAnexo({
+                lancamento_id: parcela.id,
+                nome_arquivo: uploadResult.originalName,
+                tipo_arquivo: uploadResult.mimeType,
+                storage_path: uploadResult.storagePath,
+                tamanho: uploadResult.size,
+              });
+            }
+          }
 
           results.push(anexo);
         } catch (error: any) {

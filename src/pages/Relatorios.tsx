@@ -196,7 +196,7 @@ const Relatorios = () => {
         { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
         { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
         { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-        { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
+        ...(colaborador.cesta_beneficios_teto > 0 ? [{ componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 }] : []),
       ];
 
       if (colaborador.tem_pida) {
@@ -315,7 +315,7 @@ const Relatorios = () => {
           { componente: 'Vale Refeição', valorParametrizado: colaborador.vale_refeicao, valorUtilizado: colaborador.vale_refeicao, percentual: 100 },
           { componente: 'Ajuda de Custo', valorParametrizado: colaborador.ajuda_custo, valorUtilizado: colaborador.ajuda_custo, percentual: 100 },
           { componente: 'Mobilidade', valorParametrizado: colaborador.mobilidade, valorUtilizado: colaborador.mobilidade, percentual: 100 },
-          { componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 },
+          ...(colaborador.cesta_beneficios_teto > 0 ? [{ componente: 'Cesta de Benefícios', valorParametrizado: colaborador.cesta_beneficios_teto, valorUtilizado: totalCesta, percentual: colaborador.cesta_beneficios_teto > 0 ? (totalCesta / colaborador.cesta_beneficios_teto) * 100 : 0 }] : []),
         ];
         if (colaborador.tem_pida) {
           resumo.push({ componente: 'PI/DA (base)', valorParametrizado: colaborador.pida_teto, valorUtilizado: colaborador.pida_teto, percentual: 100 });
@@ -475,20 +475,24 @@ const Relatorios = () => {
                     </table>
                   </div>
                 </div>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-semibold mb-3">Análise de Utilização - Cesta de Benefícios</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4">
-                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold truncate">{formatCurrency(previewData.utilizacao.limiteCesta)}</p><p className="text-xs text-muted-foreground">Limite Total</p></div>
-                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-primary truncate">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Aprovado</p></div>
-                    {previewData.utilizacao.totalPendente > 0 && (
-                      <div className="p-2 sm:p-4 bg-warning/10 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-warning truncate">{formatCurrency(previewData.utilizacao.totalPendente)}</p><p className="text-xs text-muted-foreground">Pendente</p></div>
-                    )}
-                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold">{previewData.utilizacao.percentual}%</p><p className="text-xs text-muted-foreground">Percentual</p></div>
-                    <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-muted-foreground truncate">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Conv. PI/DA</p></div>
-                  </div>
-                  <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
-                </div>
+                {previewData.utilizacao.limiteCesta > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-sm font-semibold mb-3">Análise de Utilização - Cesta de Benefícios</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 sm:gap-4">
+                        <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold truncate">{formatCurrency(previewData.utilizacao.limiteCesta)}</p><p className="text-xs text-muted-foreground">Limite Total</p></div>
+                        <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-primary truncate">{formatCurrency(previewData.utilizacao.totalUtilizado)}</p><p className="text-xs text-muted-foreground">Aprovado</p></div>
+                        {previewData.utilizacao.totalPendente > 0 && (
+                          <div className="p-2 sm:p-4 bg-warning/10 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-warning truncate">{formatCurrency(previewData.utilizacao.totalPendente)}</p><p className="text-xs text-muted-foreground">Pendente</p></div>
+                        )}
+                        <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold">{previewData.utilizacao.percentual}%</p><p className="text-xs text-muted-foreground">Percentual</p></div>
+                        <div className="p-2 sm:p-4 bg-muted/50 rounded-lg text-center"><p className="text-base sm:text-2xl font-bold text-muted-foreground truncate">{formatCurrency(previewData.utilizacao.diferencaPida)}</p><p className="text-xs text-muted-foreground">Conv. PI/DA</p></div>
+                      </div>
+                      <div className="mt-3"><Progress value={previewData.utilizacao.percentual} className="h-2" /></div>
+                    </div>
+                  </>
+                )}
 
                 {previewData.despesas.length > 0 && (
                   <>

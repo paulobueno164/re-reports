@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PeriodSelect } from '@/components/ui/period-select';
 import { Label } from '@/components/ui/label';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
 import { findCurrentPeriod } from '@/lib/utils';
@@ -322,21 +323,16 @@ const DashboardFinanceiro = () => {
         description={`Período: ${currentPeriodName}`}
       >
         <div className="flex flex-row gap-4 items-end flex-wrap">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Período</Label>
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Selecione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Períodos</SelectItem>
-                {periods.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.periodo} {p.status === 'fechado' && '(Fechado)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col space-y-1.5">
+            <Label className="text-xs text-muted-foreground block">Período</Label>
+            <PeriodSelect
+              periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+              value={selectedPeriodId}
+              onValueChange={setSelectedPeriodId}
+              className="w-[180px]"
+              includeAllOption={true}
+              allOptionLabel="Todos os Períodos"
+            />
           </div>
           <Button asChild>
             <Link to="/fechamento">Ir para Fechamento</Link>

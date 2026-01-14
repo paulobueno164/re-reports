@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PeriodSelect } from '@/components/ui/period-select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -387,25 +388,18 @@ const LancamentosLista = () => {
       />
 
       <div className="flex flex-row gap-4 items-end flex-wrap">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Período</Label>
-          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className="mr-2 h-4 w-4" />
-              <SelectValue placeholder="Selecione o período" />
-            </SelectTrigger>
-            <SelectContent>
-              {periods.map(period => (
-                <SelectItem key={period.id} value={period.id}>
-                  {period.periodo} {period.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col space-y-1.5">
+          <Label className="text-xs text-muted-foreground block">Período</Label>
+          <PeriodSelect
+            periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+            value={selectedPeriodId}
+            onValueChange={setSelectedPeriodId}
+            className="w-[180px]"
+          />
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Departamento</Label>
+        <div className="flex flex-col space-y-1.5">
+          <Label className="text-xs text-muted-foreground block">Departamento</Label>
           <Select value={selectedDepartamento} onValueChange={setSelectedDepartamento}>
             <SelectTrigger className="w-[180px]">
               <Users className="mr-2 h-4 w-4" />

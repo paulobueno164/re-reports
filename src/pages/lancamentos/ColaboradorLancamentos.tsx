@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PeriodSelect } from '@/components/ui/period-select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -524,20 +525,13 @@ const ColaboradorLancamentos = () => {
         {/* Period Selector */}
         {isRHorFinanceiro ? (
           <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1 sm:max-w-[250px]">
-              <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-                <SelectTrigger>
-                  <Calendar className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Selecione o período" />
-                </SelectTrigger>
-                <SelectContent>
-                  {periods.map(period => (
-                    <SelectItem key={period.id} value={period.id}>
-                      {period.periodo} {period.status === 'aberto' ? '(Aberto)' : '(Fechado)'}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="flex flex-col flex-1 sm:max-w-[250px] space-y-1.5">
+              <Label className="text-xs text-muted-foreground block">Período</Label>
+              <PeriodSelect
+                periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+                value={selectedPeriodId}
+                onValueChange={setSelectedPeriodId}
+              />
             </div>
           </div>
         ) : (

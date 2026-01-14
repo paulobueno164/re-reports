@@ -213,9 +213,8 @@ const ColaboradorForm = () => {
     }
 
     setProcessingUser(true);
+    const email = formData.email.toLowerCase().trim();
     try {
-      const email = formData.email.toLowerCase().trim();
-
       // Criar novo usuário
       const result = await authService.createUser({
         email: email,
@@ -527,7 +526,7 @@ const ColaboradorForm = () => {
                   checked={formData.beneficioProporcional}
                   onCheckedChange={(checked) => setFormData({ ...formData, beneficioProporcional: checked })}
                 />
-                <Label htmlFor="beneficioProporcional">Aplicar valores proporcionais no período de férias (VA, VR, Mobilidade, etc.)</Label>
+                <Label htmlFor="beneficioProporcional">Aplicar valores proporcionais no período de férias (Mobilidade)</Label>
               </div>
             </div>
           </TabsContent>
@@ -696,7 +695,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                            ...(formData.cestaBeneficiosTeto > 0 ? [{ nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' }] : []),
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -720,7 +719,7 @@ const ColaboradorForm = () => {
                             { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                             { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                             { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                            { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                            ...(formData.cestaBeneficiosTeto > 0 ? [{ nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' }] : []),
                             ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                           ],
                           rendimentoTotal: calculateRendimentoTotal(),
@@ -748,7 +747,7 @@ const ColaboradorForm = () => {
                     { nome: 'Vale Refeição', valor: formData.valeRefeicao, tipo: 'Fixo' },
                     { nome: 'Ajuda de Custo', valor: formData.ajudaCusto, tipo: 'Fixo' },
                     { nome: 'Mobilidade', valor: formData.mobilidade, tipo: 'Fixo' },
-                    { nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' },
+                    ...(formData.cestaBeneficiosTeto > 0 ? [{ nome: 'Cesta de Benefícios', valor: formData.cestaBeneficiosTeto, tipo: 'Teto Variável' }] : []),
                     ...(formData.temPida ? [{ nome: 'PI/DA', valor: formData.pidaTeto, tipo: 'Teto Variável' }] : []),
                   ].map((item) => (
                     <div key={item.nome} className="grid grid-cols-3 gap-2 text-sm">

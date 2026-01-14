@@ -102,12 +102,13 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
     styles: { fontSize: 9 },
   });
 
-  // Utilization section
+  // Utilization section (só mostrar se limiteCesta > 0)
   const tableEndY = (doc as any).lastAutoTable.finalY + 10;
 
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Análise de Utilização - Cesta de Benefícios', 14, tableEndY);
+  if (data.utilizacao.limiteCesta > 0) {
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Análise de Utilização - Cesta de Benefícios', 14, tableEndY);
 
   // Utilization boxes
   const boxY = tableEndY + 5;
@@ -162,13 +163,14 @@ export async function generatePDFReport(data: ReportData): Promise<Blob> {
   doc.setTextColor(100, 100, 100);
   doc.text('Convertido PI/DA', 14 + boxWidth * 3.5 + 12, boxY + 16, { align: 'center' });
 
-  // Progress bar
-  const progressY = boxY + boxHeight + 5;
-  doc.setFillColor(229, 231, 235);
-  doc.roundedRect(14, progressY, pageWidth - 28, 4, 2, 2, 'F');
-  doc.setFillColor(59, 130, 246);
-  const progressWidth = ((pageWidth - 28) * data.utilizacao.percentual) / 100;
-  doc.roundedRect(14, progressY, progressWidth, 4, 2, 2, 'F');
+    // Progress bar
+    const progressY = boxY + boxHeight + 5;
+    doc.setFillColor(229, 231, 235);
+    doc.roundedRect(14, progressY, pageWidth - 28, 4, 2, 2, 'F');
+    doc.setFillColor(59, 130, 246);
+    const progressWidth = ((pageWidth - 28) * data.utilizacao.percentual) / 100;
+    doc.roundedRect(14, progressY, progressWidth, 4, 2, 2, 'F');
+  }
 
   // Chart section - expenses by category
   if (data.totaisPorCategoria.length > 0) {

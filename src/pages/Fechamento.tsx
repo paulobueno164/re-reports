@@ -22,13 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { PeriodSelect } from '@/components/ui/period-select';
 import {
   Alert,
   AlertDescription,
@@ -360,20 +354,14 @@ const Fechamento = () => {
 
       {/* Period Filter */}
       <div className="flex flex-wrap items-end gap-4">
-        <div className="space-y-1">
-          <Label className="text-xs text-muted-foreground">Período</Label>
-          <Select value={filterPeriod} onValueChange={setFilterPeriod}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Selecione o período" />
-            </SelectTrigger>
-            <SelectContent>
-              {periods.map((period) => (
-                <SelectItem key={period.id} value={period.id}>
-                  {period.periodo} {period.status === 'aberto' ? '(Aberto)' : ''}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col space-y-1.5">
+          <Label className="text-xs text-muted-foreground block">Período</Label>
+          <PeriodSelect
+            periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+            value={filterPeriod}
+            onValueChange={setFilterPeriod}
+            className="w-[180px]"
+          />
         </div>
       </div>
 
@@ -500,23 +488,14 @@ const Fechamento = () => {
             <div className="py-4 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Período a Processar</label>
-                <Select
+                <PeriodSelect
+                  periods={periods
+                    .filter((p) => p.status === 'aberto')
+                    .map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
                   value={selectedPeriod}
                   onValueChange={setSelectedPeriod}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {periods
-                      .filter((p) => p.status === 'aberto')
-                      .map((period) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {period.periodo}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                  showStatus={false}
+                />
               </div>
 
               <Alert>

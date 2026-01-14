@@ -167,6 +167,12 @@ router.post('/lancamentos/rejeitar-lote', requireRole('RH'), async (req: Authent
   const result = await lancamentoService.rejeitarEmLote(req.body.ids, req.body.motivo, req.user!.id, req.user!.nome);
   res.json(result);
 });
+router.post('/lancamentos/sincronizar-anexos-parcelas', requireRole('RH'), async (req: AuthenticatedRequest, res) => {
+  try {
+    await lancamentoService.sincronizarAnexosParcelas();
+    res.json({ success: true, message: 'Anexos sincronizados com sucesso' });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
 
 // Fechamentos
 router.get('/fechamentos', requireRole('RH', 'FINANCEIRO'), async (req, res) => {

@@ -136,8 +136,10 @@ export const createPeriodo = async (
   // Quando um novo período é criado, verificar se há parcelas que devem ser criadas
   // Usar importação dinâmica para evitar dependência circular
   try {
-    const { processarParcelasPendentes } = await import('./lancamentoService');
+    const { processarParcelasPendentes, sincronizarAnexosParcelas } = await import('./lancamentoService');
     await processarParcelasPendentes(novoPeriodo.id, novoPeriodo.data_inicio);
+    // Sincronizar anexos de parcelas existentes que não têm anexos
+    await sincronizarAnexosParcelas();
   } catch (error: any) {
     // Log do erro mas não falha a criação do período
     console.error('Erro ao processar parcelas pendentes:', error);

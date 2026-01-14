@@ -120,9 +120,11 @@ export function exportStatementToExcel(data: StatementData): void {
     [],
     ['TOTAIS'],
     ['Rendimento Total', data.totais.rendimentoTotal, '', ''],
-    ['Cesta de Benefícios - Teto', data.totais.cestaBeneficiosTeto, '', ''],
-    ['Cesta de Benefícios - Utilizado', data.totais.cestaBeneficiosUtilizado, '', ''],
-    ['Diferença convertida para PI/DA', data.totais.diferencaPida, '', ''],
+    ...(data.totais.cestaBeneficiosTeto > 0 ? [
+      ['Cesta de Benefícios - Teto', data.totais.cestaBeneficiosTeto, '', ''],
+      ['Cesta de Benefícios - Utilizado', data.totais.cestaBeneficiosUtilizado, '', ''],
+      ['Diferença convertida para PI/DA', data.totais.diferencaPida, '', ''],
+    ] : []),
   ];
 
   const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);

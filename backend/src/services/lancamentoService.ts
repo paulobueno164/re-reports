@@ -171,6 +171,28 @@ export const processarParcelasPendentes = async (
           ]
         );
 
+        // Copiar anexos do lançamento original para a parcela
+        const anexosOrigem = await query(
+          'SELECT nome_arquivo, tipo_arquivo, storage_path, tamanho FROM anexos WHERE lancamento_id = $1',
+          [lancamentoOrigem.id]
+        );
+
+        for (const anexoOrigem of anexosOrigem.rows) {
+          // Criar novo registro de anexo apontando para a parcela, mas usando o mesmo arquivo no storage
+          await query(
+            `INSERT INTO anexos (
+              id, lancamento_id, nome_arquivo, tipo_arquivo, storage_path, tamanho, hash_comprovante, created_at
+            ) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NULL, NOW())`,
+            [
+              parcelaId,
+              anexoOrigem.nome_arquivo,
+              anexoOrigem.tipo_arquivo,
+              anexoOrigem.storage_path,
+              anexoOrigem.tamanho,
+            ]
+          );
+        }
+
         // Criar audit log (usando UUID nulo para sistema)
         await auditService.createAuditLog({
           userId: '00000000-0000-0000-0000-000000000000',
@@ -181,6 +203,71 @@ export const processarParcelasPendentes = async (
           entityDescription: `Parcela ${parcelaNumero}/${totalParcelas} de ${valorParcela} (parcelamento automático ao criar período)`,
           newValues: { parcela: parcelaNumero, total: totalParcelas, origem_id: lancamentoOrigem.id },
         });
+      }
+    }
+  }
+};
+
+/**
+ * Sincroniza anexos de parcelas existentes que não têm anexos
+ * Copia anexos do lançamento original para todas as parcelas que não possuem anexos
+ */
+export const sincronizarAnexosParcelas = async (): Promise<void> => {
+  // Buscar todos os lançamentos originais com parcelamento que têm anexos
+  const lancamentosOrigem = await query(
+    `SELECT DISTINCT l.id, l.parcelamento_total_parcelas
+     FROM lancamentos l
+     WHERE l.parcelamento_ativo = true
+       AND l.lancamento_origem_id IS NULL
+       AND EXISTS (SELECT 1 FROM anexos a WHERE a.lancamento_id = l.id)`,
+    []
+  );
+
+  for (const lancamentoOrigem of lancamentosOrigem.rows) {
+    // Buscar todas as parcelas deste lançamento (incluindo a original)
+    const todasParcelas = await query(
+      `SELECT id FROM lancamentos
+       WHERE (id = $1 OR lancamento_origem_id = $1)
+         AND parcelamento_ativo = true`,
+      [lancamentoOrigem.id]
+    );
+
+    // Buscar anexos do lançamento original
+    const anexosOrigem = await query(
+      'SELECT nome_arquivo, tipo_arquivo, storage_path, tamanho FROM anexos WHERE lancamento_id = $1',
+      [lancamentoOrigem.id]
+    );
+
+    if (anexosOrigem.rows.length === 0) {
+      continue; // Se não há anexos no original, não há o que copiar
+    }
+
+    // Para cada parcela, verificar se já tem anexos e copiar se não tiver
+    for (const parcela of todasParcelas.rows) {
+      // Verificar se a parcela já tem anexos
+      const anexosParcela = await query(
+        'SELECT COUNT(*) as total FROM anexos WHERE lancamento_id = $1',
+        [parcela.id]
+      );
+
+      const qtdAnexosParcela = parseInt(anexosParcela.rows[0].total);
+
+      // Se a parcela não tem anexos, copiar do original
+      if (qtdAnexosParcela === 0) {
+        for (const anexoOrigem of anexosOrigem.rows) {
+          await query(
+            `INSERT INTO anexos (
+              id, lancamento_id, nome_arquivo, tipo_arquivo, storage_path, tamanho, hash_comprovante, created_at
+            ) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, NULL, NOW())`,
+            [
+              parcela.id,
+              anexoOrigem.nome_arquivo,
+              anexoOrigem.tipo_arquivo,
+              anexoOrigem.storage_path,
+              anexoOrigem.tamanho,
+            ]
+          );
+        }
       }
     }
   }
@@ -461,6 +548,7 @@ export const createLancamento = async (
         newValues: { parcela: parcelaNumero, total: totalParcelas, origem_id: id },
       });
     }
+
   }
 
   return result.rows[0];

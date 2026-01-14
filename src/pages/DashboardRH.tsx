@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PeriodSelect } from '@/components/ui/period-select';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/expense-validation';
@@ -396,23 +397,17 @@ const DashboardRH = () => {
         description={`Período: ${currentPeriodName || 'N/A'}`}
       >
         <div className="flex flex-row gap-4 items-end flex-wrap">
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Período</Label>
-            <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Selecione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                {periods.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.periodo} {p.status === 'fechado' && '(Fechado)'}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col space-y-1.5">
+            <Label className="text-xs text-muted-foreground block">Período</Label>
+            <PeriodSelect
+              periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+              value={selectedPeriodId}
+              onValueChange={setSelectedPeriodId}
+              className="w-[180px]"
+            />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Departamento</Label>
+          <div className="flex flex-col space-y-1.5">
+            <Label className="text-xs text-muted-foreground block">Departamento</Label>
             <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Departamento" />

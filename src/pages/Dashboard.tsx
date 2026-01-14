@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate } from '@/lib/expense-validation';
@@ -288,32 +289,32 @@ const Dashboard = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader title="Dashboard" description={`Período: ${data.periodoAtual || 'N/A'}${selectedDepartment !== 'todos' ? ` • ${selectedDepartment}` : ''}`}>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Select value={selectedPeriodId} onValueChange={setSelectedPeriodId}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Selecione o período" />
-            </SelectTrigger>
-            <SelectContent>
-              {periods.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.periodo} {p.status === 'fechado' && '(Fechado)'}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Departamento" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos os Departamentos</SelectItem>
-              {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-col sm:flex-row gap-2 items-end">
+          <div className="flex flex-col space-y-1.5">
+            <Label className="text-xs text-muted-foreground block">Período</Label>
+            <PeriodSelect
+              periods={periods.map(p => ({ id: p.id, periodo: p.periodo, status: p.status as 'aberto' | 'fechado' }))}
+              value={selectedPeriodId}
+              onValueChange={setSelectedPeriodId}
+              className="w-[180px]"
+            />
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label className="text-xs text-muted-foreground block">Departamento</Label>
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Departamento" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Departamentos</SelectItem>
+                {departments.map((dept) => (
+                  <SelectItem key={dept} value={dept}>
+                    {dept}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button asChild>
             <Link to="/lancamentos">Novo Lançamento</Link>
           </Button>

@@ -147,7 +147,7 @@ const ColaboradorDetalhe = () => {
               <p className="font-medium">
                 {colaborador.beneficio_proporcional ? (
                   <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                    Sim - Aplicar valores proporcionais (VA, VR, Mobilidade, etc.)
+                    Sim - Aplicar valores proporcionais (Mobilidade)
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200">
@@ -215,7 +215,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
                           { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                          ...(colaborador.cesta_beneficios_teto > 0 ? [{ nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' }] : []),
                           ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),
@@ -239,7 +239,7 @@ const ColaboradorDetalhe = () => {
                           { nome: 'Vale Refeição', valor: colaborador.vale_refeicao, tipo: 'Fixo' },
                           { nome: 'Ajuda de Custo', valor: colaborador.ajuda_custo, tipo: 'Fixo' },
                           { nome: 'Mobilidade', valor: colaborador.mobilidade, tipo: 'Fixo' },
-                          { nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' },
+                          ...(colaborador.cesta_beneficios_teto > 0 ? [{ nome: 'Cesta de Benefícios', valor: colaborador.cesta_beneficios_teto, tipo: 'Teto Variável' }] : []),
                           ...(colaborador.tem_pida ? [{ nome: 'PI/DA', valor: colaborador.pida_teto, tipo: 'Teto Variável' }] : []),
                         ],
                         rendimentoTotal: calculateRendimentoTotal(),

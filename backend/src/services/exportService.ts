@@ -171,7 +171,7 @@ export const getExportData = async (
   // Buscar lançamentos válidos (Cesta de Benefícios - valor aprovado)
   const cestaEvento = eventosMap.get('cesta_beneficios');
   
-  // Só incluir Cesta de Benefícios se o evento estiver cadastrado
+  // Só incluir Cesta de Benefícios se o evento estiver cadastrado E o colaborador tiver teto > 0
   if (cestaEvento) {
     const lancamentosResult = await query(
       `SELECT 
@@ -181,7 +181,7 @@ export const getExportData = async (
         SUM(l.valor_considerado) as valor
       FROM lancamentos l
       JOIN colaboradores_elegiveis c ON c.id = l.colaborador_id
-      WHERE l.periodo_id = $1 AND l.status = 'valido'
+      WHERE l.periodo_id = $1 AND l.status = 'valido' AND c.cesta_beneficios_teto > 0
       GROUP BY c.id, c.matricula, c.nome, c.departamento
       ORDER BY c.nome`,
       [periodoId]
